@@ -2,14 +2,18 @@ import { initializeApp } from "firebase/app";
 import { getDatabase } from "firebase/database";
 
 const firebaseConfig = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
-  databaseURL: import.meta.env.VITE_FIREBASE_DATABASE_URL,
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
-  appId: import.meta.env.VITE_FIREBASE_APP_ID
+  apiKey: "AIzaSyDxRtiLvIqxbyr6TfRkf-hSPDJEnObP9mY",
+  authDomain: "stock-dashboard-5c25c.firebaseapp.com",
+  databaseURL: "https://stock-dashboard-5c25c-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "stock-dashboard-5c25c",
+  storageBucket: "stock-dashboard-5c25c.firebasestorage.app",
+  messagingSenderId: "967333212433",
+  appId: "1:967333212433:web:0eb928b9e76ad31dec5cb0",
+  measurementId: "G-GCL8TPTZ8B"
 };
 
+// Initialize Firebase
 const app = initializeApp(firebaseConfig);
+
+// Export the database connection for Filter, Advanced_Filter, and Watchlist
 export const database = getDatabase(app);
