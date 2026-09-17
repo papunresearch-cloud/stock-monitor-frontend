@@ -1,193 +1,158 @@
-import React, { useState, useEffect } from 'react';
-import Index_window from './Index_window';
-import DashboardHeader from './DashboardHeader';
-import StockGrid from './StockGrid';
-import SettingsModal from './SettingsModal';
-import HealthModal from './HealthModal';
+import React, { useState } from "react";
+import { BrowserRouter as Router, Routes, Route, NavLink, Navigate } from "react-router-dom";
 
-const FIREBASE_DB_URL = 'https://stock-dashboard-5c25c-default-rtdb.asia-southeast1.firebasedatabase.app';
-const BACKEND_URL = 'https://nse-ohlc-system.onrender.com';
-
-const allIndicesPool = [
-  { name: 'NIFTY50', ticker: '^NSEI' },
-  { name: 'NIFTY100', ticker: '^CNX100' },
-  { name: 'NIFTY MIDCAP 150', ticker: 'NIFTYMIDCAP150.NS' },
-  { name: 'NIFTY SMALLCAP 250', ticker: 'NIFTYSMLCAP250.NS' }
-];
+// View Components
+import StockMonitorView from "./StockMonitorView";
+import MarketHierarchy from "./MarketHierarchy";
+import Filter from "./Filter";
+import AdvancedFilter from "./Advanced_Filter";
+import Watchlist from "./Watchlist";
 
 export default function App() {
-  // Master Terminal Controls
-  const [isAutoMode, setIsAutoMode] = useState(false);
-  const [isFrozen, setIsFrozen] = useState(false);
-  const [refreshRate, setRefreshRate] = useState(10);
+  const [isScreenerSyncing, setIsScreenerSyncing] = useState(false);
 
-  // Network Fetch Triggers
-  const [refreshTrigger, setRefreshTrigger] = useState(0);
-  const [updateTrigger, setUpdateTrigger] = useState(0);
+  // Backend Render Base URL
+  const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || "https://nse-ohlc-system.onrender.com";
 
-  // Diagnostics & Modals
-  const [isHealthOpen, setIsHealthOpen] = useState(false);
-  const [healthData, setHealthData] = useState(null);
-  const [firebaseConnected, setFirebaseConnected] = useState(true);
-  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  // Trigger the 6-stage ETL Screener Pipeline
+  const handleTriggerScreenerPipeline = async () => {
+    if (isScreenerSyncing) return;
 
-  // Stock Pools & Configuration
-  const [allStocksPool, setAllStocksPool] = useState([]);
-  const [displayConfig, setDisplayConfig] = useState({
-    indices: allIndicesPool,
-    stocks: [],
-    displayOrder: 'Alphabetical Dec. (A - Z)',
-    groupBy: 'No filter'
-  });
+    const confirmRun = window.confirm(
+      "Fetch new screener.csv from Google Drive, calculate scores, and overwrite Firebase /SCREENER?"
+    );
+    if (!confirmRun) return;
 
-  useEffect(() => {
-    const initializeTerminal = async () => {
-      try {
-        const timestamp = Date.now();
-        const [poolRes, savedRes] = await Promise.all([
-          fetch(`${FIREBASE_DB_URL}/watchlist.json?_=${timestamp}`),
-          fetch(`${FIREBASE_DB_URL}/display_list.json?_=${timestamp}`)
-        ]);
+    setIsScreenerSyncing(true);
 
-        const poolData = poolRes.ok ? await poolRes.json() : null;
-        const savedData = savedRes.ok ? await savedRes.json() : null;
+    try {
+      const response = await fetch(`${BACKEND_URL}/sync-screener`, {
+        method: "POST",
+        mode: "cors",
+        headers: { "Content-Type": "application/json" },
+      });
 
-        // Populate stock pool from watchlist
-        const rawWatchlist = poolData?.watchlist || [];
-        const availableStocks = (Array.isArray(rawWatchlist) ? rawWatchlist : Object.values(rawWatchlist)).filter(Boolean);
-        setAllStocksPool(availableStocks);
-
-        // Populate display configurations
-        const rawFirebase = savedData || {};
-        let parsedIndices = [];
-        if (rawFirebase.indices) {
-          const rawEntries = Array.isArray(rawFirebase.indices)
-            ? rawFirebase.indices
-            : Object.values(rawFirebase.indices);
-          parsedIndices = rawEntries.filter((item) => item !== null && item !== undefined);
-        }
-
-        let parsedStocks = [];
-        if (rawFirebase.stocks) {
-          parsedStocks = Array.isArray(rawFirebase.stocks)
-            ? rawFirebase.stocks
-            : Object.values(rawFirebase.stocks);
-        }
-
-        // Fallback to active watchlist pool if display_list/stocks is empty
-        const activeStocks = parsedStocks.length > 0 ? parsedStocks : availableStocks;
-        const activeIndices = parsedIndices.length > 0 ? parsedIndices : allIndicesPool;
-
-        setDisplayConfig({
-          indices: activeIndices,
-          stocks: activeStocks,
-          displayOrder: rawFirebase.displayOrder || 'Alphabetical Dec. (A - Z)',
-          groupBy: rawFirebase.groupBy || 'No filter'
-        });
-
-        setFirebaseConnected(true);
-      } catch (err) {
-        console.error('Failed initializing terminal:', err);
-        setFirebaseConnected(false);
+      if (response.ok) {
+        alert("🚀 Screener pipeline triggered on Render!\nIt runs in the background. Fresh data will appear shortly.");
+      } else {
+        alert(`⚠️ Backend responded with error status: ${response.status}`);
       }
-    };
-
-    initializeTerminal();
-  }, [updateTrigger]);
-
-  const handleManualRefresh = () => {
-    setRefreshTrigger((prev) => prev + 1);
-  };
-
-  const handleManualSync = () => {
-    setUpdateTrigger((prev) => prev + 1);
+    } catch (err) {
+      console.error("Failed to trigger screener pipeline:", err);
+      alert("❌ Could not connect to Render backend. Check Render server status.");
+    } finally {
+      // 15-second cooldown to prevent button spamming
+      setTimeout(() => {
+        setIsScreenerSyncing(false);
+      }, 15000);
+    }
   };
 
   return (
-    <div style={{ backgroundColor: '#000000', minHeight: '100vh', display: 'flex', flexDirection: 'column', color: '#ffffff' }}>
-      
-      {/* 1. TOP MASTER HEADER */}
-      <DashboardHeader
-        isAutoMode={isAutoMode}
-        setIsAutoMode={setIsAutoMode}
-        isFrozen={isFrozen}
-        setIsFrozen={setIsFrozen}
-        refreshRate={refreshRate}
-        setRefreshRate={setRefreshRate}
-        onManualRefresh={handleManualRefresh}
-        onManualSync={handleManualSync}
-        onOpenSettings={() => setIsSettingsOpen(true)}
-        onOpenHealth={() => setIsHealthOpen(true)}
-        firebaseConnected={firebaseConnected}
-      />
+    <Router>
+      <div style={{ backgroundColor: "#000000", minHeight: "100vh", color: "#ffffff", boxSizing: "border-box" }}>
+        
+        {/* TOP UNIFIED TERMINAL HEADER */}
+        <header
+          style={{
+            backgroundColor: "#070c18",
+            borderBottom: "2px solid #1e293b",
+            padding: "10px 20px",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            flexWrap: "wrap",
+            gap: "12px",
+            position: "sticky",
+            top: 0,
+            zIndex: 3000,
+          }}
+        >
+          {/* Platform Identity */}
+          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+            <span style={{ fontSize: "18px" }}>⚡</span>
+            <span
+              style={{
+                color: "#ffcc00",
+                fontWeight: "900",
+                letterSpacing: "1px",
+                fontSize: "14px",
+                textTransform: "uppercase",
+              }}
+            >
+              QUANTUM STOCK PLATFORM
+            </span>
+          </div>
 
-      {/* 2. UPPER PART: FIXED INDICES */}
-      <div style={{ backgroundColor: '#00004d', borderBottom: '2px solid #29a3a3' }}>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '20px', justifyContent: 'center', padding: '15px 20px 30px 20px' }}>
-          {(displayConfig.indices || [])
-            .filter(Boolean)
-            .map((indexObj) => {
-              const iName = indexObj?.name || (typeof indexObj === 'string' ? indexObj : '');
-              if (!iName) return null;
-              const iTicker = indexObj?.ticker || allIndicesPool.find((i) => i.name === iName)?.ticker || iName;
+          {/* Navigation Funnel: Monitor + Screener Suite */}
+          <nav style={{ display: "flex", gap: "8px", flexWrap: "wrap", alignItems: "center" }}>
+            <NavLink to="/" style={getLinkStyle}>📡 Stock Monitor</NavLink>
 
-              return (
-                <Index_window
-                  key={iName}
-                  indexName={iName}
-                  ticker={iTicker}
-                  isAutoMode={isAutoMode}
-                  isFrozen={isFrozen}
-                  refreshRate={refreshRate}
-                  refreshTrigger={refreshTrigger}
-                  updateTrigger={updateTrigger}
-                />
-              );
-            })}
-        </div>
+            <div style={{ width: "1px", height: "20px", backgroundColor: "#334155", margin: "0 4px" }} />
+
+            <NavLink to="/MarketHierarchy" style={getLinkStyle}>🌳 Hierarchy</NavLink>
+            <NavLink to="/Filter" style={getLinkStyle}>🔍 Filter 1</NavLink>
+            <NavLink to="/Advanced_Filter" style={getLinkStyle}>⚙️ Filter 2</NavLink>
+            <NavLink to="/Watchlist" style={getLinkStyle}>📋 Watchlist</NavLink>
+          </nav>
+
+          {/* CLOUD SCREENER SYNC BUTTON */}
+          <div>
+            <button
+              onClick={handleTriggerScreenerPipeline}
+              disabled={isScreenerSyncing}
+              style={{
+                backgroundColor: isScreenerSyncing ? "#334155" : "#10b981",
+                color: isScreenerSyncing ? "#94a3b8" : "#000000",
+                border: "none",
+                padding: "7px 14px",
+                borderRadius: "6px",
+                fontWeight: "900",
+                fontSize: "12px",
+                letterSpacing: "0.5px",
+                cursor: isScreenerSyncing ? "not-allowed" : "pointer",
+                boxShadow: isScreenerSyncing ? "none" : "0 0 10px rgba(16, 185, 129, 0.4)",
+                transition: "all 0.2s ease-in-out",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "6px",
+              }}
+            >
+              {isScreenerSyncing ? "⏳ RUNNING ETL..." : "🔄 SYNC SCREENER (DRIVE ➔ FB)"}
+            </button>
+          </div>
+        </header>
+
+        {/* APPLICATION ROUTES */}
+        <main>
+          <Routes>
+            <Route path="/" element={<StockMonitorView />} />
+            <Route path="/MarketHierarchy" element={<MarketHierarchy />} />
+            <Route path="/Filter" element={<Filter />} />
+            <Route path="/Advanced_Filter" element={<AdvancedFilter />} />
+            <Route path="/Watchlist" element={<Watchlist />} />
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+        </main>
+
       </div>
-
-      {/* 3. LOWER PART: WATCHLIST STOCK GRID */}
-      <div style={{ backgroundColor: '#001a00', flexGrow: 1, paddingBottom: '50px' }}>
-        <h2 style={{ color: 'white', textAlign: 'center', margin: '25px 0 15px 0', letterSpacing: '2px', textTransform: 'uppercase' }}>
-          MY WATCHLIST
-        </h2>
-
-        <StockGrid
-          activeStocks={displayConfig.stocks}
-          displayOrder={displayConfig.displayOrder}
-          groupBy={displayConfig.groupBy}
-          isAutoMode={isAutoMode}
-          isFrozen={isFrozen}
-          refreshRate={refreshRate}
-          refreshTrigger={refreshTrigger}
-          updateTrigger={updateTrigger}
-        />
-      </div>
-
-      {/* 4. SETTINGS MODAL */}
-      {isSettingsOpen && (
-        <SettingsModal
-          isOpen={isSettingsOpen}
-          onClose={() => setIsSettingsOpen(false)}
-          allStocksPool={allStocksPool}
-          allIndicesPool={allIndicesPool}
-          displayConfig={displayConfig}
-          setDisplayConfig={setDisplayConfig}
-          onSaveSuccess={() => setUpdateTrigger((prev) => prev + 1)}
-        />
-      )}
-
-      {/* 5. HEALTH MODAL */}
-      {isHealthOpen && (
-        <HealthModal
-          isOpen={isHealthOpen}
-          onClose={() => setIsHealthOpen(false)}
-          healthData={healthData}
-          backendUrl={BACKEND_URL}
-        />
-      )}
-
-    </div>
+    </Router>
   );
 }
+
+const getLinkStyle = ({ isActive }) => ({
+  backgroundColor: isActive ? "#06b6d4" : "#1e293b",
+  color: isActive ? "#000000" : "#94a3b8",
+  border: `1px solid ${isActive ? "#06b6d4" : "#334155"}`,
+  padding: "6px 14px",
+  borderRadius: "6px",
+  textDecoration: "none",
+  fontWeight: "bold",
+  fontSize: "12px",
+  letterSpacing: "0.5px",
+  textTransform: "uppercase",
+  transition: "all 0.15s ease-in-out",
+  display: "inline-flex",
+  alignItems: "center",
+  boxShadow: isActive ? "0 0 10px rgba(6, 182, 212, 0.4)" : "none",
+});
