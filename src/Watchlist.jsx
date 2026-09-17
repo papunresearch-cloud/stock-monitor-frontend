@@ -273,10 +273,10 @@ export default function StockWatchlist() {
       // 3. Add (stock name + ticker name) in stocklist folder
       await set(ref(database, `stocklist/${safeStockKey}`), ticker);
 
-      // 4. Instruct master.py to fetch 300 historical rows & live row under /stocks
+      // 4. Instruct master.py to build 300 OHLC rows, live row 0, and run parameter calculations
       await dispatchStockEvent("ADD", stockToAdd, ticker);
 
-      setBannerMsg({ text: `Successfully added ${stockToAdd}! Historical sync dispatched. ✅`, type: "success" });
+      setBannerMsg({ text: `Successfully added ${stockToAdd}! OHLC & Param calculation dispatched. ✅`, type: "success" });
       setTimeout(() => setBannerMsg({ text: "", type: "info" }), 3500);
     } catch (err) {
       console.error("Firebase Add Sync Error:", err);
@@ -350,10 +350,15 @@ export default function StockWatchlist() {
       // 3. Delete (stock name + ticker name) from stocklist folder
       await remove(ref(database, `stocklist/${safeStockKey}`));
 
-      // 4. Instruct master.py to delete OHLC data (300 rows & live row) & display_list
+      // 4. Optimistic client delete on peripheral stock nodes
+      await remove(ref(database, `stocks/${safeStockKey}`));
+      await remove(ref(database, `param/${safeStockKey}`));
+      await remove(ref(database, `display_list/stocks/${safeStockKey}`));
+
+      // 5. Instruct master.py to execute complete backend/admin purge on stocks and param
       await dispatchStockEvent("DELETE", stockToDelete);
 
-      setBannerMsg({ text: `Purged ${stockToDelete} cleanly from database. 🗑️`, type: "success" });
+      setBannerMsg({ text: `Purged ${stockToDelete} cleanly from Watchlist, Stocks, and Param folders. 🗑️`, type: "success" });
       setTimeout(() => setBannerMsg({ text: "", type: "info" }), 3500);
     } catch (err) {
       console.error("Firebase Complete Purge Sync Error:", err);
@@ -961,7 +966,7 @@ export default function StockWatchlist() {
               <h1 style={{ color: theme.accentRed, fontSize: "28px", fontWeight: "900", margin: "0 0 6px 0", letterSpacing: "1px" }}>
                 {deleteQueue[currentDeleteIndex]}
               </h1>
-              <p style={{ margin: 0, fontSize: "12px", color: "#cbd5e1" }}>Permanent removal from Watchlist, Stocklist & Database.</p>
+              <p style={{ margin: 0, fontSize: "12px", color: "#cbd5e1" }}>Permanent removal from Watchlist, Stocklist, Stocks & Param.</p>
             </div>
 
             <div style={{ display: "flex", flexDirection: "column", gap: "12px", fontSize: "13px", marginBottom: "24px" }}>
