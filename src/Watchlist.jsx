@@ -3,7 +3,7 @@ import { ref, get, set, update, remove } from "firebase/database";
 import { database } from "./firebase";
 
 // ============================================================================
-// 1. CONFIGURATION & FORMATTING HELPERS
+// 1. CONFIGURATION & THEME SETTINGS
 // ============================================================================
 export const APP_CONFIG = {
   theme: {
@@ -59,7 +59,7 @@ const sanitizeKey = (key) =>
   String(key || "").trim().replace(/[.#$\[\]\/]/g, "_");
 
 // ============================================================================
-// 2. MAIN COMPONENT
+// 2. MAIN STOCK WATCHLIST COMPONENT
 // ============================================================================
 export default function StockWatchlist() {
   const theme = APP_CONFIG.theme;
@@ -80,17 +80,17 @@ export default function StockWatchlist() {
   const [selectedStockNames, setSelectedStockNames] = useState(new Set());
   const [appliedFilter, setAppliedFilter] = useState(null);
 
-  // 1. ADD QUEUE STATES
+  // 1. ADD MODAL QUEUE STATES
   const [addQueue, setAddQueue] = useState([]);
   const [currentAddIndex, setCurrentAddIndex] = useState(0);
   const [addAnswers, setAddAnswers] = useState({ q1: "", q2: "", q3: "", q4: "" });
 
-  // 2. DELETE QUEUE STATES
+  // 2. DELETE MODAL QUEUE STATES
   const [deleteQueue, setDeleteQueue] = useState([]);
   const [currentDeleteIndex, setCurrentDeleteIndex] = useState(0);
   const [deleteAnswers, setDeleteAnswers] = useState({ q1: "", q2: "", q3: "", dateInput: "" });
 
-  // 3. UPDATE QUEUE STATES
+  // 3. UPDATE MODAL QUEUE STATES
   const [updateQueue, setUpdateQueue] = useState([]);
   const [currentUpdateIndex, setCurrentUpdateIndex] = useState(0);
   const [updateAnswers, setUpdateAnswers] = useState({ q1: "", q2: "", q3: "" });
@@ -204,17 +204,24 @@ export default function StockWatchlist() {
     else setSelectedStockNames(new Set());
   };
 
-  // Signal backend orchestrator to perform immediate historical + live fetch
-  const triggerBackendSync = async () => {
+  // Dispatches real-time event signal to master.py via Firebase
+  const dispatchStockEvent = async (action, stockName, ticker = "") => {
     try {
-      await fetch("http://127.0.0.1:10000/sync", { method: "POST" });
-    } catch {
-      // Backend may run on alternative host/port; heartbeat bus will detect via Firebase
+      const cmdRef = ref(database, "system_commands/stock_event");
+      await set(cmdRef, {
+        action: action, // "ADD" or "DELETE"
+        stock: stockName,
+        ticker: ticker,
+        timestamp: Date.now()
+      });
+      console.log(`[EVENT] Dispatched ${action} for ${stockName}`);
+    } catch (err) {
+      console.error("[EVENT] Failed to dispatch stock event:", err);
     }
   };
 
   // ============================================================================
-  // 1. ADD HANDLER (SEQUENCE: Add name -> Add 6 fields -> Add to stocklist -> Backend Sync)
+  // 1. ADD HANDLER (SEQUENCE: Add name -> Add 6 fields -> Add stocklist -> Signal master.py)
   // ============================================================================
   const startAddProcess = () => {
     const list = Array.from(selectedStockNames);
@@ -230,7 +237,7 @@ export default function StockWatchlist() {
     const mainRecord = mainDataMap[stockToAdd] || {};
     const today = formatDateToDDMMYYYY(new Date());
     
-    // Resolve Yahoo Ticker
+    // Resolve Yahoo Finance Ticker
     const ticker = (stockDatabase[stockToAdd]?.TICKER) || (mainRecord.NSE ? `${mainRecord.NSE}.NS` : stockToAdd);
 
     // Strictly the 6 manual curation metadata fields
@@ -245,7 +252,7 @@ export default function StockWatchlist() {
 
     const nextWatchlist = Array.from(new Set([...watchlistNames, stockToAdd]));
 
-    // Update local state
+    // Update local React state
     setWatchlistNames(nextWatchlist);
     setStockDatabase(prev => ({ ...prev, [stockToAdd]: stockMetadata }));
     setOriginalDb(prev => ({ ...prev, [stockToAdd]: JSON.parse(JSON.stringify(stockMetadata)) }));
@@ -257,19 +264,19 @@ export default function StockWatchlist() {
     });
 
     try {
-      // 1. Add stock name to watchlist folder
+      // 1. Add stock name in watchlist folder
       await set(ref(database, 'watchlist/watchlist'), nextWatchlist);
 
-      // 2. Add strictly the 6 fields under watchlist/detailedDb/<StockName>
+      // 2. Add strictly the 6 metadata fields under watchlist/detailedDb/<StockName>
       await set(ref(database, `watchlist/detailedDb/${safeStockKey}`), stockMetadata);
 
-      // 3. Add (stock name + ticker name) to stocklist folder
+      // 3. Add (stock name + ticker name) in stocklist folder
       await set(ref(database, `stocklist/${safeStockKey}`), ticker);
 
-      // 4. Instruct backend to create/insert 300 historical rows and live candle
-      await triggerBackendSync();
+      // 4. Instruct master.py to fetch 300 historical rows & live row under /stocks
+      await dispatchStockEvent("ADD", stockToAdd, ticker);
 
-      setBannerMsg({ text: `Successfully added ${stockToAdd} with OHLC sync initiated! ✅`, type: "success" });
+      setBannerMsg({ text: `Successfully added ${stockToAdd}! Historical sync dispatched. ✅`, type: "success" });
       setTimeout(() => setBannerMsg({ text: "", type: "info" }), 3500);
     } catch (err) {
       console.error("Firebase Add Sync Error:", err);
@@ -299,7 +306,7 @@ export default function StockWatchlist() {
   };
 
   // ============================================================================
-  // 2. DELETE HANDLER (SEQUENCE: Delete name -> Delete 6 fields -> Delete stocklist -> Delete OHLC)
+  // 2. DELETE HANDLER (SEQUENCE: Delete name -> Delete 6 fields -> Delete stocklist -> Signal master.py)
   // ============================================================================
   const startDeleteProcess = () => {
     const list = Array.from(watchlistEditSelected);
@@ -315,7 +322,7 @@ export default function StockWatchlist() {
 
     const nextWatchlist = watchlistNames.filter(name => name !== stockToDelete);
 
-    // Update local state without touching other stocks
+    // Update local React state without touching neighboring stocks
     setWatchlistNames(nextWatchlist);
     setStockDatabase(prev => {
       const copy = { ...prev };
@@ -337,16 +344,16 @@ export default function StockWatchlist() {
       // 1. Delete stock name from watchlist folder
       await set(ref(database, 'watchlist/watchlist'), nextWatchlist);
 
-      // 2. Delete 6 fields under watchlist/detailedDb/<StockName>
+      // 2. Delete strictly the 6 metadata fields under watchlist/detailedDb/<StockName>
       await remove(ref(database, `watchlist/detailedDb/${safeStockKey}`));
 
-      // 3. Delete from stocklist folder
+      // 3. Delete (stock name + ticker name) from stocklist folder
       await remove(ref(database, `stocklist/${safeStockKey}`));
 
-      // 4. Delete OHLC database (300 bars + live index 0) under stocks folder
-      await remove(ref(database, `stocks/${safeStockKey}`));
+      // 4. Instruct master.py to delete OHLC data (300 rows & live row) & display_list
+      await dispatchStockEvent("DELETE", stockToDelete);
 
-      setBannerMsg({ text: `Purged ${stockToDelete} and removed OHLC history cleanly. 🗑️`, type: "success" });
+      setBannerMsg({ text: `Purged ${stockToDelete} cleanly from database. 🗑️`, type: "success" });
       setTimeout(() => setBannerMsg({ text: "", type: "info" }), 3500);
     } catch (err) {
       console.error("Firebase Complete Purge Sync Error:", err);
@@ -376,7 +383,7 @@ export default function StockWatchlist() {
   };
 
   // ============================================================================
-  // 3. UPDATE HANDLER (Overwrites strictly the 6 metadata fields)
+  // 3. UPDATE HANDLER (Overwrites strictly the 6 curation fields)
   // ============================================================================
   const startUpdateProcess = () => {
     if (watchlistNames.length === 0) return;
@@ -412,7 +419,7 @@ export default function StockWatchlist() {
       TICKER: curr.TICKER || stockToUpdate
     };
 
-    // Update local state strictly for this target
+    // Update local React state
     setStockDatabase(prev => ({
       ...prev,
       [stockToUpdate]: updatedMetadata
@@ -423,7 +430,7 @@ export default function StockWatchlist() {
     }));
 
     try {
-      // Direct patch overwrites only the 6 keys under detailedDb without wiping others
+      // Direct update overwrites ONLY the 6 metadata keys without altering any other stock
       await update(ref(database, `watchlist/detailedDb/${safeStockKey}`), updatedMetadata);
 
       // Keep stocklist ticker mapping in sync
@@ -954,7 +961,7 @@ export default function StockWatchlist() {
               <h1 style={{ color: theme.accentRed, fontSize: "28px", fontWeight: "900", margin: "0 0 6px 0", letterSpacing: "1px" }}>
                 {deleteQueue[currentDeleteIndex]}
               </h1>
-              <p style={{ margin: 0, fontSize: "12px", color: "#cbd5e1" }}>Permanent removal from Watchlist, Stocklist & OHLC History.</p>
+              <p style={{ margin: 0, fontSize: "12px", color: "#cbd5e1" }}>Permanent removal from Watchlist, Stocklist & Database.</p>
             </div>
 
             <div style={{ display: "flex", flexDirection: "column", gap: "12px", fontSize: "13px", marginBottom: "24px" }}>
@@ -1202,12 +1209,12 @@ export default function StockWatchlist() {
           <div style={{ backgroundColor: "#0f172a", border: `3px solid ${theme.accentAmber}`, borderRadius: "12px", padding: "30px", width: "600px", maxWidth: "100%", color: "#f8fafc", boxShadow: "0 10px 40px rgba(0,0,0,0.7)" }}>
             <h3 style={{ color: theme.accentAmber, fontSize: "20px", fontWeight: "900", marginBottom: "16px", textTransform: "uppercase" }}>HELP & COLUMN FILL UP GUIDE</h3>
             <div style={{ fontSize: "13px", fontWeight: "bold", lineHeight: "1.6", display: "flex", flexDirection: "column", gap: "10px", marginBottom: "24px" }}>
-              <p>🔹 <b>GROUP:</b> Manual portfolio grouping. Default is <b>GROUP-0</b>.</p>
-              <p>🔹 <b>REVIEW:</b> Manual star rating from <b>NR to 5 STAR</b>.</p>
-              <p>🔹 <b>DURATION:</b> Manual time horizon selection.</p>
-              <p>🔹 <b>REMARK:</b> Detailed notes (up to 1000 words max).</p>
+              <p>🔹 <b>GROUP:</b> Portfolio grouping label. Maximum 20 characters. Default is <b>GROUP-0</b>.</p>
+              <p>🔹 <b>REVIEW:</b> Rating from <b>NR to 5 STAR</b>.</p>
+              <p>🔹 <b>DURATION:</b> Investment horizon style.</p>
+              <p>🔹 <b>REMARK:</b> Qualitative review notepad up to 1000 words.</p>
               <p>🔹 <b>DATE:</b> Read-only; auto-records update date in DD-MM-YYYY format.</p>
-              <p>🔹 <b>TICKER:</b> Yahoo Finance tracking ticker (e.g. MAHABANK.NS).</p>
+              <p>🔹 <b>TICKER:</b> Yahoo Finance tracking symbol (e.g. MAHABANK.NS).</p>
               <hr style={{ borderColor: "#334155", margin: "10px 0" }} />
               <p style={{ color: theme.accentCyan }}>🟢 Updates strictly overwrite these 6 metadata fields without disturbing existing records.</p>
             </div>
