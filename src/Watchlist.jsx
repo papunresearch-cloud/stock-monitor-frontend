@@ -3,7 +3,7 @@ import { ref, get, set, update, remove } from "firebase/database";
 import { database } from "./firebase";
 
 // ============================================================================
-// 1. CONFIGURATION & THEME SETTINGS
+// 1. CONFIGURATION & FORMATTING HELPERS
 // ============================================================================
 export const APP_CONFIG = {
   theme: {
@@ -23,6 +23,7 @@ export const APP_CONFIG = {
     tableCellBorder: "1px solid #1e3a8a",  
     fontFamily: "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
   },
+  // Strictly the 6 manual curation metadata fields
   columns: [
     "GROUP",
     "REVIEW", 
@@ -33,10 +34,26 @@ export const APP_CONFIG = {
   ]
 };
 
-const extractStockName = (item) => {
+const sanitizeKey = (key) =>
+  String(key || "").trim().replace(/[.#$\[\]\/]/g, "_");
+
+const extractStockCode = (item) => {
   if (!item) return "";
-  if (typeof item === "string") return item.trim();
-  if (typeof item === "object") return (item.Name || item.name || item.CODE || item.nseCode || String(item)).trim();
+  if (typeof item === "string") return sanitizeKey(item);
+  if (typeof item === "object") {
+    const code = item.CODE || item.nseCode || item.NSE || item.BSE || item.Name || item.name;
+    return sanitizeKey(code);
+  }
+  return sanitizeKey(String(item));
+};
+
+const extractDisplayName = (item, mainMap = {}) => {
+  if (!item) return "";
+  if (typeof item === "object" && (item.Name || item.name)) return String(item.Name || item.name).trim();
+  const code = extractStockCode(item);
+  if (mainMap[code] && (mainMap[code].Name || mainMap[code].name)) {
+    return String(mainMap[code].Name || mainMap[code].name).trim();
+  }
   return String(item).trim();
 };
 
@@ -54,35 +71,8 @@ const formatDateToDDMMYYYY = (dateObj) => {
   return `${d}-${m}-${y}`;
 };
 
-const sanitizeKey = (key) =>
-  String(key || "").trim().replace(/[.#$\[\]\/]/g, "_");
-
-// Purges a deleted stock from display_list (supports both Array and Object schemas)
-const purgeFromDisplayList = async (stockToDelete) => {
-  try {
-    const displayStocksRef = ref(database, "display_list/stocks");
-    const snapshot = await get(displayStocksRef);
-
-    if (snapshot.exists()) {
-      const data = snapshot.val();
-      if (Array.isArray(data)) {
-        const updatedArray = data.filter((item) => item !== stockToDelete);
-        await set(displayStocksRef, updatedArray.length > 0 ? updatedArray : null);
-      } else if (typeof data === "object" && data !== null) {
-        const safeStockKey = sanitizeKey(stockToDelete);
-        await remove(ref(database, `display_list/stocks/${safeStockKey}`));
-        if (data[stockToDelete] !== undefined) {
-          await remove(ref(database, `display_list/stocks/${stockToDelete}`));
-        }
-      }
-    }
-  } catch (err) {
-    console.error("[DISPLAY_LIST PURGE ERROR]:", err);
-  }
-};
-
 // ============================================================================
-// 2. MAIN STOCK WATCHLIST COMPONENT
+// 2. MAIN COMPONENT
 // ============================================================================
 export default function StockWatchlist() {
   const theme = APP_CONFIG.theme;
@@ -94,33 +84,33 @@ export default function StockWatchlist() {
   const [loading, setLoading] = useState(true);
 
   const [mainData, setMainData] = useState([]);
-  const [filter2RawNames, setFilter2RawNames] = useState([]);
+  const [filter2Codes, setFilter2Codes] = useState([]);
   const [stockDatabase, setStockDatabase] = useState({});
   const [originalDb, setOriginalDb] = useState({});
-  const [watchlistNames, setWatchlistNames] = useState([]);
+  const [watchlistCodes, setWatchlistCodes] = useState([]);
 
   const [watchlistEditSelected, setWatchlistEditSelected] = useState(new Set());
-  const [selectedStockNames, setSelectedStockNames] = useState(new Set());
+  const [selectedStockCodes, setSelectedStockCodes] = useState(new Set());
   const [appliedFilter, setAppliedFilter] = useState(null);
 
-  // 1. ADD MODAL QUEUE STATES
+  // 1. ADD QUEUE STATES
   const [addQueue, setAddQueue] = useState([]);
   const [currentAddIndex, setCurrentAddIndex] = useState(0);
   const [addAnswers, setAddAnswers] = useState({ q1: "", q2: "", q3: "", q4: "" });
 
-  // 2. DELETE MODAL QUEUE STATES
+  // 2. DELETE QUEUE STATES
   const [deleteQueue, setDeleteQueue] = useState([]);
   const [currentDeleteIndex, setCurrentDeleteIndex] = useState(0);
   const [deleteAnswers, setDeleteAnswers] = useState({ q1: "", q2: "", q3: "", dateInput: "" });
 
-  // 3. UPDATE MODAL QUEUE STATES
+  // 3. UPDATE QUEUE STATES
   const [updateQueue, setUpdateQueue] = useState([]);
   const [currentUpdateIndex, setCurrentUpdateIndex] = useState(0);
   const [updateAnswers, setUpdateAnswers] = useState({ q1: "", q2: "", q3: "" });
 
   // Modals & UI States
-  const [notepadModal, setNotepadModal] = useState({ isOpen: false, stockName: "", text: "", error: "" });
-  const [tickerModal, setTickerModal] = useState({ isOpen: false, stockName: "", text: "", defaultTicker: "", isManualMode: false });
+  const [notepadModal, setNotepadModal] = useState({ isOpen: false, stockCode: "", stockName: "", text: "", error: "" });
+  const [tickerModal, setTickerModal] = useState({ isOpen: false, stockCode: "", stockName: "", text: "", defaultTicker: "", isManualMode: false });
   const [showHelpModal, setShowHelpModal] = useState(false);
   const [bannerMsg, setBannerMsg] = useState({ text: "", type: "info" });
 
@@ -130,6 +120,7 @@ export default function StockWatchlist() {
   const fetchAllCloudData = useCallback(async () => {
     setLoading(true);
     try {
+      // 1. Fetch SCREENER (Keyed by CODE)
       const screenerSnap = await get(ref(database, 'SCREENER'));
       let screenerArr = [];
       if (screenerSnap.exists()) {
@@ -138,27 +129,30 @@ export default function StockWatchlist() {
       }
       setMainData(screenerArr.filter(Boolean));
 
+      // 2. Fetch filters/filter2
       const f2Snap = await get(ref(database, 'filters/filter2'));
       if (f2Snap.exists()) {
         const f2Val = f2Snap.val();
         const f2Arr = Array.isArray(f2Val) ? f2Val : Object.values(f2Val);
-        setFilter2RawNames(f2Arr.map(extractStockName).filter(Boolean));
+        setFilter2Codes(f2Arr.map(extractStockCode).filter(Boolean));
       } else {
-        setFilter2RawNames([]);
+        setFilter2Codes([]);
       }
 
+      // 3. Fetch Watchlist & detailedDb (Keyed by CODE)
       const wlSnap = await get(ref(database, 'watchlist'));
       if (wlSnap.exists()) {
         const wlData = wlSnap.val() || {};
-        const wlArr = Array.isArray(wlData.watchlist) ? wlData.watchlist.map(extractStockName).filter(Boolean) : [];
+        const rawWl = Array.isArray(wlData.watchlist) ? wlData.watchlist : Object.keys(wlData.detailedDb || {});
+        const wlArr = rawWl.map(extractStockCode).filter(Boolean);
         const details = wlData.detailedDb || {};
         
-        setWatchlistNames(wlArr);
+        setWatchlistCodes(wlArr);
         setWatchlistEditSelected(new Set(wlArr));
         setStockDatabase(details);
         setOriginalDb(JSON.parse(JSON.stringify(details)));
       } else {
-        setWatchlistNames([]);
+        setWatchlistCodes([]);
         setWatchlistEditSelected(new Set());
         setStockDatabase({});
         setOriginalDb({});
@@ -176,78 +170,79 @@ export default function StockWatchlist() {
     fetchAllCloudData();
   }, [fetchAllCloudData]);
 
+  // Lookup map indexed by both CODE and Name for rapid reconciliation
   const mainDataMap = useMemo(() => {
     const map = {};
     if (Array.isArray(mainData)) {
       mainData.forEach(item => {
-        if (item.Name) map[item.Name] = item;
-        if (item.CODE) map[item.CODE] = item;
+        if (item.CODE) map[sanitizeKey(item.CODE)] = item;
+        if (item.Name) map[sanitizeKey(item.Name)] = item;
       });
     }
     return map;
   }, [mainData]);
 
-  const handleFieldChange = (stockName, fieldKey, value) => {
-    const validName = extractStockName(stockName);
+  const handleFieldChange = (stockCode, fieldKey, value) => {
+    const safeCode = sanitizeKey(stockCode);
     setStockDatabase(prev => ({
       ...prev,
-      [validName]: {
-        ...prev[validName],
+      [safeCode]: {
+        ...prev[safeCode],
         [fieldKey]: value
       }
     }));
   };
 
-  const displayedStockNames = useMemo(() => {
-    let list = activeTab === "FILTER2" ? filter2RawNames : watchlistNames;
+  const displayedStockCodes = useMemo(() => {
+    let list = activeTab === "FILTER2" ? filter2Codes : watchlistCodes;
     if (activeTab === "WATCHLIST" && appliedFilter) {
-      list = list.filter(name => appliedFilter.has(name));
+      list = list.filter(code => appliedFilter.has(code));
     }
-    return list.map(extractStockName).filter(Boolean);
-  }, [activeTab, filter2RawNames, watchlistNames, appliedFilter]);
+    return Array.from(new Set(list.map(extractStockCode).filter(Boolean)));
+  }, [activeTab, filter2Codes, watchlistCodes, appliedFilter]);
 
-  const selectableDisplayedStocks = useMemo(() => {
+  const selectableDisplayedCodes = useMemo(() => {
     if (activeTab === "FILTER2") {
-      return displayedStockNames.filter(name => !watchlistNames.includes(name));
+      return displayedStockCodes.filter(code => !watchlistCodes.includes(code));
     }
-    return displayedStockNames;
-  }, [displayedStockNames, activeTab, watchlistNames]);
+    return displayedStockCodes;
+  }, [displayedStockCodes, activeTab, watchlistCodes]);
 
-  const handleToggleSelectStock = (stockName) => {
-    setSelectedStockNames(prev => {
+  const handleToggleSelectStock = (stockCode) => {
+    setSelectedStockCodes(prev => {
       const next = new Set(prev);
-      if (next.has(stockName)) next.delete(stockName);
-      else next.add(stockName);
+      if (next.has(stockCode)) next.delete(stockCode);
+      else next.add(stockCode);
       return next;
     });
   };
 
   const handleToggleSelectAll = (e) => {
-    if (e.target.checked) setSelectedStockNames(new Set(selectableDisplayedStocks));
-    else setSelectedStockNames(new Set());
+    if (e.target.checked) setSelectedStockCodes(new Set(selectableDisplayedCodes));
+    else setSelectedStockCodes(new Set());
   };
 
-  // Dispatches real-time event signal to master.py
-  const dispatchStockEvent = async (action, stockName, ticker = "") => {
+  // Dispatches real-time command to master.py
+  const dispatchStockEvent = async (action, stockCode, stockName, ticker = "") => {
     try {
       const cmdRef = ref(database, "system_commands/stock_event");
       await set(cmdRef, {
         action: action, // "ADD" or "DELETE"
-        stock: stockName,
+        stock: stockCode,
+        stockName: stockName,
         ticker: ticker,
         timestamp: Date.now()
       });
-      console.log(`[EVENT] Dispatched ${action} for ${stockName}`);
     } catch (err) {
       console.error("[EVENT] Failed to dispatch stock event:", err);
     }
   };
 
   // ============================================================================
-  // 1. ADD HANDLER
+  // 1. ADD HANDLER (Using CODE as Primary Key)
   // ============================================================================
   const startAddProcess = () => {
-    const list = Array.from(selectedStockNames);
+    const list = Array.from(selectedStockCodes);
     if (list.length === 0) return;
     setAddQueue(list);
     setCurrentAddIndex(0);
@@ -255,48 +250,53 @@ export default function StockWatchlist() {
   };
 
   const handleOkAddStock = async () => {
-    const stockToAdd = addQueue[currentAddIndex];
-    const safeStockKey = sanitizeKey(stockToAdd);
-    const mainRecord = mainDataMap[stockToAdd] || {};
+    const codeToAdd = addQueue[currentAddIndex];
+    const safeStockKey = sanitizeKey(codeToAdd);
+    const mainRecord = mainDataMap[safeStockKey] || {};
+    const stockDisplayName = mainRecord.Name || safeStockKey;
     const today = formatDateToDDMMYYYY(new Date());
     
-    const ticker = (stockDatabase[stockToAdd]?.TICKER) || (mainRecord.NSE ? `${mainRecord.NSE}.NS` : stockToAdd);
+    // Resolve Yahoo Finance Ticker
+    const ticker = (stockDatabase[safeStockKey]?.TICKER) || (mainRecord.NSE ? `${mainRecord.NSE}.NS` : `${safeStockKey}.NS`);
 
+    // Strictly the 6 manual curation metadata fields
     const stockMetadata = {
-      GROUP: stockDatabase[stockToAdd]?.GROUP || "GROUP-0",
-      REVIEW: stockDatabase[stockToAdd]?.REVIEW || "NR",
-      DURATION: stockDatabase[stockToAdd]?.DURATION || "NR",
-      REMARK: stockDatabase[stockToAdd]?.REMARK || "",
+      GROUP: stockDatabase[safeStockKey]?.GROUP || "GROUP-0",
+      REVIEW: stockDatabase[safeStockKey]?.REVIEW || "NR",
+      DURATION: stockDatabase[safeStockKey]?.DURATION || "NR",
+      REMARK: stockDatabase[safeStockKey]?.REMARK || "",
       DATE: today,
-      TICKER: ticker
+      TICKER: ticker,
+      Name: stockDisplayName
     };
 
-    const nextWatchlist = Array.from(new Set([...watchlistNames, stockToAdd]));
+    const nextWatchlist = Array.from(new Set([...watchlistCodes, safeStockKey]));
 
-    setWatchlistNames(nextWatchlist);
-    setStockDatabase(prev => ({ ...prev, [stockToAdd]: stockMetadata }));
-    setOriginalDb(prev => ({ ...prev, [stockToAdd]: JSON.parse(JSON.stringify(stockMetadata)) }));
+    // Update local React state
+    setWatchlistCodes(nextWatchlist);
+    setStockDatabase(prev => ({ ...prev, [safeStockKey]: stockMetadata }));
+    setOriginalDb(prev => ({ ...prev, [safeStockKey]: JSON.parse(JSON.stringify(stockMetadata)) }));
     setWatchlistEditSelected(new Set(nextWatchlist));
-    setSelectedStockNames(prev => {
+    setSelectedStockCodes(prev => {
       const next = new Set(prev);
-      next.delete(stockToAdd);
+      next.delete(codeToAdd);
       return next;
     });
 
     try {
-      // 1. Add to watchlist array
+      // 1. Save list of CODEs to /watchlist/watchlist
       await set(ref(database, 'watchlist/watchlist'), nextWatchlist);
 
-      // 2. Add 6 metadata fields under detailedDb
+      // 2. Add strictly the 6 fields under /watchlist/detailedDb/<CODE>
       await set(ref(database, `watchlist/detailedDb/${safeStockKey}`), stockMetadata);
 
-      // 3. Add to stocklist folder
+      // 3. Add (CODE: ticker) under /stocklist/<CODE>
       await set(ref(database, `stocklist/${safeStockKey}`), ticker);
 
-      // 4. Signal backend orchestrator
-      await dispatchStockEvent("ADD", stockToAdd, ticker);
+      // 4. Instruct master.py to backfill 300 historical rows & live row under /stocks/<CODE>
+      await dispatchStockEvent("ADD", safeStockKey, stockDisplayName, ticker);
 
-      setBannerMsg({ text: `Successfully added ${stockToAdd}! Backend sync dispatched. ✅`, type: "success" });
+      setBannerMsg({ text: `Successfully added ${stockDisplayName} (${safeStockKey})! Sync dispatched. ✅`, type: "success" });
       setTimeout(() => setBannerMsg({ text: "", type: "info" }), 3500);
     } catch (err) {
       console.error("Firebase Add Sync Error:", err);
@@ -326,7 +326,7 @@ export default function StockWatchlist() {
   };
 
   // ============================================================================
-  // 2. DELETE HANDLER (Cascades to watchlist, stocklist, stocks, and display_list)
+  // 2. DELETE HANDLER (Cascades across CODE keys)
   // ============================================================================
   const startDeleteProcess = () => {
     const list = Array.from(watchlistEditSelected);
@@ -337,49 +337,48 @@ export default function StockWatchlist() {
   };
 
   const handleOkDeleteStock = async () => {
-    const stockToDelete = deleteQueue[currentDeleteIndex];
-    const safeStockKey = sanitizeKey(stockToDelete);
+    const codeToDelete = deleteQueue[currentDeleteIndex];
+    const safeStockKey = sanitizeKey(codeToDelete);
+    const stockDisplayName = extractDisplayName(safeStockKey, mainDataMap);
 
-    const nextWatchlist = watchlistNames.filter(name => name !== stockToDelete);
+    const nextWatchlist = watchlistCodes.filter(c => c !== safeStockKey);
 
-    // Update local React state
-    setWatchlistNames(nextWatchlist);
+    // Update local state without touching other stocks
+    setWatchlistCodes(nextWatchlist);
     setStockDatabase(prev => {
       const copy = { ...prev };
-      delete copy[stockToDelete];
+      delete copy[safeStockKey];
       return copy;
     });
     setOriginalDb(prev => {
       const copy = { ...prev };
-      delete copy[stockToDelete];
+      delete copy[safeStockKey];
       return copy;
     });
     setWatchlistEditSelected(prev => {
       const next = new Set(prev);
-      next.delete(stockToDelete);
+      next.delete(codeToDelete);
       return next;
     });
 
     try {
-      // 1. Delete from watchlist array
+      // 1. Delete code from /watchlist/watchlist
       await set(ref(database, 'watchlist/watchlist'), nextWatchlist);
 
-      // 2. Delete metadata under detailedDb
+      // 2. Delete metadata under /watchlist/detailedDb/<CODE>
       await remove(ref(database, `watchlist/detailedDb/${safeStockKey}`));
 
-      // 3. Delete from stocklist folder
+      // 3. Delete from /stocklist/<CODE>
       await remove(ref(database, `stocklist/${safeStockKey}`));
 
-      // 4. Delete OHLC data under stocks folder
+      // 4. Delete directly from /stocks/<CODE> and /param/<CODE>
       await remove(ref(database, `stocks/${safeStockKey}`));
+      await remove(ref(database, `param/${safeStockKey}`));
 
-      // 5. Purge from display_list folder immediately
-      await purgeFromDisplayList(stockToDelete);
+      // 5. Instruct master.py to complete cleanup
+      await dispatchStockEvent("DELETE", safeStockKey, stockDisplayName);
 
-      // 6. Signal master.py backend to purge cache & monitors
-      await dispatchStockEvent("DELETE", stockToDelete);
-
-      setBannerMsg({ text: `Purged ${stockToDelete} cleanly from all folders. 🗑️`, type: "success" });
+      setBannerMsg({ text: `Purged ${stockDisplayName} (${safeStockKey}) cleanly from database. 🗑️`, type: "success" });
       setTimeout(() => setBannerMsg({ text: "", type: "info" }), 3500);
     } catch (err) {
       console.error("Firebase Complete Purge Sync Error:", err);
@@ -409,22 +408,23 @@ export default function StockWatchlist() {
   };
 
   // ============================================================================
-  // 3. UPDATE HANDLER
+  // 3. UPDATE HANDLER (Overwrites strictly the 6 curation fields)
   // ============================================================================
   const startUpdateProcess = () => {
-    if (watchlistNames.length === 0) return;
-    setUpdateQueue([...watchlistNames]);
+    if (watchlistCodes.length === 0) return;
+    setUpdateQueue([...watchlistCodes]);
     setCurrentUpdateIndex(0);
     setUpdateAnswers({ q1: "", q2: "", q3: "" });
   };
 
   const handleOkUpdateStock = async () => {
-    const stockToUpdate = updateQueue[currentUpdateIndex];
-    const safeStockKey = sanitizeKey(stockToUpdate);
+    const codeToUpdate = updateQueue[currentUpdateIndex];
+    const safeStockKey = sanitizeKey(codeToUpdate);
+    const stockDisplayName = extractDisplayName(safeStockKey, mainDataMap);
     const today = formatDateToDDMMYYYY(new Date());
 
-    const curr = stockDatabase[stockToUpdate] || {};
-    const orig = originalDb[stockToUpdate] || {};
+    const curr = stockDatabase[safeStockKey] || {};
+    const orig = originalDb[safeStockKey] || {};
 
     const coreChanged =
       curr.GROUP !== orig.GROUP ||
@@ -435,32 +435,36 @@ export default function StockWatchlist() {
 
     const updatedDate = coreChanged ? today : (curr.DATE || today);
 
+    // Strictly the 6 metadata fields
     const updatedMetadata = {
       GROUP: curr.GROUP || "GROUP-0",
       REVIEW: curr.REVIEW || "NR",
       DURATION: curr.DURATION || "NR",
       REMARK: curr.REMARK || "",
       DATE: updatedDate,
-      TICKER: curr.TICKER || stockToUpdate
+      TICKER: curr.TICKER || `${safeStockKey}.NS`,
+      Name: curr.Name || stockDisplayName
     };
 
     setStockDatabase(prev => ({
       ...prev,
-      [stockToUpdate]: updatedMetadata
+      [safeStockKey]: updatedMetadata
     }));
     setOriginalDb(prev => ({
       ...prev,
-      [stockToUpdate]: JSON.parse(JSON.stringify(updatedMetadata))
+      [safeStockKey]: JSON.parse(JSON.stringify(updatedMetadata))
     }));
 
     try {
+      // Patch strictly under /watchlist/detailedDb/<CODE>
       await update(ref(database, `watchlist/detailedDb/${safeStockKey}`), updatedMetadata);
 
+      // Keep stocklist mapping synced
       if (updatedMetadata.TICKER) {
         await set(ref(database, `stocklist/${safeStockKey}`), updatedMetadata.TICKER);
       }
 
-      setBannerMsg({ text: `Updated metadata for ${stockToUpdate} successfully! 💾`, type: "success" });
+      setBannerMsg({ text: `Updated metadata for ${stockDisplayName} (${safeStockKey})! 💾`, type: "success" });
       setTimeout(() => setBannerMsg({ text: "", type: "info" }), 3500);
     } catch (err) {
       console.error("Firebase Update Sync Error:", err);
@@ -495,16 +499,16 @@ export default function StockWatchlist() {
   };
 
   const handleSaveNotepad = () => {
-    handleFieldChange(notepadModal.stockName, "REMARK", notepadModal.text);
-    setNotepadModal({ isOpen: false, stockName: "", text: "", error: "" });
+    handleFieldChange(notepadModal.stockCode, "REMARK", notepadModal.text);
+    setNotepadModal({ isOpen: false, stockCode: "", stockName: "", text: "", error: "" });
   };
 
-  const openExternalLink = (type, stockName) => {
-    const validName = extractStockName(stockName);
-    const mainRecord = mainDataMap[validName] || {};
-    const nse = mainRecord.NSE;
+  const openExternalLink = (type, stockCode) => {
+    const safeCode = sanitizeKey(stockCode);
+    const mainRecord = mainDataMap[safeCode] || {};
+    const nse = mainRecord.NSE || (safeCode.endsWith(".NS") ? safeCode.replace(".NS", "") : safeCode);
     const bse = mainRecord.BSE;
-    const fallbackCode = mainRecord.CODE || validName; 
+    const fallbackCode = mainRecord.CODE || safeCode; 
 
     let url = "";
     if (type === "SCR") url = `https://www.screener.in/company/${nse || bse || fallbackCode}/consolidated/`;
@@ -519,7 +523,7 @@ export default function StockWatchlist() {
     window.open(url, "_blank", `width=${width},height=${height},top=${top},left=${left},resizable=yes,scrollbars=yes`);
   };
 
-  const isAllDisplayedSelected = selectableDisplayedStocks.length > 0 && selectableDisplayedStocks.every(name => selectedStockNames.has(name));
+  const isAllDisplayedSelected = selectableDisplayedCodes.length > 0 && selectableDisplayedCodes.every(code => selectedStockCodes.has(code));
 
   if (loading) {
     return (
@@ -537,7 +541,7 @@ export default function StockWatchlist() {
         
         <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
           <button
-            onClick={() => { setActiveTab("FILTER2"); setSelectedStockNames(new Set()); setAppliedFilter(null); }}
+            onClick={() => { setActiveTab("FILTER2"); setSelectedStockCodes(new Set()); setAppliedFilter(null); }}
             style={{
               backgroundColor: activeTab === "FILTER2" ? theme.accentAmber : "#1e293b",
               color: activeTab === "FILTER2" ? "#000000" : theme.accentAmber,
@@ -551,12 +555,12 @@ export default function StockWatchlist() {
               boxShadow: activeTab === "FILTER2" ? "0 0 10px rgba(245, 158, 11, 0.5)" : "none"
             }}
           >
-            FILTER2 ({filter2RawNames.length})
+            FILTER2 ({filter2Codes.length})
           </button>
 
           <div style={{ display: "flex", alignItems: "center", background: "#1e293b", borderRadius: "6px", border: `2px solid ${theme.accentCyan}`, overflow: "hidden" }}>
             <button
-              onClick={() => { setActiveTab("WATCHLIST"); setSelectedStockNames(new Set()); setAppliedFilter(null); }}
+              onClick={() => { setActiveTab("WATCHLIST"); setSelectedStockCodes(new Set()); setAppliedFilter(null); }}
               style={{
                 backgroundColor: activeTab === "WATCHLIST" ? theme.accentCyan : "transparent",
                 color: activeTab === "WATCHLIST" ? "#000000" : theme.accentCyan,
@@ -568,7 +572,7 @@ export default function StockWatchlist() {
                 textTransform: "uppercase"
               }}
             >
-              WATCHLIST ({watchlistNames.length})
+              WATCHLIST ({watchlistCodes.length})
             </button>
             <button
               onClick={() => setIsWatchlistExpanded(prev => !prev)}
@@ -638,33 +642,34 @@ export default function StockWatchlist() {
         <div style={{ marginBottom: "16px", padding: "16px", backgroundColor: "#0f172a", border: `2px solid ${theme.accentCyan}`, borderRadius: "8px" }}>
           
           <div style={{ color: theme.accentCyan, fontWeight: "900", textTransform: "uppercase", fontSize: "12px", marginBottom: "12px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <span>WATCHLIST CHECKBOXES ({watchlistNames.length} TOTAL):</span>
+            <span>WATCHLIST CHECKBOXES ({watchlistCodes.length} TOTAL):</span>
             <div style={{ display: "flex", gap: "8px" }}>
-              <button onClick={() => setWatchlistEditSelected(new Set(watchlistNames))} style={{ backgroundColor: "#1e293b", color: theme.accentCyan, border: `1px solid ${theme.accentCyan}`, padding: "4px 10px", borderRadius: "4px", cursor: "pointer", fontSize: "11px", fontWeight: "bold" }}>SELECT ALL</button>
+              <button onClick={() => setWatchlistEditSelected(new Set(watchlistCodes))} style={{ backgroundColor: "#1e293b", color: theme.accentCyan, border: `1px solid ${theme.accentCyan}`, padding: "4px 10px", borderRadius: "4px", cursor: "pointer", fontSize: "11px", fontWeight: "bold" }}>SELECT ALL</button>
               <button onClick={() => setWatchlistEditSelected(new Set())} style={{ backgroundColor: "#1e293b", color: theme.accentRed, border: `1px solid ${theme.accentRed}`, padding: "4px 10px", borderRadius: "4px", cursor: "pointer", fontSize: "11px", fontWeight: "bold" }}>DESELECT ALL</button>
             </div>
           </div>
 
           <div style={{ display: "flex", flexWrap: "wrap", gap: "10px", marginBottom: "16px" }}>
-            {watchlistNames.length === 0 ? (
+            {watchlistCodes.length === 0 ? (
               <p style={{ color: "#94a3b8", fontSize: "12px", fontWeight: "bold" }}>No stocks in Watchlist. Select from Filter2 and Add.</p>
             ) : (
-              watchlistNames.map(stockName => {
-                const isChecked = watchlistEditSelected.has(stockName);
+              watchlistCodes.map(code => {
+                const isChecked = watchlistEditSelected.has(code);
+                const name = extractDisplayName(code, mainDataMap);
                 return (
-                  <label key={stockName} style={{ display: "flex", alignItems: "center", gap: "6px", background: isChecked ? "#1e293b" : "#334155", padding: "6px 12px", borderRadius: "6px", border: `1px solid ${isChecked ? theme.accentCyan : "#475569"}`, color: "#ffffff", fontWeight: "bold", fontSize: "12px", cursor: "pointer" }}>
+                  <label key={code} style={{ display: "flex", alignItems: "center", gap: "6px", background: isChecked ? "#1e293b" : "#334155", padding: "6px 12px", borderRadius: "6px", border: `1px solid ${isChecked ? theme.accentCyan : "#475569"}`, color: "#ffffff", fontWeight: "bold", fontSize: "12px", cursor: "pointer" }}>
                     <input
                       type="checkbox"
                       checked={isChecked}
                       onChange={(e) => {
                         const next = new Set(watchlistEditSelected);
-                        if (e.target.checked) next.add(stockName);
-                        else next.delete(stockName);
+                        if (e.target.checked) next.add(code);
+                        else next.delete(code);
                         setWatchlistEditSelected(next);
                       }}
                       style={{ accentColor: theme.accentCyan }}
                     />
-                    {stockName}
+                    {name} ({code})
                   </label>
                 );
               })
@@ -674,10 +679,10 @@ export default function StockWatchlist() {
           <div style={{ display: "flex", gap: "12px", flexWrap: "wrap", alignItems: "center", borderTop: "1px solid #334155", paddingTop: "12px" }}>
             <button 
               onClick={startAddProcess} 
-              disabled={selectedStockNames.size === 0} 
-              style={{ backgroundColor: theme.accentGreen, color: "#000000", border: "none", padding: "8px 16px", borderRadius: "6px", fontWeight: "900", fontSize: "12px", cursor: selectedStockNames.size === 0 ? "not-allowed" : "pointer", opacity: selectedStockNames.size === 0 ? 0.5 : 1 }}
+              disabled={selectedStockCodes.size === 0} 
+              style={{ backgroundColor: theme.accentGreen, color: "#000000", border: "none", padding: "8px 16px", borderRadius: "6px", fontWeight: "900", fontSize: "12px", cursor: selectedStockCodes.size === 0 ? "not-allowed" : "pointer", opacity: selectedStockCodes.size === 0 ? 0.5 : 1 }}
             >
-              ➕ ADD TO WATCHLIST ({selectedStockNames.size})
+              ➕ ADD TO WATCHLIST ({selectedStockCodes.size})
             </button>
             
             <button 
@@ -696,7 +701,7 @@ export default function StockWatchlist() {
 
             <button 
               onClick={startUpdateProcess} 
-              disabled={watchlistNames.length === 0}
+              disabled={watchlistCodes.length === 0}
               style={{ 
                 backgroundColor: theme.accentCyan, 
                 color: "#000000", 
@@ -706,8 +711,8 @@ export default function StockWatchlist() {
                 fontWeight: "900", 
                 fontSize: "12px", 
                 marginLeft: "auto", 
-                cursor: watchlistNames.length === 0 ? "not-allowed" : "pointer", 
-                opacity: watchlistNames.length === 0 ? 0.5 : 1,
+                cursor: watchlistCodes.length === 0 ? "not-allowed" : "pointer", 
+                opacity: watchlistCodes.length === 0 ? 0.5 : 1,
                 boxShadow: "0 0 10px rgba(6, 182, 212, 0.5)",
                 transition: "all 0.2s ease-in-out"
               }}
@@ -740,36 +745,37 @@ export default function StockWatchlist() {
             </tr>
           </thead>
           <tbody>
-            {displayedStockNames.length === 0 ? (
+            {displayedStockCodes.length === 0 ? (
               <tr>
                 <td colSpan={9} style={{ textAlign: "center", padding: "40px", color: "#64748b", fontWeight: "bold" }}>
                   No stocks found in {activeTab}.
                 </td>
               </tr>
             ) : (
-              displayedStockNames.map((stockName, index) => {
-                const stockData = stockDatabase[stockName] || {};
+              displayedStockCodes.map((code, index) => {
+                const stockData = stockDatabase[code] || {};
+                const stockDisplayName = extractDisplayName(code, mainDataMap);
                 const isEven = index % 2 === 0;
                 const rowBg = isEven ? theme.rowYellow : theme.rowSky;
-                const isSelected = selectedStockNames.has(stockName);
+                const isSelected = selectedStockCodes.has(code);
                 const isEditable = isModify || activeTab === "WATCHLIST";
-                const isAlreadyInWatchlist = activeTab === "FILTER2" && watchlistNames.includes(stockName);
+                const isAlreadyInWatchlist = activeTab === "FILTER2" && watchlistCodes.includes(code);
 
                 return (
-                  <tr key={stockName} style={{ backgroundColor: isSelected ? theme.rowSelectedBg : rowBg }}>
+                  <tr key={code} style={{ backgroundColor: isSelected ? theme.rowSelectedBg : rowBg }}>
                     <td style={{ padding: "8px", border: theme.tableCellBorder, textAlign: "center", backgroundColor: isSelected ? theme.rowSelectedBg : rowBg, position: "sticky", left: 0, zIndex: 10 }}>
                       <input 
                         type="checkbox" 
                         checked={isAlreadyInWatchlist ? false : isSelected} 
                         disabled={isAlreadyInWatchlist}
-                        onChange={() => handleToggleSelectStock(stockName)} 
+                        onChange={() => handleToggleSelectStock(code)} 
                         style={{ width: "18px", height: "18px", cursor: isAlreadyInWatchlist ? "not-allowed" : "pointer", accentColor: theme.accentAmber, opacity: isAlreadyInWatchlist ? 0.75 : 1 }} 
                         title={isAlreadyInWatchlist ? "Already in Watchlist" : "Select to Add"}
                       />
                     </td>
 
                     <td style={{ padding: "8px 16px", border: theme.tableCellBorder, textAlign: "left", backgroundColor: isSelected ? theme.rowSelectedBg : rowBg, position: "sticky", left: "50px", zIndex: 10, fontWeight: "900", whiteSpace: "nowrap", color: "#000000" }}>
-                      {stockName}
+                      {stockDisplayName}
                       {isAlreadyInWatchlist && (
                         <span 
                           style={{ marginLeft: "8px", display: "inline-flex", alignItems: "center", justifyContent: "center", width: "18px", height: "18px", borderRadius: "50%", backgroundColor: theme.accentRed, color: "#ffffff", fontSize: "10px", fontWeight: "900", verticalAlign: "middle", marginBottom: "2px" }} 
@@ -786,7 +792,7 @@ export default function StockWatchlist() {
                         maxLength={20}
                         disabled={!isEditable}
                         value={stockData["GROUP"] ?? "GROUP-0"}
-                        onChange={(e) => handleFieldChange(stockName, "GROUP", e.target.value)}
+                        onChange={(e) => handleFieldChange(code, "GROUP", e.target.value)}
                         style={{ width: "100%", padding: "6px", backgroundColor: isEditable ? "#0f172a" : "#cbd5e1", color: isEditable ? theme.accentAmber : "#000000", fontWeight: "900", borderRadius: "4px", border: "1px solid #334155", cursor: isEditable ? "text" : "not-allowed", textAlign: "center", fontSize: "12px", boxSizing: "border-box" }}
                       />
                     </td>
@@ -795,7 +801,7 @@ export default function StockWatchlist() {
                       <select
                         disabled={!isEditable}
                         value={stockData["REVIEW"] || "NR"}
-                        onChange={(e) => handleFieldChange(stockName, "REVIEW", e.target.value)}
+                        onChange={(e) => handleFieldChange(code, "REVIEW", e.target.value)}
                         style={{ width: "100%", padding: "6px", backgroundColor: isEditable ? "#0f172a" : "#cbd5e1", color: isEditable ? theme.accentMagenta : "#000000", fontWeight: "900", borderRadius: "4px", border: "1px solid #334155", cursor: isEditable ? "pointer" : "not-allowed", textAlign: "center" }}
                       >
                         {["NR", "1 STAR", "2 STAR", "3 STAR", "4 STAR", "5 STAR"].map(opt => (
@@ -808,7 +814,7 @@ export default function StockWatchlist() {
                       <select
                         disabled={!isEditable}
                         value={stockData["DURATION"] || "NR"}
-                        onChange={(e) => handleFieldChange(stockName, "DURATION", e.target.value)}
+                        onChange={(e) => handleFieldChange(code, "DURATION", e.target.value)}
                         style={{ width: "100%", padding: "6px", backgroundColor: isEditable ? "#0f172a" : "#cbd5e1", color: isEditable ? theme.accentCyan : "#000000", fontWeight: "900", borderRadius: "4px", border: "1px solid #334155", cursor: isEditable ? "pointer" : "not-allowed", textAlign: "center" }}
                       >
                         {["V. Long (3-10 Years)", "Long (1-3 Years)", "Medium (6-12 Month)", "Short (3-6 Month)", "V. Short (0-3 Month)", "NR"].map(opt => (
@@ -822,7 +828,7 @@ export default function StockWatchlist() {
                         type="button"
                         onClick={() => {
                           if (!isEditable) { alert("Enable MODIFY mode to edit remarks!"); return; }
-                          setNotepadModal({ isOpen: true, stockName: stockName, text: stockData["REMARK"] || "", error: "" });
+                          setNotepadModal({ isOpen: true, stockCode: code, stockName: stockDisplayName, text: stockData["REMARK"] || "", error: "" });
                         }}
                         style={{ backgroundColor: stockData["REMARK"] ? theme.accentGreen : theme.accentAmber, color: "#000000", border: "none", padding: "6px 12px", borderRadius: "4px", fontWeight: "900", cursor: "pointer", display: "inline-flex", alignItems: "center", gap: "4px", fontSize: "12px" }}
                       >
@@ -839,9 +845,9 @@ export default function StockWatchlist() {
                         type="button"
                         onClick={() => {
                           if (!isEditable) { alert("Enable MODIFY mode to edit ticker!"); return; }
-                          const mainRecord = mainDataMap[stockName] || {};
-                          const defaultTicker = mainRecord.NSE ? `${mainRecord.NSE}.NS` : stockName;
-                          setTickerModal({ isOpen: true, stockName: stockName, text: stockData["TICKER"] || defaultTicker, defaultTicker: defaultTicker, isManualMode: false });
+                          const mainRecord = mainDataMap[code] || {};
+                          const defaultTicker = mainRecord.NSE ? `${mainRecord.NSE}.NS` : `${code}.NS`;
+                          setTickerModal({ isOpen: true, stockCode: code, stockName: stockDisplayName, text: stockData["TICKER"] || defaultTicker, defaultTicker: defaultTicker, isManualMode: false });
                         }}
                         style={{ 
                           backgroundColor: isEditable ? "#0f172a" : "#cbd5e1", 
@@ -865,10 +871,10 @@ export default function StockWatchlist() {
 
                     <td style={{ padding: "6px 10px", border: theme.tableCellBorder, textAlign: "center" }}>
                       <div style={{ display: "flex", justifyContent: "center", gap: "4px" }}>
-                        <button type="button" onClick={() => openExternalLink("SCR", stockName)} style={{ backgroundColor: "#2563eb", color: "#fff", border: "none", padding: "4px 8px", borderRadius: "4px", fontWeight: "bold", fontSize: "11px", cursor: "pointer" }}>SCR</button>
-                        <button type="button" onClick={() => openExternalLink("TV", stockName)} style={{ backgroundColor: "#ea580c", color: "#fff", border: "none", padding: "4px 8px", borderRadius: "4px", fontWeight: "bold", fontSize: "11px", cursor: "pointer" }}>TV</button>
-                        <button type="button" onClick={() => openExternalLink("GF", stockName)} style={{ backgroundColor: "#16a34a", color: "#fff", border: "none", padding: "4px 8px", borderRadius: "4px", fontWeight: "bold", fontSize: "11px", cursor: "pointer" }}>GF</button>
-                        <button type="button" onClick={() => openExternalLink("YF", stockName)} style={{ backgroundColor: "#9333ea", color: "#fff", border: "none", padding: "4px 8px", borderRadius: "4px", fontWeight: "bold", fontSize: "11px", cursor: "pointer" }}>YF</button>
+                        <button type="button" onClick={() => openExternalLink("SCR", code)} style={{ backgroundColor: "#2563eb", color: "#fff", border: "none", padding: "4px 8px", borderRadius: "4px", fontWeight: "bold", fontSize: "11px", cursor: "pointer" }}>SCR</button>
+                        <button type="button" onClick={() => openExternalLink("TV", code)} style={{ backgroundColor: "#ea580c", color: "#fff", border: "none", padding: "4px 8px", borderRadius: "4px", fontWeight: "bold", fontSize: "11px", cursor: "pointer" }}>TV</button>
+                        <button type="button" onClick={() => openExternalLink("GF", code)} style={{ backgroundColor: "#16a34a", color: "#fff", border: "none", padding: "4px 8px", borderRadius: "4px", fontWeight: "bold", fontSize: "11px", cursor: "pointer" }}>GF</button>
+                        <button type="button" onClick={() => openExternalLink("YF", code)} style={{ backgroundColor: "#9333ea", color: "#fff", border: "none", padding: "4px 8px", borderRadius: "4px", fontWeight: "bold", fontSize: "11px", cursor: "pointer" }}>YF</button>
                       </div>
                     </td>
                   </tr>
@@ -895,9 +901,9 @@ export default function StockWatchlist() {
 
             <div style={{ textAlign: "center", marginBottom: "20px" }}>
               <h1 style={{ color: theme.accentGreen, fontSize: "28px", fontWeight: "900", margin: "0 0 6px 0", letterSpacing: "1px" }}>
-                {addQueue[currentAddIndex]}
+                {extractDisplayName(addQueue[currentAddIndex], mainDataMap)}
               </h1>
-              <p style={{ margin: 0, fontSize: "12px", color: "#cbd5e1" }}>Please verify the mandatory questions before enrolling into Firebase.</p>
+              <p style={{ margin: 0, fontSize: "12px", color: "#cbd5e1" }}>Primary Key CODE: <b>{addQueue[currentAddIndex]}</b></p>
             </div>
 
             <div style={{ display: "flex", flexDirection: "column", gap: "12px", fontSize: "13px", marginBottom: "24px" }}>
@@ -981,9 +987,9 @@ export default function StockWatchlist() {
 
             <div style={{ textAlign: "center", marginBottom: "20px" }}>
               <h1 style={{ color: theme.accentRed, fontSize: "28px", fontWeight: "900", margin: "0 0 6px 0", letterSpacing: "1px" }}>
-                {deleteQueue[currentDeleteIndex]}
+                {extractDisplayName(deleteQueue[currentDeleteIndex], mainDataMap)}
               </h1>
-              <p style={{ margin: 0, fontSize: "12px", color: "#cbd5e1" }}>Permanent removal from Watchlist, Stocklist, OHLC History & Display List.</p>
+              <p style={{ margin: 0, fontSize: "12px", color: "#cbd5e1" }}>Purging Key: <b>{deleteQueue[currentDeleteIndex]}</b></p>
             </div>
 
             <div style={{ display: "flex", flexDirection: "column", gap: "12px", fontSize: "13px", marginBottom: "24px" }}>
@@ -1067,9 +1073,9 @@ export default function StockWatchlist() {
 
             <div style={{ textAlign: "center", marginBottom: "20px" }}>
               <h1 style={{ color: theme.accentCyan, fontSize: "28px", fontWeight: "900", margin: "0 0 6px 0", letterSpacing: "1px" }}>
-                {updateQueue[currentUpdateIndex]}
+                {extractDisplayName(updateQueue[currentUpdateIndex], mainDataMap)}
               </h1>
-              <p style={{ margin: 0, fontSize: "12px", color: "#cbd5e1" }}>Please verify the mandatory questions before saving into Firebase.</p>
+              <p style={{ margin: 0, fontSize: "12px", color: "#cbd5e1" }}>Confirm updating metadata for key: <b>{updateQueue[currentUpdateIndex]}</b></p>
             </div>
 
             <div style={{ display: "flex", flexDirection: "column", gap: "12px", fontSize: "13px", marginBottom: "24px" }}>
@@ -1136,8 +1142,8 @@ export default function StockWatchlist() {
             <div style={{ display: "flex", justifyContent: "center", gap: "10px", marginBottom: "20px" }}>
               <button
                 onClick={() => {
-                  handleFieldChange(tickerModal.stockName, "TICKER", tickerModal.defaultTicker);
-                  setTickerModal({ isOpen: false, stockName: "", text: "", defaultTicker: "", isManualMode: false });
+                  handleFieldChange(tickerModal.stockCode, "TICKER", tickerModal.defaultTicker);
+                  setTickerModal({ isOpen: false, stockCode: "", stockName: "", text: "", defaultTicker: "", isManualMode: false });
                 }}
                 style={{ backgroundColor: "#334155", color: "#ffffff", border: "none", padding: "10px 20px", borderRadius: "6px", fontWeight: "900", cursor: "pointer" }}
               >
@@ -1161,10 +1167,10 @@ export default function StockWatchlist() {
                   style={{ width: "100%", padding: "10px", backgroundColor: "#1e293b", color: theme.accentAmber, fontWeight: "900", borderRadius: "6px", border: "1px solid #334155", textAlign: "center", fontSize: "14px", boxSizing: "border-box", outline: "none", marginBottom: "16px" }}
                 />
                 <div style={{ display: "flex", justifyContent: "flex-end", gap: "10px" }}>
-                   <button onClick={() => setTickerModal({ isOpen: false, stockName: "", text: "", defaultTicker: "", isManualMode: false })} style={{ backgroundColor: "#334155", color: "#ffffff", border: "none", padding: "8px 16px", borderRadius: "6px", fontWeight: "bold", cursor: "pointer" }}>CANCEL</button>
+                   <button onClick={() => setTickerModal({ isOpen: false, stockCode: "", stockName: "", text: "", defaultTicker: "", isManualMode: false })} style={{ backgroundColor: "#334155", color: "#ffffff", border: "none", padding: "8px 16px", borderRadius: "6px", fontWeight: "bold", cursor: "pointer" }}>CANCEL</button>
                    <button onClick={() => {
-                      handleFieldChange(tickerModal.stockName, "TICKER", tickerModal.text);
-                      setTickerModal({ isOpen: false, stockName: "", text: "", defaultTicker: "", isManualMode: false });
+                      handleFieldChange(tickerModal.stockCode, "TICKER", tickerModal.text);
+                      setTickerModal({ isOpen: false, stockCode: "", stockName: "", text: "", defaultTicker: "", isManualMode: false });
                    }} style={{ backgroundColor: theme.accentGreen, color: "#000000", border: "none", padding: "8px 16px", borderRadius: "6px", fontWeight: "bold", cursor: "pointer" }}>SAVE TICKER</button>
                 </div>
               </div>
@@ -1191,7 +1197,7 @@ export default function StockWatchlist() {
       {notepadModal.isOpen && (
         <div style={{ position: "fixed", top: 0, left: 0, width: "100vw", height: "100vh", backgroundColor: "rgba(0,0,0,0.8)", display: "flex", justifyContent: "center", alignItems: "center", zIndex: 9999, padding: "20px" }}>
           <div style={{ backgroundColor: "#0f172a", border: `3px solid ${theme.accentCyan}`, borderRadius: "12px", padding: "24px", width: "600px", maxWidth: "100%", boxShadow: "0 10px 40px rgba(0,0,0,0.7)" }}>
-            <h3 style={{ color: theme.accentCyan, fontSize: "18px", fontWeight: "900", marginBottom: "8px", textTransform: "uppercase" }}>NOTEPAD: REMARK FOR {notepadModal.stockName}</h3>
+            <h3 style={{ color: theme.accentCyan, fontSize: "18px", fontWeight: "900", marginBottom: "8px", textTransform: "uppercase" }}>NOTEPAD: REMARK FOR {notepadModal.stockName} ({notepadModal.stockCode})</h3>
             <p style={{ color: "#94a3b8", fontSize: "12px", marginBottom: "16px", fontWeight: "bold" }}>Enter detailed evaluation notes. Maximum 1000 words allowed.</p>
             
             <textarea
@@ -1218,7 +1224,7 @@ export default function StockWatchlist() {
             </div>
 
             <div style={{ display: "flex", justifyContent: "flex-end", gap: "10px", marginTop: "20px" }}>
-              <button onClick={() => setNotepadModal({ isOpen: false, stockName: "", text: "", error: "" })} style={{ backgroundColor: "#334155", color: "#ffffff", border: "none", padding: "8px 16px", borderRadius: "6px", fontWeight: "900", cursor: "pointer", textTransform: "uppercase" }}>CANCEL</button>
+              <button onClick={() => setNotepadModal({ isOpen: false, stockCode: "", stockName: "", text: "", error: "" })} style={{ backgroundColor: "#334155", color: "#ffffff", border: "none", padding: "8px 16px", borderRadius: "6px", fontWeight: "900", cursor: "pointer", textTransform: "uppercase" }}>CANCEL</button>
               <button onClick={handleSaveNotepad} style={{ backgroundColor: theme.accentAmber, color: "#000000", border: "none", padding: "8px 20px", borderRadius: "6px", fontWeight: "900", cursor: "pointer", textTransform: "uppercase" }}>SAVE REMARK</button>
             </div>
           </div>
@@ -1238,7 +1244,7 @@ export default function StockWatchlist() {
               <p>🔹 <b>DATE:</b> Read-only; auto-records update date in DD-MM-YYYY format.</p>
               <p>🔹 <b>TICKER:</b> Yahoo Finance tracking symbol (e.g. MAHABANK.NS).</p>
               <hr style={{ borderColor: "#334155", margin: "10px 0" }} />
-              <p style={{ color: theme.accentCyan }}>🟢 Updates strictly overwrite these 6 metadata fields without disturbing existing records.</p>
+              <p style={{ color: theme.accentCyan }}>🟢 All records are keyed by immutable primary key <b>CODE</b> across Firebase nodes.</p>
             </div>
             <div style={{ textAlign: "right" }}>
               <button onClick={() => setShowHelpModal(false)} style={{ backgroundColor: theme.accentAmber, color: "#000000", border: "none", padding: "10px 24px", borderRadius: "6px", fontWeight: "900", cursor: "pointer", textTransform: "uppercase" }}>GOT IT</button>
