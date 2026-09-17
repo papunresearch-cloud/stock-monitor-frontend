@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useMemo, useCallback } from "react";
-import { ref, get, set, remove } from "firebase/database";
+import { ref, get, set, update, remove } from "firebase/database";
 import { database } from "./firebase";
 
 // ============================================================================
-// 1. GLOBAL CONFIGURATION & THEME SETTINGS
+// 1. CONFIGURATION & FORMATTING HELPERS
 // ============================================================================
 export const APP_CONFIG = {
   theme: {
@@ -23,6 +23,7 @@ export const APP_CONFIG = {
     tableCellBorder: "1px solid #1e3a8a",  
     fontFamily: "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
   },
+  // Strictly the 6 manual curation metadata fields
   columns: [
     "GROUP",
     "REVIEW", 
@@ -30,19 +31,14 @@ export const APP_CONFIG = {
     "REMARK", 
     "DATE",
     "TICKER"
-  ],
-  enrichmentMetrics: [
-    "PCCAP", "PE", "DPE%", "PB", "DPB%", "DY", "PS", "RSI", "50ma", "200ma", 
-    "52wh", "52wl", "1wr", "1mr", "3mr", "6mr", "1yr", "3yr", "F-score", "G-score", "T-score",
-    "YSG", "YPG", "sg-ttm", "pg-1", "sector", "industry"
   ]
 };
 
 const extractStockName = (item) => {
   if (!item) return "";
-  if (typeof item === "string") return item;
-  if (typeof item === "object") return item.Name || item.name || item.CODE || item.nseCode || String(item);
-  return String(item);
+  if (typeof item === "string") return item.trim();
+  if (typeof item === "object") return (item.Name || item.name || item.CODE || item.nseCode || String(item)).trim();
+  return String(item).trim();
 };
 
 const formatDateToDDMMYYYY = (dateObj) => {
@@ -52,32 +48,18 @@ const formatDateToDDMMYYYY = (dateObj) => {
     month: '2-digit',
     year: 'numeric'
   });
-  
   const parts = formatter.formatToParts(dateObj);
   const d = parts.find(p => p.type === 'day').value;
   const m = parts.find(p => p.type === 'month').value;
   const y = parts.find(p => p.type === 'year').value;
-  
-  return `${d}.${m}.${y}`;
+  return `${d}-${m}-${y}`;
 };
 
 const sanitizeKey = (key) =>
   String(key || "").trim().replace(/[.#$\[\]\/]/g, "_");
 
-const sanitizeForFirebase = (obj) => {
-  if (typeof obj !== 'object' || obj === null) return obj;
-  if (Array.isArray(obj)) return obj.map(sanitizeForFirebase);
-  
-  const newObj = {};
-  for (const [key, value] of Object.entries(obj)) {
-    const cleanKey = key.replace(/[.#$/\[\]]/g, '_');
-    newObj[cleanKey] = sanitizeForFirebase(value);
-  }
-  return newObj;
-};
-
 // ============================================================================
-// 2. MAIN STOCK WATCHLIST COMPONENT
+// 2. MAIN COMPONENT
 // ============================================================================
 export default function StockWatchlist() {
   const theme = APP_CONFIG.theme;
@@ -98,22 +80,22 @@ export default function StockWatchlist() {
   const [selectedStockNames, setSelectedStockNames] = useState(new Set());
   const [appliedFilter, setAppliedFilter] = useState(null);
 
-  // 1. ADD MODAL QUEUE STATES
+  // 1. ADD QUEUE STATES
   const [addQueue, setAddQueue] = useState([]);
   const [currentAddIndex, setCurrentAddIndex] = useState(0);
   const [addAnswers, setAddAnswers] = useState({ q1: "", q2: "", q3: "", q4: "" });
 
-  // 2. DELETE MODAL QUEUE STATES
+  // 2. DELETE QUEUE STATES
   const [deleteQueue, setDeleteQueue] = useState([]);
   const [currentDeleteIndex, setCurrentDeleteIndex] = useState(0);
   const [deleteAnswers, setDeleteAnswers] = useState({ q1: "", q2: "", q3: "", dateInput: "" });
 
-  // 3. UPDATE MODAL QUEUE STATES
+  // 3. UPDATE QUEUE STATES
   const [updateQueue, setUpdateQueue] = useState([]);
   const [currentUpdateIndex, setCurrentUpdateIndex] = useState(0);
   const [updateAnswers, setUpdateAnswers] = useState({ q1: "", q2: "", q3: "" });
 
-  // Standard Modals
+  // Modals & UI States
   const [notepadModal, setNotepadModal] = useState({ isOpen: false, stockName: "", text: "", error: "" });
   const [tickerModal, setTickerModal] = useState({ isOpen: false, stockName: "", text: "", defaultTicker: "", isManualMode: false });
   const [showHelpModal, setShowHelpModal] = useState(false);
@@ -145,7 +127,7 @@ export default function StockWatchlist() {
       const wlSnap = await get(ref(database, 'watchlist'));
       if (wlSnap.exists()) {
         const wlData = wlSnap.val() || {};
-        const wlArr = Array.isArray(wlData.watchlist) ? wlData.watchlist : [];
+        const wlArr = Array.isArray(wlData.watchlist) ? wlData.watchlist.map(extractStockName).filter(Boolean) : [];
         const details = wlData.detailedDb || {};
         
         setWatchlistNames(wlArr);
@@ -181,59 +163,6 @@ export default function StockWatchlist() {
     }
     return map;
   }, [mainData]);
-
-  // Data Integrity Pipeline
-  useEffect(() => {
-    if (Object.keys(mainDataMap).length === 0 || watchlistNames.length === 0) return;
-
-    setStockDatabase(prev => {
-      let isDbModified = false;
-      const copy = { ...prev };
-      const validWatchlistSet = new Set(watchlistNames.map(extractStockName).filter(Boolean));
-
-      Object.keys(copy).forEach(stockName => {
-        if (!validWatchlistSet.has(stockName)) {
-          delete copy[stockName];
-          isDbModified = true;
-        }
-      });
-
-      watchlistNames.forEach(rawItem => {
-        const nameStr = extractStockName(rawItem);
-        if (!nameStr) return;
-
-        const mainRecord = mainDataMap[nameStr] || {};
-        const existing = copy[nameStr] || {};
-        let mergedRecord = { ...existing };
-        let recordChanged = false;
-
-        if (!existing.GROUP) { mergedRecord.GROUP = "GROUP-0"; recordChanged = true; }
-        if (!existing.REVIEW) { mergedRecord.REVIEW = "NR"; recordChanged = true; }
-        if (!existing.DURATION) { mergedRecord.DURATION = "NR"; recordChanged = true; }
-        if (!existing.REMARK) { mergedRecord.REMARK = ""; recordChanged = true; }
-        if (!existing.TICKER) { mergedRecord.TICKER = mainRecord.NSE ? `${mainRecord.NSE}.NS` : nameStr; recordChanged = true; }
-        if (!existing.DATE) { mergedRecord.DATE = formatDateToDDMMYYYY(new Date()); recordChanged = true; }
-
-        APP_CONFIG.enrichmentMetrics.forEach(metric => {
-          if (mainRecord[metric] !== undefined && existing[metric] !== mainRecord[metric]) {
-            mergedRecord[metric] = mainRecord[metric];
-            recordChanged = true;
-          }
-        });
-
-        if (recordChanged || !copy[nameStr]) {
-          copy[nameStr] = mergedRecord;
-          isDbModified = true;
-        }
-      });
-
-      if (isDbModified) {
-        setOriginalDb(JSON.parse(JSON.stringify(copy)));
-        return copy;
-      }
-      return prev;
-    });
-  }, [watchlistNames, mainDataMap]);
 
   const handleFieldChange = (stockName, fieldKey, value) => {
     const validName = extractStockName(stockName);
@@ -275,25 +204,17 @@ export default function StockWatchlist() {
     else setSelectedStockNames(new Set());
   };
 
-  const persistWatchlistToFirebase = async (newWatchlistArray, newDetailedDb) => {
+  // Signal backend orchestrator to perform immediate historical + live fetch
+  const triggerBackendSync = async () => {
     try {
-      const watchlistRef = ref(database, 'watchlist');
-      const payload = sanitizeForFirebase({
-        watchlist: newWatchlistArray,
-        detailedDb: newDetailedDb,
-        lastSync: new Date().toISOString()
-      });
-      await set(watchlistRef, payload);
-      setBannerMsg({ text: "Firebase Watchlist updated successfully! ☁️✅", type: "success" });
-      setTimeout(() => setBannerMsg({ text: "", type: "info" }), 3500);
-    } catch (err) {
-      console.error("Failed to write watchlist to Firebase:", err);
-      setBannerMsg({ text: `Firebase Save Failed: ${err.message}`, type: "error" });
+      await fetch("http://127.0.0.1:10000/sync", { method: "POST" });
+    } catch {
+      // Backend may run on alternative host/port; heartbeat bus will detect via Firebase
     }
   };
 
   // ============================================================================
-  // 1. SEQUENTIAL ADD QUEUE HANDLERS
+  // 1. ADD HANDLER (SEQUENCE: Add name -> Add 6 fields -> Add to stocklist -> Backend Sync)
   // ============================================================================
   const startAddProcess = () => {
     const list = Array.from(selectedStockNames);
@@ -305,30 +226,30 @@ export default function StockWatchlist() {
 
   const handleOkAddStock = async () => {
     const stockToAdd = addQueue[currentAddIndex];
+    const safeStockKey = sanitizeKey(stockToAdd);
     const mainRecord = mainDataMap[stockToAdd] || {};
     const today = formatDateToDDMMYYYY(new Date());
-    const ticker = mainRecord.NSE ? `${mainRecord.NSE}.NS` : stockToAdd;
-    const safeStockKey = sanitizeKey(stockToAdd);
+    
+    // Resolve Yahoo Ticker
+    const ticker = (stockDatabase[stockToAdd]?.TICKER) || (mainRecord.NSE ? `${mainRecord.NSE}.NS` : stockToAdd);
 
-    const nextWatchlist = Array.from(new Set([...watchlistNames, stockToAdd]));
-    const nextDb = {
-      ...stockDatabase,
-      [stockToAdd]: stockDatabase[stockToAdd] || {
-        GROUP: "GROUP-0",
-        REVIEW: "NR",
-        DURATION: "NR",
-        REMARK: "",
-        DATE: today,
-        TICKER: ticker,
-        Name: stockToAdd,
-      }
+    // Strictly the 6 manual curation metadata fields
+    const stockMetadata = {
+      GROUP: stockDatabase[stockToAdd]?.GROUP || "GROUP-0",
+      REVIEW: stockDatabase[stockToAdd]?.REVIEW || "NR",
+      DURATION: stockDatabase[stockToAdd]?.DURATION || "NR",
+      REMARK: stockDatabase[stockToAdd]?.REMARK || "",
+      DATE: today,
+      TICKER: ticker
     };
 
-    setWatchlistNames(nextWatchlist);
-    setStockDatabase(nextDb);
-    setOriginalDb(JSON.parse(JSON.stringify(nextDb)));
-    setWatchlistEditSelected(new Set(nextWatchlist));
+    const nextWatchlist = Array.from(new Set([...watchlistNames, stockToAdd]));
 
+    // Update local state
+    setWatchlistNames(nextWatchlist);
+    setStockDatabase(prev => ({ ...prev, [stockToAdd]: stockMetadata }));
+    setOriginalDb(prev => ({ ...prev, [stockToAdd]: JSON.parse(JSON.stringify(stockMetadata)) }));
+    setWatchlistEditSelected(new Set(nextWatchlist));
     setSelectedStockNames(prev => {
       const next = new Set(prev);
       next.delete(stockToAdd);
@@ -336,11 +257,23 @@ export default function StockWatchlist() {
     });
 
     try {
-      await persistWatchlistToFirebase(nextWatchlist, nextDb);
-      // Immediately register in /stocklist
+      // 1. Add stock name to watchlist folder
+      await set(ref(database, 'watchlist/watchlist'), nextWatchlist);
+
+      // 2. Add strictly the 6 fields under watchlist/detailedDb/<StockName>
+      await set(ref(database, `watchlist/detailedDb/${safeStockKey}`), stockMetadata);
+
+      // 3. Add (stock name + ticker name) to stocklist folder
       await set(ref(database, `stocklist/${safeStockKey}`), ticker);
+
+      // 4. Instruct backend to create/insert 300 historical rows and live candle
+      await triggerBackendSync();
+
+      setBannerMsg({ text: `Successfully added ${stockToAdd} with OHLC sync initiated! ✅`, type: "success" });
+      setTimeout(() => setBannerMsg({ text: "", type: "info" }), 3500);
     } catch (err) {
       console.error("Firebase Add Sync Error:", err);
+      setBannerMsg({ text: `Add Error: ${err.message}`, type: "error" });
     }
 
     if (currentAddIndex + 1 < addQueue.length) {
@@ -366,7 +299,7 @@ export default function StockWatchlist() {
   };
 
   // ============================================================================
-  // 2. SEQUENTIAL DELETE QUEUE HANDLERS
+  // 2. DELETE HANDLER (SEQUENCE: Delete name -> Delete 6 fields -> Delete stocklist -> Delete OHLC)
   // ============================================================================
   const startDeleteProcess = () => {
     const list = Array.from(watchlistEditSelected);
@@ -381,13 +314,19 @@ export default function StockWatchlist() {
     const safeStockKey = sanitizeKey(stockToDelete);
 
     const nextWatchlist = watchlistNames.filter(name => name !== stockToDelete);
-    const nextDb = { ...stockDatabase };
-    delete nextDb[stockToDelete];
 
+    // Update local state without touching other stocks
     setWatchlistNames(nextWatchlist);
-    setStockDatabase(nextDb);
-    setOriginalDb(JSON.parse(JSON.stringify(nextDb)));
-
+    setStockDatabase(prev => {
+      const copy = { ...prev };
+      delete copy[stockToDelete];
+      return copy;
+    });
+    setOriginalDb(prev => {
+      const copy = { ...prev };
+      delete copy[stockToDelete];
+      return copy;
+    });
     setWatchlistEditSelected(prev => {
       const next = new Set(prev);
       next.delete(stockToDelete);
@@ -395,20 +334,23 @@ export default function StockWatchlist() {
     });
 
     try {
-      // 1. Save master watchlist array and detailedDb
-      await persistWatchlistToFirebase(nextWatchlist, nextDb);
+      // 1. Delete stock name from watchlist folder
+      await set(ref(database, 'watchlist/watchlist'), nextWatchlist);
 
-      // 2. Direct immediate purge from /stocklist
+      // 2. Delete 6 fields under watchlist/detailedDb/<StockName>
+      await remove(ref(database, `watchlist/detailedDb/${safeStockKey}`));
+
+      // 3. Delete from stocklist folder
       await remove(ref(database, `stocklist/${safeStockKey}`));
 
-      // 3. Remove standalone detailedDb nodes
-      await remove(ref(database, `watchlist/detailedDb/${safeStockKey}`));
-      await remove(ref(database, `detailedDb/${safeStockKey}`));
-
-      // 4. PURGE ENTIRE HISTORICAL OHLC DATABASE FOR THIS STOCK
+      // 4. Delete OHLC database (300 bars + live index 0) under stocks folder
       await remove(ref(database, `stocks/${safeStockKey}`));
+
+      setBannerMsg({ text: `Purged ${stockToDelete} and removed OHLC history cleanly. 🗑️`, type: "success" });
+      setTimeout(() => setBannerMsg({ text: "", type: "info" }), 3500);
     } catch (err) {
       console.error("Firebase Complete Purge Sync Error:", err);
+      setBannerMsg({ text: `Purge Error: ${err.message}`, type: "error" });
     }
 
     if (currentDeleteIndex + 1 < deleteQueue.length) {
@@ -434,7 +376,7 @@ export default function StockWatchlist() {
   };
 
   // ============================================================================
-  // 3. SEQUENTIAL UPDATE QUEUE HANDLERS
+  // 3. UPDATE HANDLER (Overwrites strictly the 6 metadata fields)
   // ============================================================================
   const startUpdateProcess = () => {
     if (watchlistNames.length === 0) return;
@@ -448,8 +390,7 @@ export default function StockWatchlist() {
     const safeStockKey = sanitizeKey(stockToUpdate);
     const today = formatDateToDDMMYYYY(new Date());
 
-    const finalDb = { ...stockDatabase };
-    const curr = finalDb[stockToUpdate] || {};
+    const curr = stockDatabase[stockToUpdate] || {};
     const orig = originalDb[stockToUpdate] || {};
 
     const coreChanged =
@@ -459,25 +400,42 @@ export default function StockWatchlist() {
       curr.REMARK !== orig.REMARK ||
       curr.TICKER !== orig.TICKER;
 
-    if (coreChanged) {
-      curr.DATE = today;
-    }
+    const updatedDate = coreChanged ? today : (curr.DATE || today);
 
-    finalDb[stockToUpdate] = curr;
-    setStockDatabase(finalDb);
+    // Strictly the 6 metadata fields
+    const updatedMetadata = {
+      GROUP: curr.GROUP || "GROUP-0",
+      REVIEW: curr.REVIEW || "NR",
+      DURATION: curr.DURATION || "NR",
+      REMARK: curr.REMARK || "",
+      DATE: updatedDate,
+      TICKER: curr.TICKER || stockToUpdate
+    };
+
+    // Update local state strictly for this target
+    setStockDatabase(prev => ({
+      ...prev,
+      [stockToUpdate]: updatedMetadata
+    }));
     setOriginalDb(prev => ({
       ...prev,
-      [stockToUpdate]: JSON.parse(JSON.stringify(curr))
+      [stockToUpdate]: JSON.parse(JSON.stringify(updatedMetadata))
     }));
 
     try {
-      await persistWatchlistToFirebase(watchlistNames, finalDb);
-      // Keep ticker synced in /stocklist
-      if (curr.TICKER) {
-        await set(ref(database, `stocklist/${safeStockKey}`), curr.TICKER);
+      // Direct patch overwrites only the 6 keys under detailedDb without wiping others
+      await update(ref(database, `watchlist/detailedDb/${safeStockKey}`), updatedMetadata);
+
+      // Keep stocklist ticker mapping in sync
+      if (updatedMetadata.TICKER) {
+        await set(ref(database, `stocklist/${safeStockKey}`), updatedMetadata.TICKER);
       }
+
+      setBannerMsg({ text: `Updated metadata for ${stockToUpdate} successfully! 💾`, type: "success" });
+      setTimeout(() => setBannerMsg({ text: "", type: "info" }), 3500);
     } catch (err) {
       console.error("Firebase Update Sync Error:", err);
+      setBannerMsg({ text: `Update Error: ${err.message}`, type: "error" });
     }
 
     if (currentUpdateIndex + 1 < updateQueue.length) {
@@ -646,7 +604,7 @@ export default function StockWatchlist() {
         </div>
       )}
 
-      {/* EXPANSION PLATE */}
+      {/* EXPANSION PANEL */}
       {isWatchlistExpanded && (
         <div style={{ marginBottom: "16px", padding: "16px", backgroundColor: "#0f172a", border: `2px solid ${theme.accentCyan}`, borderRadius: "8px" }}>
           
@@ -761,7 +719,7 @@ export default function StockWatchlist() {
               </tr>
             ) : (
               displayedStockNames.map((stockName, index) => {
-                const stockData = stockDatabase[stockName] || { Name: stockName };
+                const stockData = stockDatabase[stockName] || {};
                 const isEven = index % 2 === 0;
                 const rowBg = isEven ? theme.rowYellow : theme.rowSky;
                 const isSelected = selectedStockNames.has(stockName);
@@ -892,9 +850,7 @@ export default function StockWatchlist() {
         </table>
       </div>
 
-      {/* ========================================================================= */}
-      {/* 1. SEQUENTIAL ADD CONFIRMATION MODAL                                      */}
-      {/* ========================================================================= */}
+      {/* 1. ADD CONFIRMATION MODAL */}
       {addQueue.length > 0 && (
         <div style={{ position: "fixed", top: 0, left: 0, width: "100vw", height: "100vh", backgroundColor: "rgba(0,0,0,0.85)", display: "flex", justifyContent: "center", alignItems: "center", zIndex: 9999, padding: "20px" }}>
           <div style={{ backgroundColor: "#0f172a", border: `2px solid ${theme.accentGreen}`, borderRadius: "12px", padding: "24px", width: "480px", color: "#f8fafc", boxShadow: "0 10px 40px rgba(0,0,0,0.8)" }}>
@@ -969,7 +925,6 @@ export default function StockWatchlist() {
                 CANCEL
               </button>
 
-              {/* Requirement: Sequence Y - N - Y - Y */}
               {addAnswers.q1 === "Y" && addAnswers.q2 === "N" && addAnswers.q3 === "Y" && addAnswers.q4 === "Y" && (
                 <button onClick={handleOkAddStock} style={{ backgroundColor: theme.accentGreen, color: "#000000", border: "none", padding: "8px 24px", borderRadius: "6px", fontWeight: "900", cursor: "pointer" }}>
                   OK
@@ -981,9 +936,7 @@ export default function StockWatchlist() {
         </div>
       )}
 
-      {/* ========================================================================= */}
-      {/* 2. SEQUENTIAL DELETE CONFIRMATION MODAL                                   */}
-      {/* ========================================================================= */}
+      {/* 2. DELETE CONFIRMATION MODAL */}
       {deleteQueue.length > 0 && (
         <div style={{ position: "fixed", top: 0, left: 0, width: "100vw", height: "100vh", backgroundColor: "rgba(0,0,0,0.85)", display: "flex", justifyContent: "center", alignItems: "center", zIndex: 9999, padding: "20px" }}>
           <div style={{ backgroundColor: "#0f172a", border: `2px solid ${theme.accentRed}`, borderRadius: "12px", padding: "24px", width: "480px", color: "#f8fafc", boxShadow: "0 10px 40px rgba(0,0,0,0.8)" }}>
@@ -1058,7 +1011,6 @@ export default function StockWatchlist() {
                 CANCEL
               </button>
 
-              {/* Requirement: Sequence Y - N - Y and Today's Date */}
               {deleteAnswers.q1 === "Y" && deleteAnswers.q2 === "N" && deleteAnswers.q3 === "Y" && deleteAnswers.dateInput === todayFormattedDate && (
                 <button onClick={handleOkDeleteStock} style={{ backgroundColor: theme.accentRed, color: "#ffffff", border: "none", padding: "8px 24px", borderRadius: "6px", fontWeight: "900", cursor: "pointer" }}>
                   OK
@@ -1070,9 +1022,7 @@ export default function StockWatchlist() {
         </div>
       )}
 
-      {/* ========================================================================= */}
-      {/* 3. SEQUENTIAL UPDATE CONFIRMATION MODAL                                   */}
-      {/* ========================================================================= */}
+      {/* 3. UPDATE CONFIRMATION MODAL */}
       {updateQueue.length > 0 && (
         <div style={{ position: "fixed", top: 0, left: 0, width: "100vw", height: "100vh", backgroundColor: "rgba(0,0,0,0.85)", display: "flex", justifyContent: "center", alignItems: "center", zIndex: 9999, padding: "20px" }}>
           <div style={{ backgroundColor: "#0f172a", border: `2px solid ${theme.accentCyan}`, borderRadius: "12px", padding: "24px", width: "480px", color: "#f8fafc", boxShadow: "0 10px 40px rgba(0,0,0,0.8)" }}>
@@ -1136,7 +1086,6 @@ export default function StockWatchlist() {
                 CANCEL
               </button>
 
-              {/* Requirement: Sequence Y - N - N */}
               {updateAnswers.q1 === "Y" && updateAnswers.q2 === "N" && updateAnswers.q3 === "N" && (
                 <button onClick={handleOkUpdateStock} style={{ backgroundColor: theme.accentCyan, color: "#000000", border: "none", padding: "8px 24px", borderRadius: "6px", fontWeight: "900", cursor: "pointer" }}>
                   OK
@@ -1148,7 +1097,7 @@ export default function StockWatchlist() {
         </div>
       )}
 
-      {/* TICKER CONFIGURATION MODAL */}
+      {/* TICKER MODAL */}
       {tickerModal.isOpen && (
         <div style={{ position: "fixed", top: 0, left: 0, width: "100vw", height: "100vh", backgroundColor: "rgba(0,0,0,0.8)", display: "flex", justifyContent: "center", alignItems: "center", zIndex: 9999, padding: "20px" }}>
           <div style={{ backgroundColor: "#0f172a", border: `3px solid ${theme.accentCyan}`, borderRadius: "12px", padding: "24px", width: "400px", maxWidth: "100%", boxShadow: "0 10px 40px rgba(0,0,0,0.7)", textAlign: "center" }}>
@@ -1253,14 +1202,14 @@ export default function StockWatchlist() {
           <div style={{ backgroundColor: "#0f172a", border: `3px solid ${theme.accentAmber}`, borderRadius: "12px", padding: "30px", width: "600px", maxWidth: "100%", color: "#f8fafc", boxShadow: "0 10px 40px rgba(0,0,0,0.7)" }}>
             <h3 style={{ color: theme.accentAmber, fontSize: "20px", fontWeight: "900", marginBottom: "16px", textTransform: "uppercase" }}>HELP & COLUMN FILL UP GUIDE</h3>
             <div style={{ fontSize: "13px", fontWeight: "bold", lineHeight: "1.6", display: "flex", flexDirection: "column", gap: "10px", marginBottom: "24px" }}>
-              <p>🔹 <b>Column GROUP:</b> Name of the group. Maximum 20 alphanumeric chars. Default is <b>GROUP-0</b>.</p>
-              <p>🔹 <b>Column REVIEW:</b> Rate each parameter by selecting a star option from <b>NR to 5 STAR</b>.</p>
-              <p>🔹 <b>Column DURATION:</b> Select investment horizon style from dropdown.</p>
-              <p>🔹 <b>Column REMARK:</b> Click the ✏️ pencil icon to open the Notepad. Enter detailed observations up to 1000 words max.</p>
-              <p>🔹 <b>Column DATE:</b> Read Only. Auto-updates when you Save modifications made to Core Fields.</p>
-              <p>🔹 <b>Column TICKER:</b> Select either the Auto-Default Ticker or enter your Manual YF Ticker.</p>
+              <p>🔹 <b>GROUP:</b> Manual portfolio grouping. Default is <b>GROUP-0</b>.</p>
+              <p>🔹 <b>REVIEW:</b> Manual star rating from <b>NR to 5 STAR</b>.</p>
+              <p>🔹 <b>DURATION:</b> Manual time horizon selection.</p>
+              <p>🔹 <b>REMARK:</b> Detailed notes (up to 1000 words max).</p>
+              <p>🔹 <b>DATE:</b> Read-only; auto-records update date in DD-MM-YYYY format.</p>
+              <p>🔹 <b>TICKER:</b> Yahoo Finance tracking ticker (e.g. MAHABANK.NS).</p>
               <hr style={{ borderColor: "#334155", margin: "10px 0" }} />
-              <p style={{ color: theme.accentCyan }}>🟢 <b>Cloud Native:</b> All edits, additions, updates, and deletions are verified and saved directly to Firebase Realtime Database.</p>
+              <p style={{ color: theme.accentCyan }}>🟢 Updates strictly overwrite these 6 metadata fields without disturbing existing records.</p>
             </div>
             <div style={{ textAlign: "right" }}>
               <button onClick={() => setShowHelpModal(false)} style={{ backgroundColor: theme.accentAmber, color: "#000000", border: "none", padding: "10px 24px", borderRadius: "6px", fontWeight: "900", cursor: "pointer", textTransform: "uppercase" }}>GOT IT</button>
