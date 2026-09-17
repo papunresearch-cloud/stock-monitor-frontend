@@ -23,7 +23,6 @@ export const APP_CONFIG = {
     tableCellBorder: "1px solid #1e3a8a",  
     fontFamily: "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
   },
-  // Strictly the 6 manual curation metadata fields
   columns: [
     "GROUP",
     "REVIEW", 
@@ -57,6 +56,30 @@ const formatDateToDDMMYYYY = (dateObj) => {
 
 const sanitizeKey = (key) =>
   String(key || "").trim().replace(/[.#$\[\]\/]/g, "_");
+
+// Purges a deleted stock from display_list (supports both Array and Object schemas)
+const purgeFromDisplayList = async (stockToDelete) => {
+  try {
+    const displayStocksRef = ref(database, "display_list/stocks");
+    const snapshot = await get(displayStocksRef);
+
+    if (snapshot.exists()) {
+      const data = snapshot.val();
+      if (Array.isArray(data)) {
+        const updatedArray = data.filter((item) => item !== stockToDelete);
+        await set(displayStocksRef, updatedArray.length > 0 ? updatedArray : null);
+      } else if (typeof data === "object" && data !== null) {
+        const safeStockKey = sanitizeKey(stockToDelete);
+        await remove(ref(database, `display_list/stocks/${safeStockKey}`));
+        if (data[stockToDelete] !== undefined) {
+          await remove(ref(database, `display_list/stocks/${stockToDelete}`));
+        }
+      }
+    }
+  } catch (err) {
+    console.error("[DISPLAY_LIST PURGE ERROR]:", err);
+  }
+};
 
 // ============================================================================
 // 2. MAIN STOCK WATCHLIST COMPONENT
@@ -204,7 +227,7 @@ export default function StockWatchlist() {
     else setSelectedStockNames(new Set());
   };
 
-  // Dispatches real-time event signal to master.py via Firebase
+  // Dispatches real-time event signal to master.py
   const dispatchStockEvent = async (action, stockName, ticker = "") => {
     try {
       const cmdRef = ref(database, "system_commands/stock_event");
@@ -221,7 +244,7 @@ export default function StockWatchlist() {
   };
 
   // ============================================================================
-  // 1. ADD HANDLER (SEQUENCE: Add name -> Add 6 fields -> Add stocklist -> Signal master.py)
+  // 1. ADD HANDLER
   // ============================================================================
   const startAddProcess = () => {
     const list = Array.from(selectedStockNames);
@@ -237,10 +260,8 @@ export default function StockWatchlist() {
     const mainRecord = mainDataMap[stockToAdd] || {};
     const today = formatDateToDDMMYYYY(new Date());
     
-    // Resolve Yahoo Finance Ticker
     const ticker = (stockDatabase[stockToAdd]?.TICKER) || (mainRecord.NSE ? `${mainRecord.NSE}.NS` : stockToAdd);
 
-    // Strictly the 6 manual curation metadata fields
     const stockMetadata = {
       GROUP: stockDatabase[stockToAdd]?.GROUP || "GROUP-0",
       REVIEW: stockDatabase[stockToAdd]?.REVIEW || "NR",
@@ -252,7 +273,6 @@ export default function StockWatchlist() {
 
     const nextWatchlist = Array.from(new Set([...watchlistNames, stockToAdd]));
 
-    // Update local React state
     setWatchlistNames(nextWatchlist);
     setStockDatabase(prev => ({ ...prev, [stockToAdd]: stockMetadata }));
     setOriginalDb(prev => ({ ...prev, [stockToAdd]: JSON.parse(JSON.stringify(stockMetadata)) }));
@@ -264,19 +284,19 @@ export default function StockWatchlist() {
     });
 
     try {
-      // 1. Add stock name in watchlist folder
+      // 1. Add to watchlist array
       await set(ref(database, 'watchlist/watchlist'), nextWatchlist);
 
-      // 2. Add strictly the 6 metadata fields under watchlist/detailedDb/<StockName>
+      // 2. Add 6 metadata fields under detailedDb
       await set(ref(database, `watchlist/detailedDb/${safeStockKey}`), stockMetadata);
 
-      // 3. Add (stock name + ticker name) in stocklist folder
+      // 3. Add to stocklist folder
       await set(ref(database, `stocklist/${safeStockKey}`), ticker);
 
-      // 4. Instruct master.py to build 300 OHLC rows, live row 0, and run parameter calculations
+      // 4. Signal backend orchestrator
       await dispatchStockEvent("ADD", stockToAdd, ticker);
 
-      setBannerMsg({ text: `Successfully added ${stockToAdd}! OHLC & Param calculation dispatched. ✅`, type: "success" });
+      setBannerMsg({ text: `Successfully added ${stockToAdd}! Backend sync dispatched. ✅`, type: "success" });
       setTimeout(() => setBannerMsg({ text: "", type: "info" }), 3500);
     } catch (err) {
       console.error("Firebase Add Sync Error:", err);
@@ -306,7 +326,7 @@ export default function StockWatchlist() {
   };
 
   // ============================================================================
-  // 2. DELETE HANDLER (SEQUENCE: Delete name -> Delete 6 fields -> Delete stocklist -> Signal master.py)
+  // 2. DELETE HANDLER (Cascades to watchlist, stocklist, stocks, and display_list)
   // ============================================================================
   const startDeleteProcess = () => {
     const list = Array.from(watchlistEditSelected);
@@ -322,7 +342,7 @@ export default function StockWatchlist() {
 
     const nextWatchlist = watchlistNames.filter(name => name !== stockToDelete);
 
-    // Update local React state without touching neighboring stocks
+    // Update local React state
     setWatchlistNames(nextWatchlist);
     setStockDatabase(prev => {
       const copy = { ...prev };
@@ -341,24 +361,25 @@ export default function StockWatchlist() {
     });
 
     try {
-      // 1. Delete stock name from watchlist folder
+      // 1. Delete from watchlist array
       await set(ref(database, 'watchlist/watchlist'), nextWatchlist);
 
-      // 2. Delete strictly the 6 metadata fields under watchlist/detailedDb/<StockName>
+      // 2. Delete metadata under detailedDb
       await remove(ref(database, `watchlist/detailedDb/${safeStockKey}`));
 
-      // 3. Delete (stock name + ticker name) from stocklist folder
+      // 3. Delete from stocklist folder
       await remove(ref(database, `stocklist/${safeStockKey}`));
 
-      // 4. Optimistic client delete on peripheral stock nodes
+      // 4. Delete OHLC data under stocks folder
       await remove(ref(database, `stocks/${safeStockKey}`));
-      await remove(ref(database, `param/${safeStockKey}`));
-      await remove(ref(database, `display_list/stocks/${safeStockKey}`));
 
-      // 5. Instruct master.py to execute complete backend/admin purge on stocks and param
+      // 5. Purge from display_list folder immediately
+      await purgeFromDisplayList(stockToDelete);
+
+      // 6. Signal master.py backend to purge cache & monitors
       await dispatchStockEvent("DELETE", stockToDelete);
 
-      setBannerMsg({ text: `Purged ${stockToDelete} cleanly from Watchlist, Stocks, and Param folders. 🗑️`, type: "success" });
+      setBannerMsg({ text: `Purged ${stockToDelete} cleanly from all folders. 🗑️`, type: "success" });
       setTimeout(() => setBannerMsg({ text: "", type: "info" }), 3500);
     } catch (err) {
       console.error("Firebase Complete Purge Sync Error:", err);
@@ -388,7 +409,7 @@ export default function StockWatchlist() {
   };
 
   // ============================================================================
-  // 3. UPDATE HANDLER (Overwrites strictly the 6 curation fields)
+  // 3. UPDATE HANDLER
   // ============================================================================
   const startUpdateProcess = () => {
     if (watchlistNames.length === 0) return;
@@ -414,7 +435,6 @@ export default function StockWatchlist() {
 
     const updatedDate = coreChanged ? today : (curr.DATE || today);
 
-    // Strictly the 6 metadata fields
     const updatedMetadata = {
       GROUP: curr.GROUP || "GROUP-0",
       REVIEW: curr.REVIEW || "NR",
@@ -424,7 +444,6 @@ export default function StockWatchlist() {
       TICKER: curr.TICKER || stockToUpdate
     };
 
-    // Update local React state
     setStockDatabase(prev => ({
       ...prev,
       [stockToUpdate]: updatedMetadata
@@ -435,10 +454,8 @@ export default function StockWatchlist() {
     }));
 
     try {
-      // Direct update overwrites ONLY the 6 metadata keys without altering any other stock
       await update(ref(database, `watchlist/detailedDb/${safeStockKey}`), updatedMetadata);
 
-      // Keep stocklist ticker mapping in sync
       if (updatedMetadata.TICKER) {
         await set(ref(database, `stocklist/${safeStockKey}`), updatedMetadata.TICKER);
       }
@@ -966,7 +983,7 @@ export default function StockWatchlist() {
               <h1 style={{ color: theme.accentRed, fontSize: "28px", fontWeight: "900", margin: "0 0 6px 0", letterSpacing: "1px" }}>
                 {deleteQueue[currentDeleteIndex]}
               </h1>
-              <p style={{ margin: 0, fontSize: "12px", color: "#cbd5e1" }}>Permanent removal from Watchlist, Stocklist, Stocks & Param.</p>
+              <p style={{ margin: 0, fontSize: "12px", color: "#cbd5e1" }}>Permanent removal from Watchlist, Stocklist, OHLC History & Display List.</p>
             </div>
 
             <div style={{ display: "flex", flexDirection: "column", gap: "12px", fontSize: "13px", marginBottom: "24px" }}>
