@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback } from "react";
-import { ref, get, set } from "firebase/database";
+import { ref, get, set, remove } from "firebase/database";
 import { database } from "./firebase";
 
 // ============================================================================
@@ -60,6 +60,9 @@ const formatDateToDDMMYYYY = (dateObj) => {
   
   return `${d}.${m}.${y}`;
 };
+
+const sanitizeKey = (key) =>
+  String(key || "").trim().replace(/[.#$\[\]\/]/g, "_");
 
 const sanitizeForFirebase = (obj) => {
   if (typeof obj !== 'object' || obj === null) return obj;
@@ -304,6 +307,8 @@ export default function StockWatchlist() {
     const stockToAdd = addQueue[currentAddIndex];
     const mainRecord = mainDataMap[stockToAdd] || {};
     const today = formatDateToDDMMYYYY(new Date());
+    const ticker = mainRecord.NSE ? `${mainRecord.NSE}.NS` : stockToAdd;
+    const safeStockKey = sanitizeKey(stockToAdd);
 
     const nextWatchlist = Array.from(new Set([...watchlistNames, stockToAdd]));
     const nextDb = {
@@ -314,7 +319,7 @@ export default function StockWatchlist() {
         DURATION: "NR",
         REMARK: "",
         DATE: today,
-        TICKER: mainRecord.NSE ? `${mainRecord.NSE}.NS` : stockToAdd,
+        TICKER: ticker,
         Name: stockToAdd,
       }
     };
@@ -330,7 +335,13 @@ export default function StockWatchlist() {
       return next;
     });
 
-    await persistWatchlistToFirebase(nextWatchlist, nextDb);
+    try {
+      await persistWatchlistToFirebase(nextWatchlist, nextDb);
+      // Immediately register in /stocklist as a mirror
+      await set(ref(database, `stocklist/${safeStockKey}`), ticker);
+    } catch (err) {
+      console.error("Firebase Add Sync Error:", err);
+    }
 
     if (currentAddIndex + 1 < addQueue.length) {
       setCurrentAddIndex(prev => prev + 1);
@@ -367,6 +378,7 @@ export default function StockWatchlist() {
 
   const handleOkDeleteStock = async () => {
     const stockToDelete = deleteQueue[currentDeleteIndex];
+    const safeStockKey = sanitizeKey(stockToDelete);
 
     const nextWatchlist = watchlistNames.filter(name => name !== stockToDelete);
     const nextDb = { ...stockDatabase };
@@ -382,7 +394,19 @@ export default function StockWatchlist() {
       return next;
     });
 
-    await persistWatchlistToFirebase(nextWatchlist, nextDb);
+    try {
+      // 1. Save master watchlist array and detailedDb
+      await persistWatchlistToFirebase(nextWatchlist, nextDb);
+
+      // 2. DIRECT IMMEDIATE PURGE FROM /stocklist (Solves mirror discrepancy)
+      await remove(ref(database, `stocklist/${safeStockKey}`));
+
+      // 3. Remove standalone detailedDb node if present
+      await remove(ref(database, `watchlist/detailedDb/${safeStockKey}`));
+      await remove(ref(database, `detailedDb/${safeStockKey}`));
+    } catch (err) {
+      console.error("Firebase Delete Sync Error:", err);
+    }
 
     if (currentDeleteIndex + 1 < deleteQueue.length) {
       setCurrentDeleteIndex(prev => prev + 1);
@@ -418,6 +442,7 @@ export default function StockWatchlist() {
 
   const handleOkUpdateStock = async () => {
     const stockToUpdate = updateQueue[currentUpdateIndex];
+    const safeStockKey = sanitizeKey(stockToUpdate);
     const today = formatDateToDDMMYYYY(new Date());
 
     const finalDb = { ...stockDatabase };
@@ -442,7 +467,15 @@ export default function StockWatchlist() {
       [stockToUpdate]: JSON.parse(JSON.stringify(curr))
     }));
 
-    await persistWatchlistToFirebase(watchlistNames, finalDb);
+    try {
+      await persistWatchlistToFirebase(watchlistNames, finalDb);
+      // Keep ticker synced in /stocklist
+      if (curr.TICKER) {
+        await set(ref(database, `stocklist/${safeStockKey}`), curr.TICKER);
+      }
+    } catch (err) {
+      console.error("Firebase Update Sync Error:", err);
+    }
 
     if (currentUpdateIndex + 1 < updateQueue.length) {
       setCurrentUpdateIndex(prev => prev + 1);
