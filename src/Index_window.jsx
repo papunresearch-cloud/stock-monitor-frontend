@@ -2,14 +2,6 @@ import React, { useState, useEffect, useCallback } from 'react';
 
 const FIREBASE_DB_URL = 'https://stock-dashboard-5c25c-default-rtdb.asia-southeast1.firebasedatabase.app';
 
-// Key sanitizer matching backend firebase_manager.py
-const sanitizeKey = (key) => {
-  if (!key) return '';
-  return String(key)
-    .trim()
-    .replace(/[.#$/[\]]/g, '_');
-};
-
 // ==========================================
 // 1. 3D BUTTON COMPONENT
 // ==========================================
@@ -90,7 +82,7 @@ const Marker = ({ value, color, circleSize, lineHeight, label, isTop = false, ra
 };
 
 // ==========================================
-// 3. MAIN INDEX COMPONENT
+// 3. MAIN INDEX COMPONENT (STANDALONE ONLY)
 // ==========================================
 export default function Index_window({ 
   indexName = "NIFTY50",
@@ -122,63 +114,32 @@ export default function Index_window({
     }
   };
 
+  const safeTarget = (indexName || "").trim();
+
   const fetchIndexData = useCallback(async () => {
-    if (isFrozen) return;
-
-    // Build list of candidate keys to check in Firebase (Name, Ticker, Sanitized)
-    const targets = [
-      (indexName || "").trim(),
-      sanitizeKey(indexName),
-      (ticker || "").trim(),
-      sanitizeKey(ticker)
-    ].filter(Boolean);
-
-    const timestamp = new Date().getTime();
+    if (isFrozen || !safeTarget) return;
 
     try {
-      let data = null;
-      let c0 = null;
-      let c1 = null;
+      const [paramRes, liveRes0, liveRes1] = await Promise.all([
+        fetch(`${FIREBASE_DB_URL}/param/${encodeURIComponent(safeTarget)}.json`),
+        fetch(`${FIREBASE_DB_URL}/stocks/${encodeURIComponent(safeTarget)}/0.json`),
+        fetch(`${FIREBASE_DB_URL}/stocks/${encodeURIComponent(safeTarget)}/1.json`)
+      ]);
 
-      // Probe candidate paths for parameter and candle data
-      for (const target of targets) {
-        if (!data) {
-          const pRes = await fetch(`${FIREBASE_DB_URL}/param/${encodeURIComponent(target)}.json?_=${timestamp}`);
-          if (pRes.ok) {
-            const pVal = await pRes.json();
-            if (pVal) data = pVal;
-          }
-        }
-        if (!data) {
-          const iRes = await fetch(`${FIREBASE_DB_URL}/indices/${encodeURIComponent(target)}.json?_=${timestamp}`);
-          if (iRes.ok) {
-            const iVal = await iRes.json();
-            if (iVal) data = iVal;
-          }
-        }
-        if (!c0) {
-          const c0Res = await fetch(`${FIREBASE_DB_URL}/stocks/${encodeURIComponent(target)}/0.json?_=${timestamp}`);
-          if (c0Res.ok) {
-            const c0Val = await c0Res.json();
-            if (c0Val) c0 = c0Val;
-          }
-        }
-        if (!c1) {
-          const c1Res = await fetch(`${FIREBASE_DB_URL}/stocks/${encodeURIComponent(target)}/1.json?_=${timestamp}`);
-          if (c1Res.ok) {
-            const c1Val = await c1Res.json();
-            if (c1Val) c1 = c1Val;
-          }
-        }
-        if (data && c0) break;
+      let data = paramRes.ok ? await paramRes.json() : null;
+      const c0 = liveRes0.ok ? await liveRes0.json() : null;
+      const c1 = liveRes1.ok ? await liveRes1.json() : null;
+
+      if (!data) {
+        const fallbackRes = await fetch(`${FIREBASE_DB_URL}/indices/${encodeURIComponent(safeTarget)}.json`);
+        if (fallbackRes.ok) data = await fallbackRes.json();
       }
 
-      // Robust CMP resolution: Live candle (0) -> Param CMP -> Yesterday candle (1)
-      const currentCmp = Number(c0?.close ?? c0?.c ?? data?.CMP ?? c1?.close ?? c1?.c ?? 0);
+      const currentCmp = Number(c0?.close ?? c0?.c ?? c1?.close ?? c1?.c ?? 0);
 
       setFastData({
         cmp: currentCmp,
-        tdyChange: Number(data?.['2dy-%chng'] ?? data?.['%Chg (T)'] ?? data?.['Tdy-%chng'] ?? data?.tdyChange ?? 0),
+        tdyChange: Number(data?.['2dy-%chng'] ?? data?.['Tdy-%chng'] ?? data?.tdyChange ?? 0),
         ydyChange: Number(data?.['Ydy-%chng'] ?? data?.ydyChange ?? 0)
       });
 
@@ -200,9 +161,9 @@ export default function Index_window({
       });
 
     } catch (error) {
-      console.error(`Error loading index data for ${indexName}:`, error);
+      console.error(`Error loading index data for ${safeTarget}:`, error);
     }
-  }, [indexName, ticker, isFrozen]);
+  }, [safeTarget, ticker, isFrozen]);
 
   useEffect(() => {
     fetchIndexData();
