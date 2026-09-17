@@ -337,7 +337,7 @@ export default function StockWatchlist() {
 
     try {
       await persistWatchlistToFirebase(nextWatchlist, nextDb);
-      // Immediately register in /stocklist as a mirror
+      // Immediately register in /stocklist
       await set(ref(database, `stocklist/${safeStockKey}`), ticker);
     } catch (err) {
       console.error("Firebase Add Sync Error:", err);
@@ -398,14 +398,17 @@ export default function StockWatchlist() {
       // 1. Save master watchlist array and detailedDb
       await persistWatchlistToFirebase(nextWatchlist, nextDb);
 
-      // 2. DIRECT IMMEDIATE PURGE FROM /stocklist (Solves mirror discrepancy)
+      // 2. Direct immediate purge from /stocklist
       await remove(ref(database, `stocklist/${safeStockKey}`));
 
-      // 3. Remove standalone detailedDb node if present
+      // 3. Remove standalone detailedDb nodes
       await remove(ref(database, `watchlist/detailedDb/${safeStockKey}`));
       await remove(ref(database, `detailedDb/${safeStockKey}`));
+
+      // 4. PURGE ENTIRE HISTORICAL OHLC DATABASE FOR THIS STOCK
+      await remove(ref(database, `stocks/${safeStockKey}`));
     } catch (err) {
-      console.error("Firebase Delete Sync Error:", err);
+      console.error("Firebase Complete Purge Sync Error:", err);
     }
 
     if (currentDeleteIndex + 1 < deleteQueue.length) {
@@ -998,7 +1001,7 @@ export default function StockWatchlist() {
               <h1 style={{ color: theme.accentRed, fontSize: "28px", fontWeight: "900", margin: "0 0 6px 0", letterSpacing: "1px" }}>
                 {deleteQueue[currentDeleteIndex]}
               </h1>
-              <p style={{ margin: 0, fontSize: "12px", color: "#cbd5e1" }}>Permanent removal from Watchlist & Firebase.</p>
+              <p style={{ margin: 0, fontSize: "12px", color: "#cbd5e1" }}>Permanent removal from Watchlist, Stocklist & OHLC History.</p>
             </div>
 
             <div style={{ display: "flex", flexDirection: "column", gap: "12px", fontSize: "13px", marginBottom: "24px" }}>
@@ -1083,7 +1086,6 @@ export default function StockWatchlist() {
               </span>
             </div>
 
-            {/* Stock Name (Bold & Large) */}
             <div style={{ textAlign: "center", marginBottom: "20px" }}>
               <h1 style={{ color: theme.accentCyan, fontSize: "28px", fontWeight: "900", margin: "0 0 6px 0", letterSpacing: "1px" }}>
                 {updateQueue[currentUpdateIndex]}
@@ -1091,9 +1093,7 @@ export default function StockWatchlist() {
               <p style={{ margin: 0, fontSize: "12px", color: "#cbd5e1" }}>Please verify the mandatory questions before saving into Firebase.</p>
             </div>
 
-            {/* Questions */}
             <div style={{ display: "flex", flexDirection: "column", gap: "12px", fontSize: "13px", marginBottom: "24px" }}>
-              {/* Question A */}
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", background: "#1e293b", padding: "8px 12px", borderRadius: "6px" }}>
                 <span>A. Are you sure you want to update this stock?</span>
                 <div style={{ display: "flex", gap: "8px" }}>
@@ -1105,7 +1105,6 @@ export default function StockWatchlist() {
                 </div>
               </div>
 
-              {/* Question B */}
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", background: "#1e293b", padding: "8px 12px", borderRadius: "6px" }}>
                 <span>B. Do you update this stock without any purpose?</span>
                 <div style={{ display: "flex", gap: "8px" }}>
@@ -1117,7 +1116,6 @@ export default function StockWatchlist() {
                 </div>
               </div>
 
-              {/* Question C */}
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", background: "#1e293b", padding: "8px 12px", borderRadius: "6px" }}>
                 <span>C. Do you update this stock without any research?</span>
                 <div style={{ display: "flex", gap: "8px" }}>
@@ -1130,7 +1128,6 @@ export default function StockWatchlist() {
               </div>
             </div>
 
-            {/* Action Buttons */}
             <div style={{ display: "flex", justifyContent: "flex-end", gap: "10px", borderTop: "1px solid #334155", paddingTop: "14px" }}>
               <button onClick={handleAbortUpdate} style={{ backgroundColor: "#334155", color: "#f87171", border: "1px solid #ef4444", padding: "8px 16px", borderRadius: "6px", fontWeight: "bold", cursor: "pointer" }}>
                 ABORT
