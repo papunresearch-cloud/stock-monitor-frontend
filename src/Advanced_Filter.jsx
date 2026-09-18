@@ -24,15 +24,18 @@ export const APP_CONFIG = {
     fontFamily: "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
   },
   defaultColumns: [
-    "Name", "PCCAP", "mcap", "cmp", "PE", "3PE", "PB", "3PB", "PS", "F-score", "OPM", 
+    "Name", "CODE", "PCCAP", "mcap", "cmp", "PE", "3PE", "PB", "3PB", "PS", "F-score", "OPM", 
     "OCF%", "FCF%", "advdp", "DY", "G-score", "YSG", "YPG", "T-score", "RSI",
     "Dlutn", "BVgr", "FII", "DFII", "DII", "DDII", "PRH", "DPRH", "sector", "industry"
   ]
 };
 
+const sanitizeKey = (key) =>
+  String(key || "").trim().replace(/[.#$\[\]\/]/g, "").toUpperCase();
+
 const isRightAlignedCol = (colKey) => {
   const lower = colKey.toLowerCase();
-  if (lower === "sector" || lower === "industry" || lower === "name" || lower === "nse") return false;
+  if (lower === "sector" || lower === "industry" || lower === "name" || lower === "nse" || lower === "code") return false;
   return true;
 };
 
@@ -73,7 +76,7 @@ function LongTextCell({ displayVal, rightAligned, theme }) {
 // ============================================================================
 const areRowsEqual = (prevProps, nextProps) => {
   return (
-    prevProps.row.Name === nextProps.row.Name &&
+    prevProps.row.CODE === nextProps.row.CODE &&
     prevProps.isSelected === nextProps.isSelected &&
     prevProps.index === nextProps.index &&
     prevProps.selectedColumns === nextProps.selectedColumns
@@ -83,12 +86,13 @@ const areRowsEqual = (prevProps, nextProps) => {
 const MemoizedTableRow = React.memo(({ row, index, isSelected, selectedColumns, theme, toggleRowSelection }) => {
   const isEven = index % 2 === 0;
   const rowBg = isSelected ? theme.rowSelectedBg : isEven ? theme.rowYellow : theme.rowSky;
+  const primaryKey = row.CODE || sanitizeKey(row.Name);
 
   return (
     <tr style={{ backgroundColor: rowBg }}>
       {/* Checkbox Cell */}
       <td style={{ padding: "6px 10px", border: theme.tableCellBorder, textAlign: "center", backgroundColor: rowBg, position: "sticky", left: 0, zIndex: 10 }}>
-        <input type="checkbox" checked={isSelected} onChange={() => toggleRowSelection(row.Name)} style={{ cursor: "pointer" }} />
+        <input type="checkbox" checked={isSelected} onChange={() => toggleRowSelection(primaryKey)} style={{ cursor: "pointer" }} />
       </td>
 
       {/* Name Cell */}
@@ -138,15 +142,15 @@ export default function AdvancedFilter() {
   const dragItemIndex = useRef(null);
 
   const [viewMode, setViewMode] = useState("all");
-  const [selectedRows, setSelectedRows] = useState(new Set());
+  const [selectedRows, setSelectedRows] = useState(new Set()); // Set of CODEs
   const [sortConfig, setSortConfig] = useState({ key: null, direction: "asc" });
 
   const [manualQuery, setManualQuery] = useState("");
   const [manualSuggestions, setManualSuggestions] = useState([]);
-  const [selectedManualStock, setSelectedManualStock] = useState("");
-  const [manualAddedStocks, setManualAddedStocks] = useState([]);
+  const [selectedManualCode, setSelectedManualCode] = useState("");
+  const [manualAddedCodes, setManualAddedCodes] = useState([]);
 
-  // Cloud State for Filter 1 and Filter 2
+  // Cloud State for Filter 1 and Filter 2 (Stores Arrays of CODEs)
   const [filter1List, setFilter1List] = useState([]);
   const [isFilter2PanelOpen, setIsFilter2PanelOpen] = useState(false);
   const [filter2List, setFilter2List] = useState([]);
@@ -161,12 +165,18 @@ export default function AdvancedFilter() {
   // 1. FETCH SCREENER & FILTER LISTS DIRECTLY FROM FIREBASE
   const fetchCloudData = useCallback(async () => {
     try {
-      // Fetch /SCREENER
       const screenerSnap = await get(ref(database, "SCREENER"));
+      let cleanRecords = [];
       if (screenerSnap.exists()) {
         const val = screenerSnap.val();
         const records = Array.isArray(val) ? val : Object.values(val);
-        const cleanRecords = records.filter(Boolean);
+        cleanRecords = records.filter(Boolean).map(item => {
+          const code = sanitizeKey(item.CODE || item.NSE || item.BSE || item.Name);
+          return {
+            ...item,
+            CODE: code
+          };
+        });
         setData(cleanRecords);
 
         if (cleanRecords.length > 0) {
@@ -175,21 +185,22 @@ export default function AdvancedFilter() {
         }
       }
 
-      // Fetch /filters/filter1
+      // Fetch /filters/filter1 (Normalized to CODEs)
       const f1Snap = await get(ref(database, "filters/filter1"));
       if (f1Snap.exists()) {
         const f1Val = f1Snap.val();
-        setFilter1List(Array.isArray(f1Val) ? f1Val : Object.values(f1Val));
+        const arr = Array.isArray(f1Val) ? f1Val : Object.values(f1Val);
+        setFilter1List(arr.map(sanitizeKey).filter(Boolean));
       } else {
         setFilter1List([]);
       }
 
-      // Fetch /filters/filter2
+      // Fetch /filters/filter2 (Normalized to CODEs)
       const f2Snap = await get(ref(database, "filters/filter2"));
       if (f2Snap.exists()) {
         const f2Val = f2Snap.val();
         const f2Arr = Array.isArray(f2Val) ? f2Val : Object.values(f2Val);
-        setFilter2List(f2Arr.filter(Boolean));
+        setFilter2List(f2Arr.map(sanitizeKey).filter(Boolean));
       } else {
         setFilter2List([]);
       }
@@ -205,40 +216,57 @@ export default function AdvancedFilter() {
     fetchCloudData();
   }, [fetchCloudData]);
 
+  // Lookup map indexed by CODE
+  const codeToStockMap = useMemo(() => {
+    const map = {};
+    data.forEach(r => {
+      if (r.CODE) map[r.CODE] = r;
+      if (r.Name) map[sanitizeKey(r.Name)] = r;
+    });
+    return map;
+  }, [data]);
+
   // MANUAL INPUT HANDLERS
   const handleManualInputChange = (e) => {
     const val = e.target.value;
     setManualQuery(val);
-    setSelectedManualStock("");
-    if (val.trim().length >= 3) {
-      const queryLower = val.trim().toLowerCase();
-      const matches = data
-        .map((r) => r.Name)
-        .filter((name) => name && name.toLowerCase().includes(queryLower));
+    setSelectedManualCode("");
+    if (val.trim().length >= 2) {
+      const q = val.trim().toLowerCase();
+      const matches = data.filter((r) => 
+        (r.Name && r.Name.toLowerCase().includes(q)) ||
+        (r.CODE && r.CODE.toLowerCase().includes(q))
+      );
       setManualSuggestions(matches.slice(0, 10));
     } else {
       setManualSuggestions([]);
     }
   };
 
-  const handleSelectManualStock = (stockName) => {
-    setSelectedManualStock(stockName);
-    setManualQuery(stockName);
+  const handleSelectManualStock = (stockObj) => {
+    setSelectedManualCode(stockObj.CODE);
+    setManualQuery(`${stockObj.Name} (${stockObj.CODE})`);
     setManualSuggestions([]);
   };
 
   const handleApplyManualStock = () => {
-    const stockToApply = selectedManualStock || manualQuery.trim();
-    if (!stockToApply) return alert("Please enter or select a stock name!");
+    let targetCode = selectedManualCode;
+    if (!targetCode && manualQuery.trim()) {
+      const q = manualQuery.trim().toLowerCase();
+      const match = data.find((r) => 
+        (r.CODE && r.CODE.toLowerCase() === q) || 
+        (r.Name && r.Name.toLowerCase() === q)
+      );
+      if (match) targetCode = match.CODE;
+    }
 
-    const match = data.find((r) => r.Name.toLowerCase() === stockToApply.toLowerCase());
-    if (!match) return alert(`Stock "${stockToApply}" not found in database.`);
+    if (!targetCode) return alert("Please select a valid stock from suggestions!");
 
-    if (!manualAddedStocks.includes(match.Name)) {
-      setManualAddedStocks((prev) => [...prev, match.Name]);
+    if (!manualAddedCodes.includes(targetCode)) {
+      setManualAddedCodes((prev) => [...prev, targetCode]);
     }
     setManualQuery("");
-    setSelectedManualStock("");
+    setSelectedManualCode("");
     setManualSuggestions([]);
     setViewMode("manual");
   };
@@ -292,19 +320,19 @@ export default function AdvancedFilter() {
     setIsColumnModalOpen(false);
   };
 
-  // CLOUD FILTER 2 MUTATIONS (Direct Firebase Read/Write)
+  // CLOUD FILTER 2 MUTATIONS (Direct Firebase Read/Write using CODE)
   const handleAddToFilter2 = async () => {
-    const selectedNames = Array.from(selectedRows);
-    if (selectedNames.length === 0) return alert("No stocks selected in the table to add!");
+    const selectedCodes = Array.from(selectedRows);
+    if (selectedCodes.length === 0) return alert("No stocks selected in the table to add!");
 
     try {
       const f2Ref = ref(database, "filters/filter2");
-      const combined = Array.from(new Set([...filter2List, ...selectedNames]));
+      const combined = Array.from(new Set([...filter2List, ...selectedCodes]));
       await set(f2Ref, combined);
 
       setFilter2List(combined);
       setSelectedRows(new Set());
-      alert(`Added ${selectedNames.length} stock(s) to Firebase Filter2!`);
+      alert(`Added ${selectedCodes.length} stock CODE(s) to Firebase Filter2!`);
     } catch (e) {
       console.error("Firebase Filter2 save error:", e);
       alert("Failed to add to Firebase Filter2.");
@@ -312,12 +340,12 @@ export default function AdvancedFilter() {
   };
 
   const handleDeleteFromFilter2 = async () => {
-    const selectedNames = Array.from(filter2Selected);
-    if (selectedNames.length === 0) return alert("No stocks selected in the FILTER2 panel to delete!");
+    const selectedCodes = Array.from(filter2Selected);
+    if (selectedCodes.length === 0) return alert("No stocks selected in the FILTER2 panel to delete!");
 
     try {
       const f2Ref = ref(database, "filters/filter2");
-      const remaining = filter2List.filter((name) => !selectedNames.includes(name));
+      const remaining = filter2List.filter((code) => !selectedCodes.includes(code));
 
       if (remaining.length === 0) {
         await set(f2Ref, null);
@@ -340,7 +368,8 @@ export default function AdvancedFilter() {
         const f2Snap = await get(ref(database, "filters/filter2"));
         if (f2Snap.exists()) {
           const val = f2Snap.val();
-          setFilter2List(Array.isArray(val) ? val : Object.values(val));
+          const arr = Array.isArray(val) ? val : Object.values(val);
+          setFilter2List(arr.map(sanitizeKey).filter(Boolean));
         } else {
           setFilter2List([]);
         }
@@ -355,19 +384,20 @@ export default function AdvancedFilter() {
     setIsFilter2PanelOpen(false);
   };
 
-  // DATA FILTERING & SORTING
+  // DATA FILTERING & SORTING BY PRIMARY KEY CODE
   const displayedData = useMemo(() => {
     if (viewMode === "filter1") {
       const f1Set = new Set(filter1List);
-      return data.filter((row) => f1Set.has(row.Name));
+      return data.filter((row) => f1Set.has(row.CODE) || f1Set.has(sanitizeKey(row.Name)));
     } else if (viewMode === "filter2") {
       const f2Set = new Set(filter2List);
-      return data.filter((row) => f2Set.has(row.Name));
+      return data.filter((row) => f2Set.has(row.CODE) || f2Set.has(sanitizeKey(row.Name)));
     } else if (viewMode === "manual") {
-      return data.filter((row) => manualAddedStocks.includes(row.Name));
+      const manualSet = new Set(manualAddedCodes);
+      return data.filter((row) => manualSet.has(row.CODE));
     }
     return data;
-  }, [data, viewMode, filter1List, filter2List, manualAddedStocks]);
+  }, [data, viewMode, filter1List, filter2List, manualAddedCodes]);
 
   const sortedData = useMemo(() => {
     let result = [...displayedData];
@@ -396,11 +426,11 @@ export default function AdvancedFilter() {
     if (tableContainerRef.current) tableContainerRef.current.scrollTop = 0;
   };
 
-  const toggleRowSelection = useCallback((rowName) => {
+  const toggleRowSelection = useCallback((rowCode) => {
     setSelectedRows((prev) => {
       const next = new Set(prev);
-      if (next.has(rowName)) next.delete(rowName);
-      else next.add(rowName);
+      if (next.has(rowCode)) next.delete(rowCode);
+      else next.add(rowCode);
       return next;
     });
   }, []);
@@ -409,9 +439,9 @@ export default function AdvancedFilter() {
     setViewMode("all");
     setSelectedRows(new Set());
     setSortConfig({ key: null, direction: "asc" });
-    setManualAddedStocks([]);
+    setManualAddedCodes([]);
     setManualQuery("");
-    setSelectedManualStock("");
+    setSelectedManualCode("");
     setManualSuggestions([]);
     setSelectedColumns(APP_CONFIG.defaultColumns);
     setScrollTop(0);
@@ -468,7 +498,7 @@ export default function AdvancedFilter() {
           <button onClick={handleOpenColumnModal} style={{ backgroundColor: theme.accentCyan, color: "#000000", border: "none", padding: "8px 14px", borderRadius: "6px", fontWeight: "bold", fontSize: "13px", cursor: "pointer" }}>⚙️ Select Column</button>
           <button onClick={() => setViewMode("filter1")} style={{ backgroundColor: theme.accentMagenta, color: "#ffffff", border: "none", padding: "8px 14px", borderRadius: "6px", fontWeight: "bold", fontSize: "13px", cursor: "pointer" }}>📌 FILTER1 ({filter1List.length})</button>
           <button onClick={handleToggleFilter2Panel} style={{ backgroundColor: theme.accentAmber, color: "#000000", border: "none", padding: "8px 14px", borderRadius: "6px", fontWeight: "bold", fontSize: "13px", cursor: "pointer" }}>📂 FILTER2 List {isFilter2PanelOpen ? "▲" : "▼"} ({filter2List.length})</button>
-          <button onClick={() => setViewMode("manual")} style={{ backgroundColor: "#8b5cf6", color: "#ffffff", border: "none", padding: "8px 14px", borderRadius: "6px", fontWeight: "bold", fontSize: "13px", cursor: "pointer" }}>🔍 Manual View ({manualAddedStocks.length})</button>
+          <button onClick={() => setViewMode("manual")} style={{ backgroundColor: "#8b5cf6", color: "#ffffff", border: "none", padding: "8px 14px", borderRadius: "6px", fontWeight: "bold", fontSize: "13px", cursor: "pointer" }}>🔍 Manual View ({manualAddedCodes.length})</button>
           <button onClick={handleReset} style={{ backgroundColor: theme.accentRed, color: "#ffffff", border: "none", padding: "8px 14px", borderRadius: "6px", fontWeight: "bold", fontSize: "13px", cursor: "pointer" }}>↺ RESET</button>
         </div>
       </div>
@@ -477,11 +507,13 @@ export default function AdvancedFilter() {
       <div style={{ backgroundColor: "#0f172a", border: `2px solid ${theme.accentCyan}`, padding: "12px 16px", borderRadius: "8px", marginBottom: "16px", display: "flex", alignItems: "center", gap: "12px", position: "relative", flexWrap: "wrap" }}>
         <span style={{ color: theme.accentCyan, fontWeight: "bold", fontSize: "13px" }}>➕ Manual Stock Entry:</span>
         <div style={{ position: "relative", flex: 1, minWidth: "260px" }}>
-          <input type="text" value={manualQuery} onChange={handleManualInputChange} placeholder="Type at least 3 letters for stock name..." style={{ width: "100%", padding: "8px 12px", backgroundColor: "#1e293b", border: "1px solid #334155", borderRadius: "6px", color: "#ffffff", fontSize: "13px", boxSizing: "border-box" }} autoComplete="off" />
+          <input type="text" value={manualQuery} onChange={handleManualInputChange} placeholder="Search by Stock Name or Primary Key CODE..." style={{ width: "100%", padding: "8px 12px", backgroundColor: "#1e293b", border: "1px solid #334155", borderRadius: "6px", color: "#ffffff", fontSize: "13px", boxSizing: "border-box" }} autoComplete="off" />
           {manualSuggestions.length > 0 && (
             <ul style={{ position: "absolute", top: "100%", left: 0, right: 0, backgroundColor: "#1e293b", border: "1px solid #334155", borderRadius: "0 0 6px 6px", listStyle: "none", margin: 0, padding: 0, zIndex: 100, maxHeight: "150px", overflowY: "auto" }}>
-              {manualSuggestions.map((sName) => (
-                <li key={sName} onClick={() => handleSelectManualStock(sName)} style={{ padding: "8px 12px", cursor: "pointer", color: "#f8fafc", fontSize: "13px", borderBottom: "1px solid #334155" }} onMouseEnter={(e) => (e.target.style.backgroundColor = "#334155")} onMouseLeave={(e) => (e.target.style.backgroundColor = "transparent")}>{sName}</li>
+              {manualSuggestions.map((s) => (
+                <li key={s.CODE} onClick={() => handleSelectManualStock(s)} style={{ padding: "8px 12px", cursor: "pointer", color: "#f8fafc", fontSize: "13px", borderBottom: "1px solid #334155" }} onMouseEnter={(e) => (e.target.style.backgroundColor = "#334155")} onMouseLeave={(e) => (e.target.style.backgroundColor = "transparent")}>
+                  <b>{s.Name}</b> <span style={{ color: theme.accentCyan, marginLeft: "8px" }}>({s.CODE})</span>
+                </li>
               ))}
             </ul>
           )}
@@ -493,7 +525,7 @@ export default function AdvancedFilter() {
       {isFilter2PanelOpen && (
         <div style={{ backgroundColor: "#0f172a", border: `2px solid ${theme.accentAmber}`, padding: "16px", borderRadius: "8px", color: "#f8fafc", marginBottom: "16px" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px", borderBottom: "1px solid #1e293b", paddingBottom: "8px", flexWrap: "wrap", gap: "10px" }}>
-            <h3 style={{ margin: 0, fontSize: "14px", color: theme.accentAmber, textTransform: "uppercase" }}>📂 FILTER2 Cloud Storage — {filter2List.length} Items</h3>
+            <h3 style={{ margin: 0, fontSize: "14px", color: theme.accentAmber, textTransform: "uppercase" }}>📂 FILTER2 Cloud Storage — {filter2List.length} Items (Keyed by CODE)</h3>
             <div style={{ display: "flex", gap: "12px", alignItems: "center", flexWrap: "wrap" }}>
               <button type="button" onClick={handleAddToFilter2} style={{ backgroundColor: theme.accentGreen, color: "#000000", border: "none", padding: "6px 14px", borderRadius: "4px", fontWeight: "bold", fontSize: "12px", cursor: "pointer" }}>➕ Add</button>
               <button type="button" onClick={handleDeleteFromFilter2} style={{ backgroundColor: theme.accentRed, color: "#ffffff", border: "none", padding: "6px 14px", borderRadius: "4px", fontWeight: "bold", fontSize: "12px", cursor: "pointer" }}>🗑️ Delete</button>
@@ -506,17 +538,20 @@ export default function AdvancedFilter() {
           {filter2List.length === 0 ? (
             <div style={{ color: "#94a3b8", fontSize: "13px", padding: "10px 0" }}>No stocks in Firebase FILTER2. Select rows below and click <b>➕ Add</b>.</div>
           ) : (
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))", gap: "8px", maxHeight: "180px", overflowY: "auto", paddingRight: "4px" }}>
-              {filter2List.map((stockName) => {
-                const isChecked = filter2Selected.has(stockName);
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: "8px", maxHeight: "180px", overflowY: "auto", paddingRight: "4px" }}>
+              {filter2List.map((code) => {
+                const isChecked = filter2Selected.has(code);
+                const displayName = codeToStockMap[code]?.Name || code;
                 return (
-                  <div key={stockName} onClick={() => {
+                  <div key={code} onClick={() => {
                     const next = new Set(filter2Selected);
-                    if (next.has(stockName)) next.delete(stockName); else next.add(stockName);
+                    if (next.has(code)) next.delete(code); else next.add(code);
                     setFilter2Selected(next);
                   }} style={{ display: "flex", alignItems: "center", gap: "8px", backgroundColor: "#1e293b", padding: "6px 10px", borderRadius: "4px", cursor: "pointer", border: "1px solid #334155" }}>
                     <input type="checkbox" checked={isChecked} onChange={() => {}} style={{ cursor: "pointer", accentColor: theme.accentAmber }} />
-                    <span style={{ fontSize: "13px", fontWeight: "bold", color: "#f8fafc" }}>{stockName}</span>
+                    <span style={{ fontSize: "12px", fontWeight: "bold", color: "#f8fafc", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={`${displayName} (${code})`}>
+                      {displayName}
+                    </span>
                   </div>
                 );
               })}
@@ -572,7 +607,7 @@ export default function AdvancedFilter() {
                   checked={sortedData.length > 0 && selectedRows.size === sortedData.length}
                   onChange={() => {
                     if (selectedRows.size === sortedData.length) setSelectedRows(new Set());
-                    else setSelectedRows(new Set(sortedData.map((r) => r.Name)));
+                    else setSelectedRows(new Set(sortedData.map((r) => r.CODE)));
                   }}
                   style={{ cursor: "pointer" }}
                 />
@@ -608,10 +643,10 @@ export default function AdvancedFilter() {
 
                 {visibleData.map((row, index) => {
                   const actualIndex = startIndex + index;
-                  const isSelected = selectedRows.has(row.Name);
+                  const isSelected = selectedRows.has(row.CODE);
                   return (
                     <MemoizedTableRow
-                      key={row.Name}
+                      key={row.CODE || row.Name}
                       row={row}
                       index={actualIndex}
                       isSelected={isSelected}

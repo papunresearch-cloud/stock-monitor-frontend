@@ -35,7 +35,7 @@ export const APP_CONFIG = {
 };
 
 const sanitizeKey = (key) =>
-  String(key || "").trim().replace(/[.#$\[\]\/]/g, "_");
+  String(key || "").trim().replace(/[.#$\[\]\/]/g, "").toUpperCase();
 
 const extractStockCode = (item) => {
   if (!item) return "";
@@ -49,12 +49,12 @@ const extractStockCode = (item) => {
 
 const extractDisplayName = (item, mainMap = {}) => {
   if (!item) return "";
-  if (typeof item === "object" && (item.Name || item.name)) return String(item.Name || item.name).trim();
   const code = extractStockCode(item);
+  if (typeof item === "object" && (item.Name || item.name)) return String(item.Name || item.name).trim();
   if (mainMap[code] && (mainMap[code].Name || mainMap[code].name)) {
     return String(mainMap[code].Name || mainMap[code].name).trim();
   }
-  return String(item).trim();
+  return code;
 };
 
 const formatDateToDDMMYYYY = (dateObj) => {
@@ -177,6 +177,8 @@ export default function StockWatchlist() {
       mainData.forEach(item => {
         if (item.CODE) map[sanitizeKey(item.CODE)] = item;
         if (item.Name) map[sanitizeKey(item.Name)] = item;
+        if (item.NSE) map[sanitizeKey(item.NSE)] = item;
+        if (item.BSE) map[sanitizeKey(item.BSE)] = item;
       });
     }
     return map;
@@ -267,7 +269,8 @@ export default function StockWatchlist() {
       REMARK: stockDatabase[safeStockKey]?.REMARK || "",
       DATE: today,
       TICKER: ticker,
-      Name: stockDisplayName
+      Name: stockDisplayName,
+      CODE: safeStockKey
     };
 
     const nextWatchlist = Array.from(new Set([...watchlistCodes, safeStockKey]));
@@ -287,7 +290,7 @@ export default function StockWatchlist() {
       // 1. Save list of CODEs to /watchlist/watchlist
       await set(ref(database, 'watchlist/watchlist'), nextWatchlist);
 
-      // 2. Add strictly the 6 fields under /watchlist/detailedDb/<CODE>
+      // 2. Add strictly the metadata under /watchlist/detailedDb/<CODE>
       await set(ref(database, `watchlist/detailedDb/${safeStockKey}`), stockMetadata);
 
       // 3. Add (CODE: ticker) under /stocklist/<CODE>
@@ -443,7 +446,8 @@ export default function StockWatchlist() {
       REMARK: curr.REMARK || "",
       DATE: updatedDate,
       TICKER: curr.TICKER || `${safeStockKey}.NS`,
-      Name: curr.Name || stockDisplayName
+      Name: curr.Name || stockDisplayName,
+      CODE: safeStockKey
     };
 
     setStockDatabase(prev => ({

@@ -34,6 +34,7 @@ export const APP_CONFIG = {
   
   columns: [
     { key: "STOCK", label: "STOCK", type: "text", align: "left" },
+    { key: "CODE", label: "CODE", type: "text", align: "left" },
     { key: "MCAP", label: "MCAP", type: "number", align: "right" },
     { key: "P-MCAP", label: "P-MCAP", type: "number", align: "right" },
     { key: "rsi", label: "RSI", type: "number", align: "right" },
@@ -63,6 +64,9 @@ export const APP_CONFIG = {
     { key: "PB", label: "PB", color: "#f43f5e" },
   ]
 };
+
+const sanitizeKey = (key) =>
+  String(key || "").trim().replace(/[.#$\[\]\/]/g, "").toUpperCase();
 
 const sliderStyle = `
   .dual-range-thumb::-webkit-slider-thumb {
@@ -316,9 +320,9 @@ export default function StockDashboard() {
   const [ranges, setRanges] = useState({});
   const [defaultRanges, setDefaultRanges] = useState({});
   const [sortConfig, setSortConfig] = useState({ key: null, direction: "asc" });
-  const [selectedRows, setSelectedRows] = useState(new Set());
+  const [selectedCodes, setSelectedCodes] = useState(new Set()); // Set of CODE strings
 
-  // FILTER LIST STATES
+  // FILTER LIST STATES (Store arrays of CODEs)
   const [filter0List, setFilter0List] = useState([]);
   const [isFilter0View, setIsFilter0View] = useState(false);
 
@@ -342,20 +346,24 @@ export default function StockDashboard() {
         const rawVal = snapshot.val();
         const records = Array.isArray(rawVal) ? rawVal : Object.values(rawVal);
 
-        const mappedData = records.filter(Boolean).map((row) => ({
-          ...row,
-          STOCK: row.Name || row.STOCK || "",
-          MCAP: row.mcap,
-          SECTOR: row.sector,
-          INDUSTRY: row.industry,
-          "P-MCAP": row.PCCAP,
-          TSCORE: row["T-score"],
-          FSCORE: row["F-score"],
-          GSCORE: row["G-score"],
-          "DPO%": row.advdp,
-          "DY%": row.DY,
-          rsi: row.RSI,
-        }));
+        const mappedData = records.filter(Boolean).map((row) => {
+          const code = sanitizeKey(row.CODE || row.NSE || row.BSE || row.Name);
+          return {
+            ...row,
+            CODE: code,
+            STOCK: row.Name || code,
+            MCAP: row.mcap,
+            SECTOR: row.sector,
+            INDUSTRY: row.industry,
+            "P-MCAP": row.PCCAP,
+            TSCORE: row["T-score"],
+            FSCORE: row["F-score"],
+            GSCORE: row["G-score"],
+            "DPO%": row.advdp,
+            "DY%": row.DY,
+            rsi: row.RSI,
+          };
+        });
 
         setData(mappedData);
 
@@ -388,13 +396,24 @@ export default function StockDashboard() {
       });
   }, []);
 
+  // Quick lookup dictionary from CODE -> Stock Details
+  const codeToStockMap = useMemo(() => {
+    const map = {};
+    data.forEach(r => {
+      if (r.CODE) map[r.CODE] = r;
+      if (r.STOCK) map[sanitizeKey(r.STOCK)] = r;
+    });
+    return map;
+  }, [data]);
+
   // FETCH FILTER0 & FILTER1 FROM FIREBASE
   const fetchCloudFilters = useCallback(async () => {
     try {
       const f0Snap = await get(ref(database, 'filters/filter0'));
       if (f0Snap.exists()) {
         const val = f0Snap.val();
-        setFilter0List(Array.isArray(val) ? val.filter(Boolean) : Object.values(val).filter(Boolean));
+        const arr = Array.isArray(val) ? val.filter(Boolean) : Object.values(val).filter(Boolean);
+        setFilter0List(arr.map(sanitizeKey));
       } else {
         setFilter0List([]);
       }
@@ -402,7 +421,8 @@ export default function StockDashboard() {
       const f1Snap = await get(ref(database, 'filters/filter1'));
       if (f1Snap.exists()) {
         const val = f1Snap.val();
-        setCopiedList(Array.isArray(val) ? val.filter(Boolean) : Object.values(val).filter(Boolean));
+        const arr = Array.isArray(val) ? val.filter(Boolean) : Object.values(val).filter(Boolean);
+        setCopiedList(arr.map(sanitizeKey));
       } else {
         setCopiedList([]);
       }
@@ -517,7 +537,7 @@ export default function StockDashboard() {
     selectAllHierarchy();
     setExpandedSectors(new Set());
     setRanges(defaultRanges);
-    setSelectedRows(new Set());
+    setSelectedCodes(new Set());
     setSortConfig({ key: null, direction: "asc" });
     setIsFilter0View(false);
     setIsFilter1View(false);
@@ -530,8 +550,8 @@ export default function StockDashboard() {
     const savedF1Set = isFilter1View ? new Set(copiedList) : null;
 
     let result = data.filter((row) => {
-      if (isFilter0View && savedF0Set && !savedF0Set.has(row.STOCK)) return false;
-      if (isFilter1View && savedF1Set && !savedF1Set.has(row.STOCK)) return false;
+      if (isFilter0View && savedF0Set && !savedF0Set.has(row.CODE) && !savedF0Set.has(sanitizeKey(row.STOCK))) return false;
+      if (isFilter1View && savedF1Set && !savedF1Set.has(row.CODE) && !savedF1Set.has(sanitizeKey(row.STOCK))) return false;
 
       if (row.INDUSTRY) {
         if (!selectedIndustries.has(row.INDUSTRY)) return false;
@@ -576,20 +596,20 @@ export default function StockDashboard() {
     }));
   };
 
-  const toggleRowSelection = (idx) => {
-    setSelectedRows((prev) => {
+  const toggleRowSelection = (code) => {
+    setSelectedCodes((prev) => {
       const updated = new Set(prev);
-      if (updated.has(idx)) updated.delete(idx);
-      else updated.add(idx);
+      if (updated.has(code)) updated.delete(code);
+      else updated.add(code);
       return updated;
     });
   };
 
   const toggleSelectAllRows = () => {
-    if (selectedRows.size === filteredAndSortedData.length) {
-      setSelectedRows(new Set());
+    if (selectedCodes.size === filteredAndSortedData.length) {
+      setSelectedCodes(new Set());
     } else {
-      setSelectedRows(new Set(filteredAndSortedData.map((_, idx) => idx)));
+      setSelectedCodes(new Set(filteredAndSortedData.map((r) => r.CODE)));
     }
   };
 
@@ -610,25 +630,23 @@ export default function StockDashboard() {
     }
   };
 
-  // FILTER1 CLOUD ACTIONS
+  // FILTER1 CLOUD ACTIONS (Pushes array of CODEs)
   const handleAddSelectedToFilter1 = async () => {
-    const selectedStockNames = Array.from(selectedRows)
-      .map((idx) => filteredAndSortedData[idx]?.STOCK)
-      .filter(Boolean);
+    const selectedCodeList = Array.from(selectedCodes);
 
-    if (selectedStockNames.length === 0) {
+    if (selectedCodeList.length === 0) {
       alert("No rows selected in the table to add!");
       return;
     }
 
     try {
       const f1Ref = ref(database, 'filters/filter1');
-      const updatedList = Array.from(new Set([...copiedList, ...selectedStockNames]));
+      const updatedList = Array.from(new Set([...copiedList, ...selectedCodeList]));
       await set(f1Ref, updatedList);
 
       setCopiedList(updatedList);
-      setSelectedRows(new Set());
-      alert(`Successfully added ${selectedStockNames.length} stock(s) to Firebase Filter1!`);
+      setSelectedCodes(new Set());
+      alert(`Successfully added ${selectedCodeList.length} stock CODE(s) to Firebase Filter1!`);
     } catch (err) {
       console.error(err);
       alert("Cloud Error: Could not save stocks to Filter1.");
@@ -642,7 +660,7 @@ export default function StockDashboard() {
     }
 
     try {
-      const updatedList = copiedList.filter((stock) => !copiedListSelected.has(stock));
+      const updatedList = copiedList.filter((code) => !copiedListSelected.has(code));
       const f1Ref = ref(database, 'filters/filter1');
 
       if (updatedList.length === 0) {
@@ -699,7 +717,7 @@ export default function StockDashboard() {
             Matches: {filteredAndSortedData.length} / {data.length} Stocks
           </span>
           <span style={{ backgroundColor: "rgba(236, 72, 153, 0.15)", color: theme.accentMagenta, border: `1px solid ${theme.accentMagenta}`, padding: "4px 12px", borderRadius: "20px", fontSize: "13px", fontWeight: "bold" }}>
-            Selected: {selectedRows.size}
+            Selected: {selectedCodes.size}
           </span>
         </div>
 
@@ -794,16 +812,17 @@ export default function StockDashboard() {
               No stocks found in Filter1 on Firebase. Select stocks in the main table and click <b>➕ Add</b>.
             </div>
           ) : (
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))", gap: "8px", maxHeight: "200px", overflowY: "auto", paddingRight: "4px" }}>
-              {copiedList.map((stockName) => {
-                const isChecked = copiedListSelected.has(stockName);
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: "8px", maxHeight: "200px", overflowY: "auto", paddingRight: "4px" }}>
+              {copiedList.map((code) => {
+                const isChecked = copiedListSelected.has(code);
+                const displayName = codeToStockMap[code]?.STOCK || code;
                 return (
                   <div
-                    key={stockName}
+                    key={code}
                     onClick={() => {
                       const next = new Set(copiedListSelected);
-                      if (next.has(stockName)) next.delete(stockName);
-                      else next.add(stockName);
+                      if (next.has(code)) next.delete(code);
+                      else next.add(code);
                       setCopiedListSelected(next);
                     }}
                     style={{ display: "flex", alignItems: "center", gap: "8px", backgroundColor: "#0d182e", padding: "6px 10px", borderRadius: "4px", border: "1px solid #1e293b", cursor: "pointer" }}
@@ -814,7 +833,9 @@ export default function StockDashboard() {
                       onChange={() => {}}
                       style={{ cursor: "pointer", accentColor: theme.accentAmber }}
                     />
-                    <span style={{ fontSize: "13px", fontWeight: "bold", color: "#f8fafc" }}>{stockName}</span>
+                    <span style={{ fontSize: "12px", fontWeight: "bold", color: "#f8fafc", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={`${displayName} (${code})`}>
+                      {displayName}
+                    </span>
                   </div>
                 );
               })}
@@ -964,7 +985,7 @@ export default function StockDashboard() {
           <thead>
             <tr style={{ backgroundColor: "#0f172a", color: "#ffffff", position: "sticky", top: 0, zIndex: 20 }}>
               <th style={{ padding: "8px", border: theme.tableCellBorder, textAlign: "center", width: "36px", backgroundColor: "#0f172a" }}>
-                <input type="checkbox" checked={filteredAndSortedData.length > 0 && selectedRows.size === filteredAndSortedData.length} onChange={toggleSelectAllRows} style={{ cursor: "pointer" }} />
+                <input type="checkbox" checked={filteredAndSortedData.length > 0 && selectedCodes.size === filteredAndSortedData.length} onChange={toggleSelectAllRows} style={{ cursor: "pointer" }} />
               </th>
               {APP_CONFIG.columns.map((col) => (
                 <th key={col.key} onClick={() => handleSort(col.key)} style={{ padding: "8px 10px", border: theme.tableCellBorder, textAlign: col.align, cursor: "pointer", whiteSpace: "nowrap", userSelect: "none", backgroundColor: "#0f172a" }}>
@@ -1003,13 +1024,13 @@ export default function StockDashboard() {
                   if (isDiffSector) borderTopStyle = theme.sectorSeparator;
                   else if (isDiffIndustry) borderTopStyle = theme.industrySeparator;
 
-                  const isRowSelected = selectedRows.has(idx);
+                  const isRowSelected = selectedCodes.has(row.CODE);
                   const rowBg = isRowSelected ? theme.rowSelectedBg : idx % 2 === 0 ? theme.rowEvenBg : theme.rowOddBg;
 
                   return (
-                    <tr key={idx} style={{ backgroundColor: rowBg, height: `${TABLE_ROW_HEIGHT}px`, transition: "background-color 0.15s ease" }}>
+                    <tr key={row.CODE} style={{ backgroundColor: rowBg, height: `${TABLE_ROW_HEIGHT}px`, transition: "background-color 0.15s ease" }}>
                       <td style={{ padding: "6px", textAlign: "center", border: theme.tableCellBorder, borderTop: borderTopStyle }}>
-                        <input type="checkbox" checked={isRowSelected} onChange={() => toggleRowSelection(idx)} style={{ cursor: "pointer" }} />
+                        <input type="checkbox" checked={isRowSelected} onChange={() => toggleRowSelection(row.CODE)} style={{ cursor: "pointer" }} />
                       </td>
 
                       {APP_CONFIG.columns.map((col) => {
