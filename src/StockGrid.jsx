@@ -3,6 +3,9 @@ import Stock_window from './Stock_window';
 
 const FIREBASE_DB_URL = 'https://stock-dashboard-5c25c-default-rtdb.asia-southeast1.firebasedatabase.app';
 
+const sanitizeKey = (key) =>
+  String(key || '').trim().replace(/[.#$\[\]\/]/g, '').toUpperCase();
+
 export default function StockGrid({ 
   activeStocks = [],
   displayOrder = 'Alphabetical Dec. (A - Z)',
@@ -50,10 +53,36 @@ export default function StockGrid({
       return;
     }
 
-    let currentList = activeStocks.map(rawName => {
-      const cleanName = (rawName?.ticker || rawName?.Name || rawName || '').trim(); 
-      return detailedDb[cleanName] || detailedDb[rawName];
+    // Build a unified resolution map by CODE, sanitized key, raw name, and ticker
+    const resolutionMap = {};
+    Object.entries(detailedDb).forEach(([k, item]) => {
+      if (!item) return;
+      const cleanK = sanitizeKey(k);
+      resolutionMap[cleanK] = item;
+      resolutionMap[k] = item;
+      if (item.CODE) resolutionMap[sanitizeKey(item.CODE)] = item;
+      if (item.Name) resolutionMap[sanitizeKey(item.Name)] = item;
+      if (item.TICKER) resolutionMap[sanitizeKey(item.TICKER)] = item;
+    });
+
+    let currentList = activeStocks.map(rawStock => {
+      if (!rawStock) return undefined;
+      const rawKey = typeof rawStock === 'object' 
+        ? (rawStock.CODE || rawStock.Name || rawStock.TICKER || '') 
+        : String(rawStock);
+
+      const cleanKey = sanitizeKey(rawKey);
+      return resolutionMap[cleanKey] || resolutionMap[rawKey];
     }).filter(stock => stock !== undefined);
+
+    // Deduplicate stocks within the grid
+    const seenCodes = new Set();
+    currentList = currentList.filter(stk => {
+      const uniqueId = stk.CODE || sanitizeKey(stk.Name) || stk.TICKER;
+      if (!uniqueId || seenCodes.has(uniqueId)) return false;
+      seenCodes.add(uniqueId);
+      return true;
+    });
 
     let buckets = {};
     if (groupBy === 'No filter') {
@@ -88,8 +117,8 @@ export default function StockGrid({
           case "RSI dec.": return getVal(b, 'RSI') - getVal(a, 'RSI');
           case "Alphabetical Dec. (A - Z)":
           default:
-            const nameA = a.Name ? a.Name.toLowerCase() : "";
-            const nameB = b.Name ? b.Name.toLowerCase() : "";
+            const nameA = a.Name ? a.Name.toLowerCase() : (a.CODE ? a.CODE.toLowerCase() : "");
+            const nameB = b.Name ? b.Name.toLowerCase() : (b.CODE ? b.CODE.toLowerCase() : "");
             return nameA.localeCompare(nameB);
         }
       });
@@ -108,11 +137,11 @@ export default function StockGrid({
     <div style={{ display: 'flex', flexWrap: 'wrap', gap: '20px', justifyContent: 'center', padding: '10px' }}>
       {stocks.map((stock) => (
         <Stock_window 
-          key={stock?.TICKER || stock?.Name} 
+          key={stock?.CODE || stock?.TICKER || stock?.Name} 
+          code={stock?.CODE} 
           name={stock?.Name} 
           ticker={stock?.TICKER} 
           nse={stock?.NSE} 
-          code={stock?.CODE} 
           
           pe={stock?.PE}
           dpe={stock?.['DPE%']} 
@@ -136,18 +165,6 @@ export default function StockGrid({
           ysg={stock?.YSG || stock?.ysg}
           pg_1={stock?.['PG-1'] || stock?.['pg-1']}
           ypg={stock?.YPG || stock?.ypg}
-
-          r1w={stock?.['1W'] || stock?.['1wr']}
-          r1m={stock?.['1M'] || stock?.['1mr']}
-          r3m={stock?.['3M'] || stock?.['3mr']}
-          r6m={stock?.['6M'] || stock?.['6mr']}
-          r1yr={stock?.['1YR'] || stock?.['1yr']}
-          r3yr={stock?.['3YR'] || stock?.['3yr']}
-          rsi={stock?.RSI || stock?.rsi}
-          ma50={stock?.['50MA'] || stock?.['50ma']}
-          ma200={stock?.['200MA'] || stock?.['200ma']}
-          w52h={stock?.['52WH'] || stock?.['52wh']}
-          w52l={stock?.['52WL'] || stock?.['52wl']}
 
           ex_div_date={stock?.ex_div_date}
           last_quarter_name={stock?.last_quarter_name}

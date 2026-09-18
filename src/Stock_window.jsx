@@ -2,6 +2,9 @@ import React, { useState, useEffect, useCallback } from 'react';
 
 const FIREBASE_DB_URL = 'https://stock-dashboard-5c25c-default-rtdb.asia-southeast1.firebasedatabase.app';
 
+const sanitizeKey = (key) =>
+  String(key || '').trim().replace(/[.#$\[\]\/]/g, '').toUpperCase();
+
 // ==========================================
 // 1. 3D BUTTON COMPONENT
 // ==========================================
@@ -84,7 +87,7 @@ const Marker = ({ value, color, circleSize, lineHeight, label, isTop = false, ra
 // 3. MAIN STOCK COMPONENT 
 // ==========================================
 export default function Stock_window({ 
-  name, ticker, nse, code,
+  code, name, ticker, nse,
   pe, dpe, pb, dpb, ps, dy, tScore, fScore, gScore, review, group, remark, duration,
   sg_ttm, ysg, pg_1, ypg, sector, industry, pccap,
   ex_div_date, last_quarter_name, next_quarter_date,
@@ -104,28 +107,50 @@ export default function Stock_window({
     }
   };
 
-  const safeTarget = (name || ticker || '').trim();
-  const tvc_link = `https://in.tradingview.com/chart/?symbol=${nse || ticker}`;
-  const yfc_link = `https://finance.yahoo.com/chart/${ticker}#`;
+  // Primary lookup priority: Clean CODE -> sanitized name -> clean ticker
+  const primaryKey = (code || sanitizeKey(name) || sanitizeKey(ticker) || '').trim();
+  const legacyTarget = (name || ticker || '').trim();
+
+  const tvc_link = `https://in.tradingview.com/chart/?symbol=${nse || code || ticker}`;
+  const yfc_link = `https://finance.yahoo.com/chart/${ticker || `${code}.NS`}#`;
   const scr_link = `https://www.screener.in/company/${code || nse}/consolidated/`; 
 
-  // EXACT SAME DATA-FETCHING LOGIC AS INDEX WINDOW
   const fetchStockData = useCallback(async () => {
-    if (isFrozen || !safeTarget) return;
+    if (isFrozen || !primaryKey) return;
 
     try {
-      const [paramRes, liveRes0, liveRes1] = await Promise.all([
-        fetch(`${FIREBASE_DB_URL}/param/${encodeURIComponent(safeTarget)}.json`),
-        fetch(`${FIREBASE_DB_URL}/stocks/${encodeURIComponent(safeTarget)}/0.json`),
-        fetch(`${FIREBASE_DB_URL}/stocks/${encodeURIComponent(safeTarget)}/1.json`)
+      // 1. Fetch parameters with primary key (fallback to legacy raw name)
+      let paramRes = await fetch(`${FIREBASE_DB_URL}/param/${encodeURIComponent(primaryKey)}.json`);
+      let data = paramRes.ok ? await paramRes.json() : null;
+
+      if (!data && legacyTarget && legacyTarget !== primaryKey) {
+        const fallbackRes = await fetch(`${FIREBASE_DB_URL}/param/${encodeURIComponent(legacyTarget)}.json`);
+        if (fallbackRes.ok) data = await fallbackRes.json();
+      }
+
+      // 2. Fetch live candles 0 & 1
+      let [liveRes0, liveRes1] = await Promise.all([
+        fetch(`${FIREBASE_DB_URL}/stocks/${encodeURIComponent(primaryKey)}/0.json`),
+        fetch(`${FIREBASE_DB_URL}/stocks/${encodeURIComponent(primaryKey)}/1.json`)
       ]);
 
-      let data = paramRes.ok ? await paramRes.json() : null;
-      const c0 = liveRes0.ok ? await liveRes0.json() : null;
-      const c1 = liveRes1.ok ? await liveRes1.json() : null;
+      let c0 = liveRes0.ok ? await liveRes0.json() : null;
+      let c1 = liveRes1.ok ? await liveRes1.json() : null;
 
-      // Clean CMP Resolution: Index 0 if present, else Index 1 (last closed session)
-      const currentCmp = Number(c0?.close ?? c0?.c ?? c1?.close ?? c1?.c ?? 0);
+      // Fallback candle query using legacy target if primary returned null
+      if (!c0 && !c1 && legacyTarget && legacyTarget !== primaryKey) {
+        const [fb0, fb1] = await Promise.all([
+          fetch(`${FIREBASE_DB_URL}/stocks/${encodeURIComponent(legacyTarget)}/0.json`),
+          fetch(`${FIREBASE_DB_URL}/stocks/${encodeURIComponent(legacyTarget)}/1.json`)
+        ]);
+        if (fb0.ok) c0 = await fb0.json();
+        if (fb1.ok) c1 = await fb1.json();
+      }
+
+      // 3. Resolve Current Price (Index 0 -> Index 1 -> CMP from param)
+      const currentCmp = Number(
+        c0?.close ?? c0?.c ?? c1?.close ?? c1?.c ?? data?.CMP ?? data?.cmp ?? 0
+      );
 
       setFastData({
         CMP: currentCmp,
@@ -148,9 +173,9 @@ export default function Stock_window({
         "RSI": Number(data?.RSI ?? data?.rsi ?? 0)
       });
     } catch (error) {
-      console.error(`Error loading stock data for ${safeTarget}:`, error);
+      console.error(`Error loading stock metrics for ${primaryKey}:`, error);
     }
-  }, [safeTarget, isFrozen]);
+  }, [primaryKey, legacyTarget, isFrozen]);
 
   useEffect(() => {
     fetchStockData();
@@ -193,8 +218,8 @@ export default function Stock_window({
 
   const renderStars = () => {
     let starCount = 0;
-    if (review && review.includes("STAR")) {
-      starCount = parseInt(review.split(" ")[0]) || 0;
+    if (review && String(review).includes("STAR")) {
+      starCount = parseInt(String(review).split(" ")[0]) || 0;
     }
     return (
       <span style={{ fontSize: '18px', letterSpacing: '2px' }}>
@@ -204,6 +229,8 @@ export default function Stock_window({
       </span>
     );
   };
+
+  const displayName = name ? name.split('(')[0].trim() : (code || '');
 
   return (
     <div style={{ display: 'flex', alignItems: 'stretch', gap: '2%', width: '98%', margin: '0 auto', position: 'relative', opacity: isFrozen ? 0.7 : 1, transition: 'opacity 0.3s ease', boxSizing: 'border-box' }}>
@@ -225,11 +252,16 @@ export default function Stock_window({
           />
         </div>
 
-        {/* STOCK NAME (CLEAN, ANCHORED LEFT) */}
-        <div style={{ display: 'flex', justifyContent: 'flex-start', alignItems: 'center', marginBottom: '15px' }}>
+        {/* STOCK NAME AND CODE */}
+        <div style={{ display: 'flex', justifyContent: 'flex-start', alignItems: 'center', marginBottom: '15px', gap: '10px' }}>
           <h2 style={{ margin: 0, color: '#f7d026', fontSize: '18px', letterSpacing: '1px', textTransform: 'uppercase' }}>
-            {name ? name.split('(')[0].trim() : ''}
+            {displayName}
           </h2>
+          {code && (
+            <span style={{ fontSize: '12px', color: '#06b6d4', fontWeight: 'bold', backgroundColor: '#0f172a', padding: '2px 8px', borderRadius: '4px', border: '1px solid #1e3a8a' }}>
+              {code}
+            </span>
+          )}
         </div>
 
         {/* 8-COLUMN DATA TABLE */}
@@ -286,12 +318,12 @@ export default function Stock_window({
         
         {/* VALUATION */}
         <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', fontSize: '13px' }}>
-          <div><span style={{color: GRP_VALUATION}}>PE:</span> <span style={{color: '#fff'}}>{pe}</span> (<span style={{color: dpe < 0 ? COLOR_RED : COLOR_GREEN}}>{dpe}%</span>)</div>
-          <div><span style={{color: GRP_VALUATION}}>PB:</span> <span style={{color: '#fff'}}>{pb}</span> (<span style={{color: dpb < 0 ? COLOR_RED : COLOR_GREEN}}>{dpb}%</span>)</div>
+          <div><span style={{color: GRP_VALUATION}}>PE:</span> <span style={{color: '#fff'}}>{pe ?? '-'}</span> (<span style={{color: Number(dpe) < 0 ? COLOR_RED : COLOR_GREEN}}>{dpe ?? '-'}%</span>)</div>
+          <div><span style={{color: GRP_VALUATION}}>PB:</span> <span style={{color: '#fff'}}>{pb ?? '-'}</span> (<span style={{color: Number(dpb) < 0 ? COLOR_RED : COLOR_GREEN}}>{dpb ?? '-'}%</span>)</div>
         </div>
         <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', fontSize: '13px' }}>
-          <div><span style={{color: GRP_VALUATION}}>PS:</span> <span style={{color: '#fff'}}>{ps}</span></div>
-          <div><span style={{color: GRP_VALUATION}}>D. Yield:</span> <span style={{color: '#fff'}}>{dy}%</span></div>
+          <div><span style={{color: GRP_VALUATION}}>PS:</span> <span style={{color: '#fff'}}>{ps ?? '-'}</span></div>
+          <div><span style={{color: GRP_VALUATION}}>D. Yield:</span> <span style={{color: '#fff'}}>{dy ?? '-'}%</span></div>
         </div>
 
         <hr style={{ borderColor: '#333', margin: '2px 0', width: '100%' }} />
@@ -301,17 +333,17 @@ export default function Stock_window({
           <div>
             <span style={{color: GRP_GROWTH}}>SG: </span>
             <span style={{color: '#cccccc'}}>TTM-</span>
-            <span style={{color: sg_ttm > 0 ? DARK_GREEN : DARK_RED}}>{sg_ttm || "N/A"}% </span>
+            <span style={{color: Number(sg_ttm) > 0 ? DARK_GREEN : DARK_RED}}>{sg_ttm || "N/A"}% </span>
             <span style={{color: '#cccccc'}}>(Q-</span>
-            <span style={{color: ysg > 0 ? DARK_GREEN : DARK_RED}}>{ysg || "N/A"}%</span>
+            <span style={{color: Number(ysg) > 0 ? DARK_GREEN : DARK_RED}}>{ysg || "N/A"}%</span>
             <span style={{color: '#cccccc'}}>)</span>
           </div>
           <div>
             <span style={{color: GRP_GROWTH}}>PG: </span>
             <span style={{color: '#cccccc'}}>TTM-</span>
-            <span style={{color: pg_1 > 0 ? DARK_GREEN : DARK_RED}}>{pg_1 || "N/A"}% </span>
+            <span style={{color: Number(pg_1) > 0 ? DARK_GREEN : DARK_RED}}>{pg_1 || "N/A"}% </span>
             <span style={{color: '#cccccc'}}>(Q-</span>
-            <span style={{color: ypg > 0 ? DARK_GREEN : DARK_RED}}>{ypg || "N/A"}%</span>
+            <span style={{color: Number(ypg) > 0 ? DARK_GREEN : DARK_RED}}>{ypg || "N/A"}%</span>
             <span style={{color: '#cccccc'}}>)</span>
           </div>
         </div>
@@ -320,9 +352,9 @@ export default function Stock_window({
         
         {/* SCORES */}
         <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', fontSize: '13px' }}>
-          <div><span style={{color: GRP_SCORES}}>T-Scr:</span> <span style={{color: '#fff'}}>{tScore}</span></div>
-          <div><span style={{color: GRP_SCORES}}>F-Scr:</span> <span style={{color: '#fff'}}>{fScore}</span></div>
-          <div><span style={{color: GRP_SCORES}}>G-Scr:</span> <span style={{color: '#fff'}}>{gScore}</span></div>
+          <div><span style={{color: GRP_SCORES}}>T-Scr:</span> <span style={{color: '#fff'}}>{tScore ?? '-'}</span></div>
+          <div><span style={{color: GRP_SCORES}}>F-Scr:</span> <span style={{color: '#fff'}}>{fScore ?? '-'}</span></div>
+          <div><span style={{color: GRP_SCORES}}>G-Scr:</span> <span style={{color: '#fff'}}>{gScore ?? '-'}</span></div>
         </div>
 
         <hr style={{ borderColor: '#333', margin: '2px 0', width: '100%' }} />
@@ -357,7 +389,7 @@ export default function Stock_window({
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0, 0, 0, 0.8)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <div style={{ backgroundColor: '#121212', border: '2px solid #C0C0C0', borderRadius: '10px', padding: '25px', width: '450px', height: '350px', overflowY: 'auto', boxShadow: '0 10px 30px rgba(0,0,0,0.8)', position: 'relative', boxSizing: 'border-box' }}>
             <button onClick={() => setIsRemarkOpen(false)} style={{ position: 'absolute', top: '10px', right: '15px', background: 'transparent', border: 'none', color: '#ff5252', fontSize: '20px', cursor: 'pointer', fontWeight: 'bold' }}>✕</button>
-            <h2 style={{ marginTop: 0, color: '#FFD700', borderBottom: '1px solid #444', paddingBottom: '10px' }}>Remark: {name}</h2>
+            <h2 style={{ marginTop: 0, color: '#FFD700', borderBottom: '1px solid #444', paddingBottom: '10px' }}>Remark: {displayName}</h2>
             <p style={{ color: '#ffffff', fontSize: '16px', lineHeight: '1.6' }}>{remark || "No remarks available for this stock."}</p>
           </div>
         </div>
