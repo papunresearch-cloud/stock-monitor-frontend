@@ -31,6 +31,11 @@ export const APP_CONFIG = {
     "REMARK", 
     "DATE",
     "TICKER"
+  ],
+  // Fundamental enrichment metrics merged into detailedDb from SCREENER
+  enrichmentMetrics: [
+    "PCCAP", "PE", "DPE%", "PB", "DPB%", "DY", "PS", "F-score", "G-score", "T-score",
+    "YSG", "YPG", "sg-ttm", "pg-1", "sector", "industry"
   ]
 };
 
@@ -241,7 +246,7 @@ export default function StockWatchlist() {
   };
 
   // ============================================================================
-  // 1. ADD HANDLER (Using CODE as Primary Key)
+  // 1. ADD HANDLER (Enriches metrics and uses CODE as Primary Key)
   // ============================================================================
   const startAddProcess = () => {
     const list = Array.from(selectedStockCodes);
@@ -261,7 +266,7 @@ export default function StockWatchlist() {
     // Resolve Yahoo Finance Ticker
     const ticker = (stockDatabase[safeStockKey]?.TICKER) || (mainRecord.NSE ? `${mainRecord.NSE}.NS` : `${safeStockKey}.NS`);
 
-    // Strictly the 6 manual curation metadata fields
+    // Manual curation metadata fields
     const stockMetadata = {
       GROUP: stockDatabase[safeStockKey]?.GROUP || "GROUP-0",
       REVIEW: stockDatabase[safeStockKey]?.REVIEW || "NR",
@@ -272,6 +277,13 @@ export default function StockWatchlist() {
       Name: stockDisplayName,
       CODE: safeStockKey
     };
+
+    // Auto-enrich fundamentals from SCREENER into detailedDb
+    APP_CONFIG.enrichmentMetrics.forEach(metric => {
+      if (mainRecord[metric] !== undefined && mainRecord[metric] !== null) {
+        stockMetadata[metric] = mainRecord[metric];
+      }
+    });
 
     const nextWatchlist = Array.from(new Set([...watchlistCodes, safeStockKey]));
 
@@ -290,7 +302,7 @@ export default function StockWatchlist() {
       // 1. Save list of CODEs to /watchlist/watchlist
       await set(ref(database, 'watchlist/watchlist'), nextWatchlist);
 
-      // 2. Add strictly the metadata under /watchlist/detailedDb/<CODE>
+      // 2. Add metadata + enriched screener fields under /watchlist/detailedDb/<CODE>
       await set(ref(database, `watchlist/detailedDb/${safeStockKey}`), stockMetadata);
 
       // 3. Add (CODE: ticker) under /stocklist/<CODE>
@@ -411,11 +423,13 @@ export default function StockWatchlist() {
   };
 
   // ============================================================================
-  // 3. UPDATE HANDLER (Overwrites strictly the 6 curation fields)
+  // 3. UPDATE HANDLER (Operates on Selected Stocks & Synchronizes Enriched Data)
   // ============================================================================
   const startUpdateProcess = () => {
-    if (watchlistCodes.length === 0) return;
-    setUpdateQueue([...watchlistCodes]);
+    // Works strictly on selected stocks within watchlist checkboxes
+    const list = Array.from(watchlistEditSelected);
+    if (list.length === 0) return;
+    setUpdateQueue(list);
     setCurrentUpdateIndex(0);
     setUpdateAnswers({ q1: "", q2: "", q3: "" });
   };
@@ -423,6 +437,7 @@ export default function StockWatchlist() {
   const handleOkUpdateStock = async () => {
     const codeToUpdate = updateQueue[currentUpdateIndex];
     const safeStockKey = sanitizeKey(codeToUpdate);
+    const mainRecord = mainDataMap[safeStockKey] || {};
     const stockDisplayName = extractDisplayName(safeStockKey, mainDataMap);
     const today = formatDateToDDMMYYYY(new Date());
 
@@ -438,8 +453,9 @@ export default function StockWatchlist() {
 
     const updatedDate = coreChanged ? today : (curr.DATE || today);
 
-    // Strictly the 6 metadata fields
+    // Build update package preserving manual inputs and refreshed screener enrichment
     const updatedMetadata = {
+      ...curr,
       GROUP: curr.GROUP || "GROUP-0",
       REVIEW: curr.REVIEW || "NR",
       DURATION: curr.DURATION || "NR",
@@ -449,6 +465,13 @@ export default function StockWatchlist() {
       Name: curr.Name || stockDisplayName,
       CODE: safeStockKey
     };
+
+    // Merge latest Screener metrics
+    APP_CONFIG.enrichmentMetrics.forEach(metric => {
+      if (mainRecord[metric] !== undefined && mainRecord[metric] !== null) {
+        updatedMetadata[metric] = mainRecord[metric];
+      }
+    });
 
     setStockDatabase(prev => ({
       ...prev,
@@ -460,7 +483,7 @@ export default function StockWatchlist() {
     }));
 
     try {
-      // Patch strictly under /watchlist/detailedDb/<CODE>
+      // Patch under /watchlist/detailedDb/<CODE>
       await update(ref(database, `watchlist/detailedDb/${safeStockKey}`), updatedMetadata);
 
       // Keep stocklist mapping synced
@@ -705,7 +728,7 @@ export default function StockWatchlist() {
 
             <button 
               onClick={startUpdateProcess} 
-              disabled={watchlistCodes.length === 0}
+              disabled={watchlistEditSelected.size === 0}
               style={{ 
                 backgroundColor: theme.accentCyan, 
                 color: "#000000", 
@@ -715,13 +738,13 @@ export default function StockWatchlist() {
                 fontWeight: "900", 
                 fontSize: "12px", 
                 marginLeft: "auto", 
-                cursor: watchlistCodes.length === 0 ? "not-allowed" : "pointer", 
-                opacity: watchlistCodes.length === 0 ? 0.5 : 1,
+                cursor: watchlistEditSelected.size === 0 ? "not-allowed" : "pointer", 
+                opacity: watchlistEditSelected.size === 0 ? 0.5 : 1,
                 boxShadow: "0 0 10px rgba(6, 182, 212, 0.5)",
                 transition: "all 0.2s ease-in-out"
               }}
             >
-              💾 UPDATE DATABASE
+              💾 UPDATE DATABASE ({watchlistEditSelected.size})
             </button>
           </div>
         </div>
@@ -1079,7 +1102,7 @@ export default function StockWatchlist() {
               <h1 style={{ color: theme.accentCyan, fontSize: "28px", fontWeight: "900", margin: "0 0 6px 0", letterSpacing: "1px" }}>
                 {extractDisplayName(updateQueue[currentUpdateIndex], mainDataMap)}
               </h1>
-              <p style={{ margin: 0, fontSize: "12px", color: "#cbd5e1" }}>Confirm updating metadata for key: <b>{updateQueue[currentUpdateIndex]}</b></p>
+              <p style={{ margin: 0, fontSize: "12px", color: "#cbd5e1" }}>Confirm updating metadata & fundamentals for key: <b>{updateQueue[currentUpdateIndex]}</b></p>
             </div>
 
             <div style={{ display: "flex", flexDirection: "column", gap: "12px", fontSize: "13px", marginBottom: "24px" }}>
