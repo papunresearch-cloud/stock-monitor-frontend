@@ -31,13 +31,13 @@ export const APP_CONFIG = {
     "DATE",
     "TICKER"
   ],
-  // Complete list of metrics: Old detailedDb parameters + ALL NEW extra parameters
+  // All original detailedDb fields + every newly requested extra parameter
   enrichmentMetrics: [
     // Pre-existing metrics in detailedDb
     "CODE", "DPB%", "DPE%", "DY", "F-score", "G-score", "PB", "PCCAP", 
     "PE", "PS", "T-score", "YPG", "YSG", "industry", "pg-1", "sector", "sg-ttm",
     
-    // Newly added extra parameters
+    // Extra requested parameters
     "mcap", "roe-0", "roe-3y", "roa-0", "roa-3y", "roce-0", "roce-3y", 
     "sg-3y", "pg-3", "DE", "BVgr", "advdp", "FII", "DFII", "DII", 
     "DDII", "PRH", "DPRH", "Last Qtr"
@@ -68,30 +68,18 @@ const formatDateToDDMMYYYY = (dateObj) => {
 const sanitizeKey = (key) =>
   String(key || "").trim().replace(/[.#$\[\]\/]/g, "_");
 
-const sanitizeForFirebase = (obj) => {
-  if (typeof obj !== 'object' || obj === null) return obj;
-  if (Array.isArray(obj)) return obj.map(sanitizeForFirebase);
-  
-  const newObj = {};
-  for (const [key, value] of Object.entries(obj)) {
-    const cleanKey = key.replace(/[.#$/\[\]]/g, '_');
-    newObj[cleanKey] = sanitizeForFirebase(value);
-  }
-  return newObj;
-};
-
-// Extracts all configured screener parameters from the screener record
-const extractAllMetrics = (screenerRecord) => {
+// Extract every metric from screener object safely
+const extractScreenerFields = (screenerRecord) => {
   if (!screenerRecord || typeof screenerRecord !== "object") return {};
-  const metrics = {};
-  if (screenerRecord.Name) metrics.Name = screenerRecord.Name;
+  const result = {};
+  if (screenerRecord.Name) result.Name = screenerRecord.Name;
 
   APP_CONFIG.enrichmentMetrics.forEach((key) => {
-    if (screenerRecord[key] !== undefined) {
-      metrics[key] = screenerRecord[key];
+    if (screenerRecord[key] !== undefined && screenerRecord[key] !== null) {
+      result[key] = screenerRecord[key];
     }
   });
-  return metrics;
+  return result;
 };
 
 // ============================================================================
@@ -116,17 +104,17 @@ export default function StockWatchlist() {
   const [selectedStockNames, setSelectedStockNames] = useState(new Set());
   const [appliedFilter, setAppliedFilter] = useState(null);
 
-  // 1. ADD MODAL QUEUE STATES
+  // ADD QUEUE STATES
   const [addQueue, setAddQueue] = useState([]);
   const [currentAddIndex, setCurrentAddIndex] = useState(0);
   const [addAnswers, setAddAnswers] = useState({ q1: "", q2: "", q3: "", q4: "" });
 
-  // 2. DELETE MODAL QUEUE STATES
+  // DELETE QUEUE STATES
   const [deleteQueue, setDeleteQueue] = useState([]);
   const [currentDeleteIndex, setCurrentDeleteIndex] = useState(0);
   const [deleteAnswers, setDeleteAnswers] = useState({ q1: "", q2: "", q3: "", dateInput: "" });
 
-  // 3. UPDATE MODAL QUEUE STATES
+  // UPDATE QUEUE STATES
   const [updateQueue, setUpdateQueue] = useState([]);
   const [currentUpdateIndex, setCurrentUpdateIndex] = useState(0);
   const [updateAnswers, setUpdateAnswers] = useState({ q1: "", q2: "", q3: "" });
@@ -143,8 +131,7 @@ export default function StockWatchlist() {
   useEffect(() => {
     setLoading(true);
 
-    // Initial Fetch for filter2 & watchlist
-    const loadStaticData = async () => {
+    const loadInitialData = async () => {
       try {
         const f2Snap = await get(ref(database, 'filters/filter2'));
         if (f2Snap.exists()) {
@@ -179,9 +166,9 @@ export default function StockWatchlist() {
       }
     };
 
-    loadStaticData();
+    loadInitialData();
 
-    // REALTIME LISTENER on SCREENER: Keeps detailedDb synced when screener values change
+    // Realtime Listener on /SCREENER: Automatically mirrors metrics to detailedDb
     const screenerRef = ref(database, 'SCREENER');
     const unsubscribeScreener = onValue(screenerRef, async (snapshot) => {
       if (!snapshot.exists()) return;
@@ -190,15 +177,16 @@ export default function StockWatchlist() {
       const screenerArr = (Array.isArray(val) ? val : Object.values(val)).filter(Boolean);
       setMainData(screenerArr);
 
-      // Build quick lookup dictionary
+      // Map by CODE, NSE, and Name
       const lookup = {};
       screenerArr.forEach((item) => {
         if (item.CODE) lookup[sanitizeKey(item.CODE)] = item;
-        if (item.Name) lookup[sanitizeKey(item.Name)] = item;
         if (item.NSE) lookup[sanitizeKey(item.NSE)] = item;
+        if (item.Name) lookup[sanitizeKey(item.Name)] = item;
+        if (item.CODE) lookup[item.CODE.trim()] = item;
+        if (item.Name) lookup[item.Name.trim()] = item;
       });
 
-      // Synchronize changes to detailedDb automatically
       try {
         const wlSnap = await get(ref(database, 'watchlist'));
         if (!wlSnap.exists()) return;
@@ -211,21 +199,22 @@ export default function StockWatchlist() {
 
         activeWatchlist.forEach((stk) => {
           const safeKey = sanitizeKey(stk);
-          const screenerRecord = lookup[safeKey] || {};
-          const newScreenerMetrics = extractAllMetrics(screenerRecord);
+          const screenerRecord = lookup[safeKey] || lookup[stk] || {};
+          if (Object.keys(screenerRecord).length === 0) return;
+
+          const newScreenerMetrics = extractScreenerFields(screenerRecord);
           const existingStock = currentDetailedDb[safeKey] || {};
 
-          // Check if any new/existing parameter has changed or is missing
-          const hasMetricDiff = Object.entries(newScreenerMetrics).some(
+          // Check if any metric is missing or updated
+          const hasDiff = Object.entries(newScreenerMetrics).some(
             ([k, v]) => existingStock[k] !== v
           );
 
-          if (hasMetricDiff) {
+          if (hasDiff) {
             needsSync = true;
             dbUpdates[`watchlist/detailedDb/${safeKey}`] = {
               ...existingStock,
               ...newScreenerMetrics,
-              // Protect manual curation fields
               GROUP: existingStock.GROUP || "GROUP-0",
               REVIEW: existingStock.REVIEW || "NR",
               DURATION: existingStock.DURATION || "NR",
@@ -256,14 +245,14 @@ export default function StockWatchlist() {
     return () => unsubscribeScreener();
   }, []);
 
-  // Multi-key lookup map to guarantee resolving stock from SCREENER
+  // Multi-key lookup map
   const mainDataMap = useMemo(() => {
     const map = {};
     if (Array.isArray(mainData)) {
       mainData.forEach(item => {
-        if (item.Name) map[item.Name] = item;
-        if (item.CODE) map[item.CODE] = item;
-        if (item.NSE) map[item.NSE] = item;
+        if (item.Name) map[item.Name.trim()] = item;
+        if (item.CODE) map[item.CODE.trim()] = item;
+        if (item.NSE) map[item.NSE.trim()] = item;
         if (item.CODE) map[sanitizeKey(item.CODE)] = item;
         if (item.Name) map[sanitizeKey(item.Name)] = item;
       });
@@ -271,11 +260,25 @@ export default function StockWatchlist() {
     return map;
   }, [mainData]);
 
+  // Robust finder that searches by sanitized key, exact text, and case-insensitive
   const findMainRecord = useCallback((stockIdentifier) => {
     if (!stockIdentifier) return {};
-    const safe = sanitizeKey(stockIdentifier);
-    return mainDataMap[stockIdentifier] || mainDataMap[safe] || {};
-  }, [mainDataMap]);
+    const cleanStr = String(stockIdentifier).trim();
+    const safeStr = sanitizeKey(cleanStr);
+
+    if (mainDataMap[cleanStr]) return mainDataMap[cleanStr];
+    if (mainDataMap[safeStr]) return mainDataMap[safeStr];
+    if (mainDataMap[cleanStr.toUpperCase()]) return mainDataMap[cleanStr.toUpperCase()];
+
+    // Array search fallback
+    const found = mainData.find(
+      (item) =>
+        (item.CODE && item.CODE.toUpperCase() === cleanStr.toUpperCase()) ||
+        (item.Name && item.Name.toUpperCase() === cleanStr.toUpperCase()) ||
+        (item.NSE && item.NSE.toUpperCase() === cleanStr.toUpperCase())
+    );
+    return found || {};
+  }, [mainData, mainDataMap]);
 
   const handleFieldChange = (stockName, fieldKey, value) => {
     const validName = extractStockName(stockName);
@@ -317,34 +320,16 @@ export default function StockWatchlist() {
     else setSelectedStockNames(new Set());
   };
 
-  const persistWatchlistToFirebase = async (newWatchlistArray, newDetailedDb) => {
-    try {
-      const watchlistRef = ref(database, 'watchlist');
-      const payload = sanitizeForFirebase({
-        watchlist: newWatchlistArray,
-        detailedDb: newDetailedDb,
-        lastSync: new Date().toISOString()
-      });
-      await set(watchlistRef, payload);
-      setBannerMsg({ text: "Firebase Watchlist updated successfully! ☁️✅", type: "success" });
-      setTimeout(() => setBannerMsg({ text: "", type: "info" }), 3500);
-    } catch (err) {
-      console.error("Failed to write watchlist to Firebase:", err);
-      setBannerMsg({ text: `Firebase Save Failed: ${err.message}`, type: "error" });
-    }
-  };
-
-  // Signal backend orchestrator
   const triggerBackendSync = async () => {
     try {
       await fetch("http://127.0.0.1:10000/sync", { method: "POST" });
     } catch {
-      // Backend may be running on a remote port
+      // Backend worker trigger
     }
   };
 
   // ============================================================================
-  // 1. SEQUENTIAL ADD QUEUE HANDLERS (Extracts ALL new parameters)
+  // 1. ADD HANDLER (Directly fetches Screener Record & Saves All Parameters)
   // ============================================================================
   const startAddProcess = () => {
     const list = Array.from(selectedStockNames);
@@ -356,16 +341,37 @@ export default function StockWatchlist() {
 
   const handleOkAddStock = async () => {
     const stockToAdd = addQueue[currentAddIndex];
-    const mainRecord = findMainRecord(stockToAdd);
-    const today = formatDateToDDMMYYYY(new Date());
-    const ticker = stockDatabase[stockToAdd]?.TICKER || (mainRecord.NSE ? `${mainRecord.NSE}.NS` : stockToAdd);
     const safeStockKey = sanitizeKey(stockToAdd);
+    const today = formatDateToDDMMYYYY(new Date());
 
-    // 1. Extract old + all newly added parameters from SCREENER
-    const screenerMetrics = extractAllMetrics(mainRecord);
+    // 1. Resolve Screener record: Memory first, Firebase snapshot second
+    let mainRecord = findMainRecord(stockToAdd);
 
-    // 2. Build full metadata object
-    const enrichedStockRecord = {
+    if (!mainRecord || Object.keys(mainRecord).length === 0) {
+      try {
+        const snap = await get(ref(database, 'SCREENER'));
+        if (snap.exists()) {
+          const val = snap.val();
+          const arr = (Array.isArray(val) ? val : Object.values(val)).filter(Boolean);
+          const found = arr.find(
+            (item) =>
+              (item.CODE && item.CODE.toUpperCase() === stockToAdd.toUpperCase()) ||
+              (item.Name && item.Name.toUpperCase() === stockToAdd.toUpperCase()) ||
+              (item.NSE && item.NSE.toUpperCase() === stockToAdd.toUpperCase())
+          );
+          if (found) mainRecord = found;
+        }
+      } catch (err) {
+        console.warn("Direct screener fallback fetch warning:", err);
+      }
+    }
+
+    // 2. Extract ALL metrics (existing + newly requested parameters)
+    const screenerMetrics = extractScreenerFields(mainRecord);
+    const ticker = stockDatabase[stockToAdd]?.TICKER || (mainRecord.NSE ? `${mainRecord.NSE}.NS` : stockToAdd);
+
+    // 3. Assemble complete metadata object
+    const completeStockRecord = {
       ...screenerMetrics,
       CODE: mainRecord.CODE || safeStockKey,
       Name: mainRecord.Name || stockToAdd,
@@ -378,17 +384,10 @@ export default function StockWatchlist() {
     };
 
     const nextWatchlist = Array.from(new Set([...watchlistNames, stockToAdd]));
-    const nextDb = {
-      ...stockDatabase,
-      [stockToAdd]: {
-        ...(stockDatabase[stockToAdd] || {}),
-        ...enrichedStockRecord
-      }
-    };
 
     setWatchlistNames(nextWatchlist);
-    setStockDatabase(nextDb);
-    setOriginalDb(JSON.parse(JSON.stringify(nextDb)));
+    setStockDatabase(prev => ({ ...prev, [stockToAdd]: completeStockRecord }));
+    setOriginalDb(prev => ({ ...prev, [stockToAdd]: JSON.parse(JSON.stringify(completeStockRecord)) }));
     setWatchlistEditSelected(new Set(nextWatchlist));
 
     setSelectedStockNames(prev => {
@@ -398,13 +397,19 @@ export default function StockWatchlist() {
     });
 
     try {
-      // Direct individual set on detailedDb to avoid race conditions
+      // 1. Update watchlist array
       await set(ref(database, 'watchlist/watchlist'), nextWatchlist);
-      await set(ref(database, `watchlist/detailedDb/${safeStockKey}`), enrichedStockRecord);
+
+      // 2. Save full object under watchlist/detailedDb/<StockKey>
+      await set(ref(database, `watchlist/detailedDb/${safeStockKey}`), completeStockRecord);
+
+      // 3. Save ticker under stocklist
       await set(ref(database, `stocklist/${safeStockKey}`), ticker);
+
+      // 4. Trigger backend sync
       await triggerBackendSync();
 
-      setBannerMsg({ text: `Successfully added ${stockToAdd} with all new parameters! ✅`, type: "success" });
+      setBannerMsg({ text: `Successfully enrolled ${stockToAdd} with all extra parameters! ✅`, type: "success" });
       setTimeout(() => setBannerMsg({ text: "", type: "info" }), 3500);
     } catch (err) {
       console.error("Firebase Add Sync Error:", err);
@@ -434,7 +439,7 @@ export default function StockWatchlist() {
   };
 
   // ============================================================================
-  // 2. SEQUENTIAL DELETE QUEUE HANDLERS
+  // 2. DELETE HANDLER
   // ============================================================================
   const startDeleteProcess = () => {
     const list = Array.from(watchlistEditSelected);
@@ -449,13 +454,17 @@ export default function StockWatchlist() {
     const safeStockKey = sanitizeKey(stockToDelete);
 
     const nextWatchlist = watchlistNames.filter(name => name !== stockToDelete);
-    const nextDb = { ...stockDatabase };
-    delete nextDb[stockToDelete];
-
     setWatchlistNames(nextWatchlist);
-    setStockDatabase(nextDb);
-    setOriginalDb(JSON.parse(JSON.stringify(nextDb)));
-
+    setStockDatabase(prev => {
+      const copy = { ...prev };
+      delete copy[stockToDelete];
+      return copy;
+    });
+    setOriginalDb(prev => {
+      const copy = { ...prev };
+      delete copy[stockToDelete];
+      return copy;
+    });
     setWatchlistEditSelected(prev => {
       const next = new Set(prev);
       next.delete(stockToDelete);
@@ -499,7 +508,7 @@ export default function StockWatchlist() {
   };
 
   // ============================================================================
-  // 3. SEQUENTIAL UPDATE QUEUE HANDLERS
+  // 3. UPDATE HANDLER (Updates manual fields, preserves all parameters)
   // ============================================================================
   const startUpdateProcess = () => {
     if (watchlistNames.length === 0) return;
@@ -535,17 +544,11 @@ export default function StockWatchlist() {
       TICKER: curr.TICKER || stockToUpdate
     };
 
-    setStockDatabase(prev => ({
-      ...prev,
-      [stockToUpdate]: updatedMetadata
-    }));
-    setOriginalDb(prev => ({
-      ...prev,
-      [stockToUpdate]: JSON.parse(JSON.stringify(updatedMetadata))
-    }));
+    setStockDatabase(prev => ({ ...prev, [stockToUpdate]: updatedMetadata }));
+    setOriginalDb(prev => ({ ...prev, [stockToUpdate]: JSON.parse(JSON.stringify(updatedMetadata)) }));
 
     try {
-      // Multi-key update preserves all screener parameters intact
+      // update() leaves all extra screener parameters intact
       await update(ref(database, `watchlist/detailedDb/${safeStockKey}`), updatedMetadata);
 
       if (updatedMetadata.TICKER) {
