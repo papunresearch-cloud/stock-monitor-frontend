@@ -6,7 +6,7 @@ const sanitizeKey = (key) =>
   String(key || '').trim().replace(/[.#$\[\]\/]/g, '').toUpperCase();
 
 // ==========================================
-// 1. 3D BUTTON COMPONENT
+// 1. 3D BUTTON COMPONENT (Unchanged)
 // ==========================================
 const Button3D = ({ label, color, shadowColor, onClick, title, padding = '8px 16px' }) => {
   const [isActive, setIsActive] = useState(false);
@@ -41,7 +41,7 @@ const Button3D = ({ label, color, shadowColor, onClick, title, padding = '8px 16
 };
 
 // ==========================================
-// 2. VISUAL MAP PIN (Scale Visualizer)
+// 2. VISUAL MAP PIN (Scale Visualizer - Unchanged)
 // ==========================================
 const Marker = ({ value, color, circleSize, lineHeight, label, isTop = false, rawValue = null, scaleTo100 }) => {
   const positionPercent = scaleTo100(value);
@@ -88,9 +88,21 @@ const Marker = ({ value, color, circleSize, lineHeight, label, isTop = false, ra
 // ==========================================
 export default function Stock_window({ 
   code, name, ticker, nse,
-  pe, dpe, pb, dpb, ps, dy, tScore, fScore, gScore, review, group, remark, duration,
-  sg_ttm, ysg, pg_1, ypg, sector, industry, pccap,
-  ex_div_date, last_quarter_name, next_quarter_date,
+  // Valuation
+  pe, dpe, pb, dpb, ps, dy, bvgr, advdp,
+  // Ratios
+  roe0, roe3y, roa0, roa3y, roce0, roce3y,
+  // Market Cap & Leverage
+  mcap, pccap, de,
+  // Growth
+  ysg, sg_ttm, sg_3y, last_qtr,
+  ypg, pg_1, pg_3,
+  // Scores
+  tScore, gScore, fScore,
+  // Shareholding
+  prh, dprh, fii, dfii, dii, ddii,
+  // Meta
+  review, group, remark, duration, sector, industry,
   isAutoMode, isFrozen, refreshRate, refreshTrigger, updateTrigger 
 }) {
   const [fastData, setFastData] = useState({ CMP: 0, Tdy_chng: 0, Ydy_chng: 0 });
@@ -107,7 +119,6 @@ export default function Stock_window({
     }
   };
 
-  // Primary lookup priority: Clean CODE -> sanitized name -> clean ticker
   const primaryKey = (code || sanitizeKey(name) || sanitizeKey(ticker) || '').trim();
   const legacyTarget = (name || ticker || '').trim();
 
@@ -119,7 +130,6 @@ export default function Stock_window({
     if (isFrozen || !primaryKey) return;
 
     try {
-      // 1. Fetch parameters with primary key (fallback to legacy raw name)
       let paramRes = await fetch(`${FIREBASE_DB_URL}/param/${encodeURIComponent(primaryKey)}.json`);
       let data = paramRes.ok ? await paramRes.json() : null;
 
@@ -128,7 +138,6 @@ export default function Stock_window({
         if (fallbackRes.ok) data = await fallbackRes.json();
       }
 
-      // 2. Fetch live candles 0 & 1
       let [liveRes0, liveRes1] = await Promise.all([
         fetch(`${FIREBASE_DB_URL}/stocks/${encodeURIComponent(primaryKey)}/0.json`),
         fetch(`${FIREBASE_DB_URL}/stocks/${encodeURIComponent(primaryKey)}/1.json`)
@@ -137,7 +146,6 @@ export default function Stock_window({
       let c0 = liveRes0.ok ? await liveRes0.json() : null;
       let c1 = liveRes1.ok ? await liveRes1.json() : null;
 
-      // Fallback candle query using legacy target if primary returned null
       if (!c0 && !c1 && legacyTarget && legacyTarget !== primaryKey) {
         const [fb0, fb1] = await Promise.all([
           fetch(`${FIREBASE_DB_URL}/stocks/${encodeURIComponent(legacyTarget)}/0.json`),
@@ -147,7 +155,6 @@ export default function Stock_window({
         if (fb1.ok) c1 = await fb1.json();
       }
 
-      // 3. Resolve Current Price (Index 0 -> Index 1 -> CMP from param)
       const currentCmp = Number(
         c0?.close ?? c0?.c ?? c1?.close ?? c1?.c ?? data?.CMP ?? data?.cmp ?? 0
       );
@@ -210,11 +217,9 @@ export default function Stock_window({
 
   const COLOR_GREEN = "#00cc00"; 
   const COLOR_RED = "#e62e00";   
-  const DARK_GREEN = "#00cc00"; 
-  const DARK_RED = "#e62e00";   
-  const GRP_VALUATION = "#e6b800"; 
-  const GRP_GROWTH = "#FF9800"; 
-  const GRP_SCORES = "#005ce6";    
+  const LABEL_COLOR = "#a6a6a6";
+  const VAL_COLOR = "#ffffff";
+  const BORDER_COLOR = "#333333";
 
   const renderStars = () => {
     let starCount = 0;
@@ -232,13 +237,26 @@ export default function Stock_window({
 
   const displayName = name ? name.split('(')[0].trim() : (code || '');
 
+  // Helper formatting routines
+  const fmt = (v) => (v !== undefined && v !== null && v !== "" ? v : "xx.xx");
+  const fmtPct = (v) => {
+    if (v === undefined || v === null || v === "") return "xx.xx%";
+    const num = parseFloat(v);
+    return `${isNaN(num) ? v : num.toFixed(2)}%`;
+  };
+  const getDiffColor = (v) => {
+    const num = parseFloat(v);
+    if (isNaN(num)) return VAL_COLOR;
+    return num >= 0 ? COLOR_GREEN : COLOR_RED;
+  };
+
   return (
     <div style={{ display: 'flex', alignItems: 'stretch', gap: '2%', width: '98%', margin: '0 auto', position: 'relative', opacity: isFrozen ? 0.7 : 1, transition: 'opacity 0.3s ease', boxSizing: 'border-box' }}>
       
-      {/* ========================================== */}
-      {/* LEFT: 70% MAIN TECHNICAL FACE-PLATE        */}
-      {/* ========================================== */}
-      <div style={{ flex: '7', position: 'relative', padding: '15px', fontFamily: 'sans-serif', backgroundColor: '#000000', color: '#e0e0e0', border: '4px solid #C0C0C0', borderRadius: '8px', boxSizing: 'border-box', overflow: 'hidden' }}>
+      {/* ======================================================== */}
+      {/* LEFT: 65% MAIN TECHNICAL FACE-PLATE (100% UNTOUCHED)     */}
+      {/* ======================================================== */}
+      <div style={{ flex: '65', position: 'relative', padding: '15px', fontFamily: 'sans-serif', backgroundColor: '#000000', color: '#e0e0e0', border: '4px solid #C0C0C0', borderRadius: '8px', boxSizing: 'border-box', overflow: 'hidden' }}>
         
         {/* REVIEW/REMARK BADGE */}
         <div style={{ position: 'absolute', top: '4px', right: '10px', zIndex: 20, width: '130px' }}>
@@ -311,80 +329,182 @@ export default function Stock_window({
         </div>
       </div>
 
-      {/* ========================================== */}
-      {/* RIGHT: 30% EXTENSION PANEL                 */}
-      {/* ========================================== */}
-      <div style={{ flex: '3', position: 'relative', backgroundColor: '#000000', border: '4px solid #C0C0C0', borderRadius: '8px', padding: '15px', color: '#ffffff', fontFamily: 'sans-serif', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', boxShadow: '4px 4px 10px rgba(0,0,0,0.6)', boxSizing: 'border-box' }}>
-        
-        {/* VALUATION */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', fontSize: '13px' }}>
-          <div><span style={{color: GRP_VALUATION}}>PE:</span> <span style={{color: '#fff'}}>{pe ?? '-'}</span> (<span style={{color: Number(dpe) < 0 ? COLOR_RED : COLOR_GREEN}}>{dpe ?? '-'}%</span>)</div>
-          <div><span style={{color: GRP_VALUATION}}>PB:</span> <span style={{color: '#fff'}}>{pb ?? '-'}</span> (<span style={{color: Number(dpb) < 0 ? COLOR_RED : COLOR_GREEN}}>{dpb ?? '-'}%</span>)</div>
-        </div>
-        <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', fontSize: '13px' }}>
-          <div><span style={{color: GRP_VALUATION}}>PS:</span> <span style={{color: '#fff'}}>{ps ?? '-'}</span></div>
-          <div><span style={{color: GRP_VALUATION}}>D. Yield:</span> <span style={{color: '#fff'}}>{dy ?? '-'}%</span></div>
-        </div>
+      {/* ======================================================== */}
+      {/* RIGHT: 35% EXTENDED PANEL (NO HEADINGS, DEDICATED ROOM)  */}
+      {/* ======================================================== */}
+      <div style={{
+        flex: '35',
+        position: 'relative',
+        backgroundColor: '#000000',
+        border: '4px solid #C0C0C0',
+        borderRadius: '8px',
+        padding: '10px 14px',
+        color: '#ffffff',
+        fontFamily: 'sans-serif',
+        display: 'flex',
+        flexDirection: 'column',
+        justifyContent: 'space-between',
+        boxShadow: '4px 4px 10px rgba(0,0,0,0.6)',
+        boxSizing: 'border-box'
+      }}>
+        <table style={{
+          width: '100%',
+          height: '100%',
+          borderCollapse: 'collapse',
+          fontSize: '11.5px',
+          fontWeight: 'bold',
+          tableLayout: 'fixed'
+        }}>
+          <tbody>
+            {/* ROW 1: PE | D.Yield | BV growth(Y) */}
+            <tr style={{ borderBottom: `1px solid ${BORDER_COLOR}` }}>
+              <td style={{ width: '38%', padding: '4px 2px' }}>
+                <span style={{ color: LABEL_COLOR }}>PE : </span>
+                <span style={{ color: VAL_COLOR }}>{fmt(pe)}</span>
+                <div style={{ fontSize: '10.5px', color: getDiffColor(dpe), paddingLeft: '2px' }}>
+                  ({fmtPct(dpe)})
+                </div>
+              </td>
+              <td style={{ width: '31%', padding: '4px 2px', borderLeft: `1px solid ${BORDER_COLOR}` }}>
+                <span style={{ color: LABEL_COLOR }}>D.Yield: </span>
+                <span style={{ color: VAL_COLOR }}>{fmtPct(dy)}</span>
+              </td>
+              <td style={{ width: '31%', padding: '4px 2px', borderLeft: `1px solid ${BORDER_COLOR}` }}>
+                <span style={{ color: LABEL_COLOR }}>BV growth(Y): </span>
+                <span style={{ color: VAL_COLOR }}>{fmtPct(bvgr)}</span>
+              </td>
+            </tr>
 
-        <hr style={{ borderColor: '#333', margin: '2px 0', width: '100%' }} />
+            {/* ROW 2: PB | PS | Avg Dvd Pay */}
+            <tr style={{ borderBottom: `1px solid ${BORDER_COLOR}` }}>
+              <td style={{ padding: '4px 2px' }}>
+                <span style={{ color: LABEL_COLOR }}>PB : </span>
+                <span style={{ color: VAL_COLOR }}>{fmt(pb)}</span>
+                <div style={{ fontSize: '10.5px', color: getDiffColor(dpb), paddingLeft: '2px' }}>
+                  ({fmtPct(dpb)})
+                </div>
+              </td>
+              <td style={{ padding: '4px 2px', borderLeft: `1px solid ${BORDER_COLOR}` }}>
+                <span style={{ color: LABEL_COLOR }}>PS: </span>
+                <span style={{ color: VAL_COLOR }}>{fmt(ps)}</span>
+              </td>
+              <td style={{ padding: '4px 2px', borderLeft: `1px solid ${BORDER_COLOR}` }}>
+                <span style={{ color: LABEL_COLOR }}>Avg Dvd Pay: </span>
+                <span style={{ color: VAL_COLOR }}>{fmtPct(advdp)}</span>
+              </td>
+            </tr>
 
-        {/* GROWTH */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', fontWeight: 'bold', fontSize: '13px' }}>
-          <div>
-            <span style={{color: GRP_GROWTH}}>SG: </span>
-            <span style={{color: '#cccccc'}}>TTM-</span>
-            <span style={{color: Number(sg_ttm) > 0 ? DARK_GREEN : DARK_RED}}>{sg_ttm || "N/A"}% </span>
-            <span style={{color: '#cccccc'}}>(Q-</span>
-            <span style={{color: Number(ysg) > 0 ? DARK_GREEN : DARK_RED}}>{ysg || "N/A"}%</span>
-            <span style={{color: '#cccccc'}}>)</span>
-          </div>
-          <div>
-            <span style={{color: GRP_GROWTH}}>PG: </span>
-            <span style={{color: '#cccccc'}}>TTM-</span>
-            <span style={{color: Number(pg_1) > 0 ? DARK_GREEN : DARK_RED}}>{pg_1 || "N/A"}% </span>
-            <span style={{color: '#cccccc'}}>(Q-</span>
-            <span style={{color: Number(ypg) > 0 ? DARK_GREEN : DARK_RED}}>{ypg || "N/A"}%</span>
-            <span style={{color: '#cccccc'}}>)</span>
-          </div>
-        </div>
+            {/* ROW 3: ROE | ROA | ROCE */}
+            <tr style={{ borderBottom: `1px solid ${BORDER_COLOR}` }}>
+              <td style={{ padding: '4px 2px' }}>
+                <span style={{ color: LABEL_COLOR }}>ROE: </span>
+                <span style={{ color: VAL_COLOR }}>{fmt(roe0)}</span>
+                <div style={{ fontSize: '10.5px', color: '#94a3b8', paddingLeft: '2px' }}>
+                  ({fmt(roe3y)})
+                </div>
+              </td>
+              <td style={{ padding: '4px 2px', borderLeft: `1px solid ${BORDER_COLOR}` }}>
+                <span style={{ color: LABEL_COLOR }}>ROA: </span>
+                <span style={{ color: VAL_COLOR }}>{fmt(roa0)}</span>
+                <span style={{ fontSize: '10.5px', color: '#94a3b8', marginLeft: '3px' }}>({fmt(roa3y)})</span>
+              </td>
+              <td style={{ padding: '4px 2px', borderLeft: `1px solid ${BORDER_COLOR}` }}>
+                <span style={{ color: LABEL_COLOR }}>ROCE: </span>
+                <span style={{ color: VAL_COLOR }}>{fmt(roce0)}</span>
+                <span style={{ fontSize: '10.5px', color: '#94a3b8', marginLeft: '3px' }}>({fmt(roce3y)})</span>
+              </td>
+            </tr>
 
-        <hr style={{ borderColor: '#333', margin: '2px 0', width: '100%' }} />
-        
-        {/* SCORES */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', fontSize: '13px' }}>
-          <div><span style={{color: GRP_SCORES}}>T-Scr:</span> <span style={{color: '#fff'}}>{tScore ?? '-'}</span></div>
-          <div><span style={{color: GRP_SCORES}}>F-Scr:</span> <span style={{color: '#fff'}}>{fScore ?? '-'}</span></div>
-          <div><span style={{color: GRP_SCORES}}>G-Scr:</span> <span style={{color: '#fff'}}>{gScore ?? '-'}</span></div>
-        </div>
+            {/* ROW 4: MCAP | MCAP (Pct) | DE */}
+            <tr style={{ borderBottom: `1px solid ${BORDER_COLOR}` }}>
+              <td style={{ padding: '4px 2px' }}>
+                <span style={{ color: LABEL_COLOR }}>MCAP: </span>
+                <div style={{ color: '#06b6d4', fontSize: '12px' }}>{fmt(mcap)}</div>
+              </td>
+              <td style={{ padding: '4px 2px', borderLeft: `1px solid ${BORDER_COLOR}` }}>
+                <span style={{ color: LABEL_COLOR }}>MCAP (Pct): </span>
+                <span style={{ color: VAL_COLOR }}>{fmt(pccap)}</span>
+              </td>
+              <td style={{ padding: '4px 2px', borderLeft: `1px solid ${BORDER_COLOR}` }}>
+                <span style={{ color: LABEL_COLOR }}>DE: </span>
+                <span style={{ color: VAL_COLOR }}>{fmt(de)}</span>
+              </td>
+            </tr>
 
-        <hr style={{ borderColor: '#333', margin: '2px 0', width: '100%' }} />
+            {/* ROWS 5 & 6: MERGED ROOM FOR LAST QTR (rowSpan=2) */}
+            {/* ROW 5: SALES GROWTH (Left 80%) + LAST QTR LABEL (Right 20%) */}
+            <tr style={{ borderBottom: `1px solid ${BORDER_COLOR}` }}>
+              <td colSpan={2} style={{ padding: '4px 2px', whiteSpace: 'nowrap' }}>
+                <span style={{ color: LABEL_COLOR }}>SALES GROWTH: </span>
+                <span style={{ color: '#ffffff' }}>(YOYQ - <span style={{ color: getDiffColor(ysg) }}>{fmtPct(ysg)}</span>) </span>
+                <span style={{ color: '#ffffff' }}>[TTM - <span style={{ color: getDiffColor(sg_ttm) }}>{fmtPct(sg_ttm)}</span>] </span>
+                <span style={{ color: '#ffffff' }}>[3Y - <span style={{ color: getDiffColor(sg_3y) }}>{fmtPct(sg_3y)}</span>]</span>
+              </td>
+              <td rowSpan={2} style={{
+                borderLeft: `1px solid ${BORDER_COLOR}`,
+                textAlign: 'center',
+                verticalAlign: 'middle',
+                padding: '4px 2px',
+                backgroundColor: '#0a0a0a'
+              }}>
+                <div style={{ color: '#d97706', fontSize: '11px', textTransform: 'uppercase', marginBottom: '2px' }}>
+                  LAST QTR:
+                </div>
+                <div style={{ color: '#38bdf8', fontSize: '12px', fontWeight: '900', letterSpacing: '0.5px' }}>
+                  {last_qtr || "JUNE, 2026"}
+                </div>
+              </td>
+            </tr>
 
-        {/* CORPORATE DATES TIER */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '11px', fontFamily: 'sans-serif' }}>
-          <div>
-            <span style={{ color: '#b36b00', fontWeight: 'bold', textTransform: 'uppercase' }}>Ex-dividend: </span>
-            <span style={{ color: '#a6a6a6', fontWeight: 'bold' }}>{ex_div_date || "N/A"}</span>
-          </div>
-          <div>
-            <span style={{ color: '#b36b00', fontWeight: 'bold', textTransform: 'uppercase' }}>Latest Quarter: </span>
-            <span style={{ color: '#a6a6a6', fontWeight: 'bold' }}>{last_quarter_name || "N/A"}</span>
-          </div>
-          <div>
-            <span style={{ color: '#b36b00', fontWeight: 'bold', textTransform: 'uppercase' }}>Next Quarter Date: </span>
-            <span style={{ color: '#a6a6a6', fontWeight: 'bold' }}>{next_quarter_date || "N/A"}</span>
-          </div>
-          
-          <hr style={{ borderColor: '#333', margin: '2px 0', width: '100%' }} />
-          
-          <div style={{ fontFamily: 'monospace', fontSize: '13px', marginTop: '2px' }}>
-            <span style={{ color: '#cc6600', fontWeight: 'bold', textTransform: 'uppercase' }}>Mkt Cap Rank: </span>
-            <span style={{ color: '#80b3ff', fontWeight: 'bold' }}>{pccap ?? "N/A"}</span>
-          </div>
-        </div>
+            {/* ROW 6: PROFIT GROWTH (Left 80%) */}
+            <tr style={{ borderBottom: `1px solid ${BORDER_COLOR}` }}>
+              <td colSpan={2} style={{ padding: '4px 2px', whiteSpace: 'nowrap' }}>
+                <span style={{ color: LABEL_COLOR }}>PROFIT GROWTH: </span>
+                <span style={{ color: '#ffffff' }}>(YOYQ - <span style={{ color: getDiffColor(ypg) }}>{fmtPct(ypg)}</span>) </span>
+                <span style={{ color: '#ffffff' }}>[TTM - <span style={{ color: getDiffColor(pg_1) }}>{fmtPct(pg_1)}</span>] </span>
+                <span style={{ color: '#ffffff' }}>[3Y - <span style={{ color: getDiffColor(pg_3) }}>{fmtPct(pg_3)}</span>]</span>
+              </td>
+            </tr>
 
+            {/* ROW 7: T-SCORE | G-SCORE | F-SCORE */}
+            <tr style={{ borderBottom: `1px solid ${BORDER_COLOR}` }}>
+              <td style={{ padding: '4px 2px' }}>
+                <span style={{ color: LABEL_COLOR }}>T-SCORE: </span>
+                <span style={{ color: '#38bdf8' }}>{fmt(tScore)}</span>
+              </td>
+              <td style={{ padding: '4px 2px', borderLeft: `1px solid ${BORDER_COLOR}` }}>
+                <span style={{ color: LABEL_COLOR }}>G-SCORE: </span>
+                <span style={{ color: '#38bdf8' }}>{fmt(gScore)}</span>
+              </td>
+              <td style={{ padding: '4px 2px', borderLeft: `1px solid ${BORDER_COLOR}` }}>
+                <span style={{ color: LABEL_COLOR }}>F-SCORE: </span>
+                <span style={{ color: '#38bdf8' }}>{fmt(fScore)}</span>
+              </td>
+            </tr>
+
+            {/* ROW 8: SINGLE-LINE SHAREHOLDING (PRMTR | FII | DII) */}
+            <tr>
+              <td style={{ padding: '5px 2px', whiteSpace: 'nowrap' }}>
+                <span style={{ color: LABEL_COLOR }}>PRMTR: </span>
+                <span style={{ color: VAL_COLOR }}>{fmtPct(prh)} </span>
+                <span style={{ fontSize: '10.5px', color: getDiffColor(dprh) }}>({fmtPct(dprh)})</span>
+              </td>
+              <td style={{ padding: '5px 2px', borderLeft: `1px solid ${BORDER_COLOR}`, whiteSpace: 'nowrap' }}>
+                <span style={{ color: LABEL_COLOR }}>FII: </span>
+                <span style={{ color: VAL_COLOR }}>{fmtPct(fii)} </span>
+                <span style={{ fontSize: '10.5px', color: getDiffColor(dfii) }}>({fmtPct(dfii)})</span>
+              </td>
+              <td style={{ padding: '5px 2px', borderLeft: `1px solid ${BORDER_COLOR}`, whiteSpace: 'nowrap' }}>
+                <span style={{ color: LABEL_COLOR }}>DII: </span>
+                <span style={{ color: VAL_COLOR }}>{fmtPct(dii)} </span>
+                <span style={{ fontSize: '10.5px', color: getDiffColor(ddii) }}>({fmtPct(ddii)})</span>
+              </td>
+            </tr>
+          </tbody>
+        </table>
       </div>
 
-      {/* REMARK NOTEBOOK MODAL */}
+      {/* REMARK NOTEBOOK MODAL (Unchanged) */}
       {isRemarkOpen && (
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0, 0, 0, 0.8)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <div style={{ backgroundColor: '#121212', border: '2px solid #C0C0C0', borderRadius: '10px', padding: '25px', width: '450px', height: '350px', overflowY: 'auto', boxShadow: '0 10px 30px rgba(0,0,0,0.8)', position: 'relative', boxSizing: 'border-box' }}>

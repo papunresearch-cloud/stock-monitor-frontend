@@ -53,7 +53,7 @@ export default function StockGrid({
       return;
     }
 
-    // Build a unified resolution map by CODE, sanitized key, raw name, and ticker
+    // Build unified lookup map across CODE, sanitized key, Name, and TICKER
     const resolutionMap = {};
     Object.entries(detailedDb).forEach(([k, item]) => {
       if (!item) return;
@@ -75,7 +75,7 @@ export default function StockGrid({
       return resolutionMap[cleanKey] || resolutionMap[rawKey];
     }).filter(stock => stock !== undefined);
 
-    // Deduplicate stocks within the grid
+    // Deduplicate stocks
     const seenCodes = new Set();
     currentList = currentList.filter(stk => {
       const uniqueId = stk.CODE || sanitizeKey(stk.Name) || stk.TICKER;
@@ -143,32 +143,58 @@ export default function StockGrid({
           ticker={stock?.TICKER} 
           nse={stock?.NSE} 
           
+          // Valuation parameters from detailedDb
           pe={stock?.PE}
           dpe={stock?.['DPE%']} 
           pb={stock?.PB}
           dpb={stock?.['DPB%']}
           ps={stock?.PS}
           dy={stock?.DY}
+          bvgr={stock?.BVgr}
+          advdp={stock?.advdp}
+
+          // Return ratios
+          roe0={stock?.['roe-0']}
+          roe3y={stock?.['roe-3y']}
+          roa0={stock?.['roa-0']}
+          roa3y={stock?.['roa-3y']}
+          roce0={stock?.['roce-0']}
+          roce3y={stock?.['roce-3y']}
+
+          // Leverage & Market Cap
+          mcap={stock?.mcap}
+          pccap={stock?.PCCAP ?? stock?.pccap}
+          de={stock?.DE}
+
+          // Multi-period Sales & Profit Growth
+          ysg={stock?.YSG || stock?.ysg}
+          sg_ttm={stock?.['SG-TTM'] || stock?.['sg-ttm']}
+          sg_3y={stock?.['sg-3y']}
+          last_qtr={stock?.['Last Qtr'] || stock?.last_quarter_name}
+          ypg={stock?.YPG || stock?.ypg}
+          pg_1={stock?.['PG-1'] || stock?.['pg-1']}
+          pg_3={stock?.['pg-3']}
+
+          // Quant scores
           tScore={stock?.['T-score']}
-          fScore={stock?.['F-score']}
           gScore={stock?.['G-score']}
-          
+          fScore={stock?.['F-score']}
+
+          // Shareholding parameters
+          prh={stock?.PRH}
+          dprh={stock?.DPRH}
+          fii={stock?.FII}
+          dfii={stock?.DFII}
+          dii={stock?.DII}
+          ddii={stock?.DDII}
+
+          // Meta fields
           review={stock?.REVIEW || stock?.Review}
           group={stock?.GROUP || stock?.Group}
           remark={stock?.REMARK || stock?.Remark}
           duration={stock?.DURATION || stock?.Duration}
           sector={stock?.SECTOR || stock?.Sector || stock?.sector}
           industry={stock?.INDUSTRY || stock?.Industry || stock?.industry}
-          pccap={stock?.PCCAP ?? stock?.pccap}
-
-          sg_ttm={stock?.['SG-TTM'] || stock?.['sg-ttm']}
-          ysg={stock?.YSG || stock?.ysg}
-          pg_1={stock?.['PG-1'] || stock?.['pg-1']}
-          ypg={stock?.YPG || stock?.ypg}
-
-          ex_div_date={stock?.ex_div_date}
-          last_quarter_name={stock?.last_quarter_name}
-          next_quarter_date={stock?.next_quarter_date}
 
           isAutoMode={isAutoMode} 
           isFrozen={isFrozen} 
