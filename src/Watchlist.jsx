@@ -3,7 +3,7 @@ import { ref, get, set, update, remove, onValue } from "firebase/database";
 import { database } from "./firebase";
 
 // ============================================================================
-// 1. CONFIGURATION & FORMATTING HELPERS
+// 1. GLOBAL CONFIGURATION & THEME SETTINGS
 // ============================================================================
 export const APP_CONFIG = {
   theme: {
@@ -23,7 +23,6 @@ export const APP_CONFIG = {
     tableCellBorder: "1px solid #1e3a8a",  
     fontFamily: "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
   },
-  // Strictly the 6 manual curation metadata fields
   columns: [
     "GROUP",
     "REVIEW", 
@@ -32,12 +31,13 @@ export const APP_CONFIG = {
     "DATE",
     "TICKER"
   ],
-  // Fundamental screener metrics: original detailedDb fields + new extra parameters
+  // Complete list of metrics: Old detailedDb parameters + ALL NEW extra parameters
   enrichmentMetrics: [
     // Pre-existing metrics in detailedDb
     "CODE", "DPB%", "DPE%", "DY", "F-score", "G-score", "PB", "PCCAP", 
     "PE", "PS", "T-score", "YPG", "YSG", "industry", "pg-1", "sector", "sg-ttm",
-    // Newly requested extra parameters
+    
+    // Newly added extra parameters
     "mcap", "roe-0", "roe-3y", "roa-0", "roa-3y", "roce-0", "roce-3y", 
     "sg-3y", "pg-3", "DE", "BVgr", "advdp", "FII", "DFII", "DII", 
     "DDII", "PRH", "DPRH", "Last Qtr"
@@ -68,12 +68,24 @@ const formatDateToDDMMYYYY = (dateObj) => {
 const sanitizeKey = (key) =>
   String(key || "").trim().replace(/[.#$\[\]\/]/g, "_");
 
-// Extracts screener metrics for insertion or synchronization
-const extractScreenerMetrics = (screenerRecord) => {
+const sanitizeForFirebase = (obj) => {
+  if (typeof obj !== 'object' || obj === null) return obj;
+  if (Array.isArray(obj)) return obj.map(sanitizeForFirebase);
+  
+  const newObj = {};
+  for (const [key, value] of Object.entries(obj)) {
+    const cleanKey = key.replace(/[.#$/\[\]]/g, '_');
+    newObj[cleanKey] = sanitizeForFirebase(value);
+  }
+  return newObj;
+};
+
+// Extracts all configured screener parameters from the screener record
+const extractAllMetrics = (screenerRecord) => {
   if (!screenerRecord || typeof screenerRecord !== "object") return {};
   const metrics = {};
   if (screenerRecord.Name) metrics.Name = screenerRecord.Name;
-  
+
   APP_CONFIG.enrichmentMetrics.forEach((key) => {
     if (screenerRecord[key] !== undefined) {
       metrics[key] = screenerRecord[key];
@@ -83,7 +95,7 @@ const extractScreenerMetrics = (screenerRecord) => {
 };
 
 // ============================================================================
-// 2. MAIN COMPONENT
+// 2. MAIN STOCK WATCHLIST COMPONENT
 // ============================================================================
 export default function StockWatchlist() {
   const theme = APP_CONFIG.theme;
@@ -104,22 +116,22 @@ export default function StockWatchlist() {
   const [selectedStockNames, setSelectedStockNames] = useState(new Set());
   const [appliedFilter, setAppliedFilter] = useState(null);
 
-  // 1. ADD QUEUE STATES
+  // 1. ADD MODAL QUEUE STATES
   const [addQueue, setAddQueue] = useState([]);
   const [currentAddIndex, setCurrentAddIndex] = useState(0);
   const [addAnswers, setAddAnswers] = useState({ q1: "", q2: "", q3: "", q4: "" });
 
-  // 2. DELETE QUEUE STATES
+  // 2. DELETE MODAL QUEUE STATES
   const [deleteQueue, setDeleteQueue] = useState([]);
   const [currentDeleteIndex, setCurrentDeleteIndex] = useState(0);
   const [deleteAnswers, setDeleteAnswers] = useState({ q1: "", q2: "", q3: "", dateInput: "" });
 
-  // 3. UPDATE QUEUE STATES
+  // 3. UPDATE MODAL QUEUE STATES
   const [updateQueue, setUpdateQueue] = useState([]);
   const [currentUpdateIndex, setCurrentUpdateIndex] = useState(0);
   const [updateAnswers, setUpdateAnswers] = useState({ q1: "", q2: "", q3: "" });
 
-  // Modals & UI States
+  // Standard Modals
   const [notepadModal, setNotepadModal] = useState({ isOpen: false, stockName: "", text: "", error: "" });
   const [tickerModal, setTickerModal] = useState({ isOpen: false, stockName: "", text: "", defaultTicker: "", isManualMode: false });
   const [showHelpModal, setShowHelpModal] = useState(false);
@@ -127,7 +139,7 @@ export default function StockWatchlist() {
 
   const todayFormattedDate = formatDateToDDMMYYYY(new Date());
 
-  // Cloud Fetch Initializer & Realtime Sync for SCREENER changes
+  // Cloud Fetch Initializer & SCREENER Realtime Sync
   useEffect(() => {
     setLoading(true);
 
@@ -160,7 +172,7 @@ export default function StockWatchlist() {
           setOriginalDb({});
         }
       } catch (err) {
-        console.error("Firebase Static Data Init Error:", err);
+        console.error("Firebase Data Initialization Error:", err);
         setBannerMsg({ text: `Cloud Sync Error: ${err.message}`, type: "error" });
       } finally {
         setLoading(false);
@@ -169,7 +181,7 @@ export default function StockWatchlist() {
 
     loadStaticData();
 
-    // REALTIME LISTENER on SCREENER: Immediately propagates metrics to detailedDb
+    // REALTIME LISTENER on SCREENER: Keeps detailedDb synced when screener values change
     const screenerRef = ref(database, 'SCREENER');
     const unsubscribeScreener = onValue(screenerRef, async (snapshot) => {
       if (!snapshot.exists()) return;
@@ -178,7 +190,7 @@ export default function StockWatchlist() {
       const screenerArr = (Array.isArray(val) ? val : Object.values(val)).filter(Boolean);
       setMainData(screenerArr);
 
-      // Fast Lookup Table
+      // Build quick lookup dictionary
       const lookup = {};
       screenerArr.forEach((item) => {
         if (item.CODE) lookup[sanitizeKey(item.CODE)] = item;
@@ -200,10 +212,10 @@ export default function StockWatchlist() {
         activeWatchlist.forEach((stk) => {
           const safeKey = sanitizeKey(stk);
           const screenerRecord = lookup[safeKey] || {};
-          const newScreenerMetrics = extractScreenerMetrics(screenerRecord);
+          const newScreenerMetrics = extractAllMetrics(screenerRecord);
           const existingStock = currentDetailedDb[safeKey] || {};
 
-          // Check if any metric is missing or has changed
+          // Check if any new/existing parameter has changed or is missing
           const hasMetricDiff = Object.entries(newScreenerMetrics).some(
             ([k, v]) => existingStock[k] !== v
           );
@@ -213,7 +225,7 @@ export default function StockWatchlist() {
             dbUpdates[`watchlist/detailedDb/${safeKey}`] = {
               ...existingStock,
               ...newScreenerMetrics,
-              // Protect curation fields
+              // Protect manual curation fields
               GROUP: existingStock.GROUP || "GROUP-0",
               REVIEW: existingStock.REVIEW || "NR",
               DURATION: existingStock.DURATION || "NR",
@@ -244,6 +256,7 @@ export default function StockWatchlist() {
     return () => unsubscribeScreener();
   }, []);
 
+  // Multi-key lookup map to guarantee resolving stock from SCREENER
   const mainDataMap = useMemo(() => {
     const map = {};
     if (Array.isArray(mainData)) {
@@ -251,10 +264,18 @@ export default function StockWatchlist() {
         if (item.Name) map[item.Name] = item;
         if (item.CODE) map[item.CODE] = item;
         if (item.NSE) map[item.NSE] = item;
+        if (item.CODE) map[sanitizeKey(item.CODE)] = item;
+        if (item.Name) map[sanitizeKey(item.Name)] = item;
       });
     }
     return map;
   }, [mainData]);
+
+  const findMainRecord = useCallback((stockIdentifier) => {
+    if (!stockIdentifier) return {};
+    const safe = sanitizeKey(stockIdentifier);
+    return mainDataMap[stockIdentifier] || mainDataMap[safe] || {};
+  }, [mainDataMap]);
 
   const handleFieldChange = (stockName, fieldKey, value) => {
     const validName = extractStockName(stockName);
@@ -296,17 +317,34 @@ export default function StockWatchlist() {
     else setSelectedStockNames(new Set());
   };
 
-  // Signal backend orchestrator to perform immediate historical + live fetch
+  const persistWatchlistToFirebase = async (newWatchlistArray, newDetailedDb) => {
+    try {
+      const watchlistRef = ref(database, 'watchlist');
+      const payload = sanitizeForFirebase({
+        watchlist: newWatchlistArray,
+        detailedDb: newDetailedDb,
+        lastSync: new Date().toISOString()
+      });
+      await set(watchlistRef, payload);
+      setBannerMsg({ text: "Firebase Watchlist updated successfully! ☁️✅", type: "success" });
+      setTimeout(() => setBannerMsg({ text: "", type: "info" }), 3500);
+    } catch (err) {
+      console.error("Failed to write watchlist to Firebase:", err);
+      setBannerMsg({ text: `Firebase Save Failed: ${err.message}`, type: "error" });
+    }
+  };
+
+  // Signal backend orchestrator
   const triggerBackendSync = async () => {
     try {
       await fetch("http://127.0.0.1:10000/sync", { method: "POST" });
     } catch {
-      // Backend may run on alternative host/port
+      // Backend may be running on a remote port
     }
   };
 
   // ============================================================================
-  // 1. ADD HANDLER (Appends all requested extra screener parameters into detailedDb)
+  // 1. SEQUENTIAL ADD QUEUE HANDLERS (Extracts ALL new parameters)
   // ============================================================================
   const startAddProcess = () => {
     const list = Array.from(selectedStockNames);
@@ -318,18 +356,16 @@ export default function StockWatchlist() {
 
   const handleOkAddStock = async () => {
     const stockToAdd = addQueue[currentAddIndex];
-    const safeStockKey = sanitizeKey(stockToAdd);
-    const mainRecord = mainDataMap[stockToAdd] || mainDataMap[safeStockKey] || {};
+    const mainRecord = findMainRecord(stockToAdd);
     const today = formatDateToDDMMYYYY(new Date());
-    
-    // Resolve Yahoo Ticker
-    const ticker = (stockDatabase[stockToAdd]?.TICKER) || (mainRecord.NSE ? `${mainRecord.NSE}.NS` : stockToAdd);
+    const ticker = stockDatabase[stockToAdd]?.TICKER || (mainRecord.NSE ? `${mainRecord.NSE}.NS` : stockToAdd);
+    const safeStockKey = sanitizeKey(stockToAdd);
 
-    // Extract all screener metrics (including the extra parameters)
-    const screenerMetrics = extractScreenerMetrics(mainRecord);
+    // 1. Extract old + all newly added parameters from SCREENER
+    const screenerMetrics = extractAllMetrics(mainRecord);
 
-    // Assemble payload preserving manual fields and merging all screener parameters
-    const stockMetadata = {
+    // 2. Build full metadata object
+    const enrichedStockRecord = {
       ...screenerMetrics,
       CODE: mainRecord.CODE || safeStockKey,
       Name: mainRecord.Name || stockToAdd,
@@ -342,12 +378,19 @@ export default function StockWatchlist() {
     };
 
     const nextWatchlist = Array.from(new Set([...watchlistNames, stockToAdd]));
+    const nextDb = {
+      ...stockDatabase,
+      [stockToAdd]: {
+        ...(stockDatabase[stockToAdd] || {}),
+        ...enrichedStockRecord
+      }
+    };
 
-    // Update local state
     setWatchlistNames(nextWatchlist);
-    setStockDatabase(prev => ({ ...prev, [stockToAdd]: stockMetadata }));
-    setOriginalDb(prev => ({ ...prev, [stockToAdd]: JSON.parse(JSON.stringify(stockMetadata)) }));
+    setStockDatabase(nextDb);
+    setOriginalDb(JSON.parse(JSON.stringify(nextDb)));
     setWatchlistEditSelected(new Set(nextWatchlist));
+
     setSelectedStockNames(prev => {
       const next = new Set(prev);
       next.delete(stockToAdd);
@@ -355,19 +398,13 @@ export default function StockWatchlist() {
     });
 
     try {
-      // 1. Add stock name to watchlist folder
+      // Direct individual set on detailedDb to avoid race conditions
       await set(ref(database, 'watchlist/watchlist'), nextWatchlist);
-
-      // 2. Add full metadata + all extra screener parameters under watchlist/detailedDb/<StockKey>
-      await set(ref(database, `watchlist/detailedDb/${safeStockKey}`), stockMetadata);
-
-      // 3. Add (stock name + ticker name) to stocklist folder
+      await set(ref(database, `watchlist/detailedDb/${safeStockKey}`), enrichedStockRecord);
       await set(ref(database, `stocklist/${safeStockKey}`), ticker);
-
-      // 4. Instruct backend to create/insert 300 historical rows and live candle
       await triggerBackendSync();
 
-      setBannerMsg({ text: `Successfully added ${stockToAdd} with all extra parameters! ✅`, type: "success" });
+      setBannerMsg({ text: `Successfully added ${stockToAdd} with all new parameters! ✅`, type: "success" });
       setTimeout(() => setBannerMsg({ text: "", type: "info" }), 3500);
     } catch (err) {
       console.error("Firebase Add Sync Error:", err);
@@ -397,7 +434,7 @@ export default function StockWatchlist() {
   };
 
   // ============================================================================
-  // 2. DELETE HANDLER
+  // 2. SEQUENTIAL DELETE QUEUE HANDLERS
   // ============================================================================
   const startDeleteProcess = () => {
     const list = Array.from(watchlistEditSelected);
@@ -412,18 +449,13 @@ export default function StockWatchlist() {
     const safeStockKey = sanitizeKey(stockToDelete);
 
     const nextWatchlist = watchlistNames.filter(name => name !== stockToDelete);
+    const nextDb = { ...stockDatabase };
+    delete nextDb[stockToDelete];
 
     setWatchlistNames(nextWatchlist);
-    setStockDatabase(prev => {
-      const copy = { ...prev };
-      delete copy[stockToDelete];
-      return copy;
-    });
-    setOriginalDb(prev => {
-      const copy = { ...prev };
-      delete copy[stockToDelete];
-      return copy;
-    });
+    setStockDatabase(nextDb);
+    setOriginalDb(JSON.parse(JSON.stringify(nextDb)));
+
     setWatchlistEditSelected(prev => {
       const next = new Set(prev);
       next.delete(stockToDelete);
@@ -432,11 +464,12 @@ export default function StockWatchlist() {
 
     try {
       await set(ref(database, 'watchlist/watchlist'), nextWatchlist);
-      await remove(ref(database, `watchlist/detailedDb/${safeStockKey}`));
       await remove(ref(database, `stocklist/${safeStockKey}`));
+      await remove(ref(database, `watchlist/detailedDb/${safeStockKey}`));
       await remove(ref(database, `stocks/${safeStockKey}`));
+      await remove(ref(database, `param/${safeStockKey}`));
 
-      setBannerMsg({ text: `Purged ${stockToDelete} and removed detailedDb/OHLC cleanly. 🗑️`, type: "success" });
+      setBannerMsg({ text: `Purged ${stockToDelete} cleanly from all folders. 🗑️`, type: "success" });
       setTimeout(() => setBannerMsg({ text: "", type: "info" }), 3500);
     } catch (err) {
       console.error("Firebase Complete Purge Sync Error:", err);
@@ -466,7 +499,7 @@ export default function StockWatchlist() {
   };
 
   // ============================================================================
-  // 3. UPDATE HANDLER (Overwrites manual curation fields, preserves all parameters)
+  // 3. SEQUENTIAL UPDATE QUEUE HANDLERS
   // ============================================================================
   const startUpdateProcess = () => {
     if (watchlistNames.length === 0) return;
@@ -492,7 +525,6 @@ export default function StockWatchlist() {
 
     const updatedDate = coreChanged ? today : (curr.DATE || today);
 
-    // Updates manual fields while keeping all metric parameters unaltered
     const updatedMetadata = {
       ...curr,
       GROUP: curr.GROUP || "GROUP-0",
@@ -513,18 +545,14 @@ export default function StockWatchlist() {
     }));
 
     try {
-      // update() ensures only the specified fields change, leaving all metrics intact
+      // Multi-key update preserves all screener parameters intact
       await update(ref(database, `watchlist/detailedDb/${safeStockKey}`), updatedMetadata);
 
       if (updatedMetadata.TICKER) {
         await set(ref(database, `stocklist/${safeStockKey}`), updatedMetadata.TICKER);
       }
-
-      setBannerMsg({ text: `Updated metadata for ${stockToUpdate} successfully! 💾`, type: "success" });
-      setTimeout(() => setBannerMsg({ text: "", type: "info" }), 3500);
     } catch (err) {
       console.error("Firebase Update Sync Error:", err);
-      setBannerMsg({ text: `Update Error: ${err.message}`, type: "error" });
     }
 
     if (currentUpdateIndex + 1 < updateQueue.length) {
@@ -561,7 +589,7 @@ export default function StockWatchlist() {
 
   const openExternalLink = (type, stockName) => {
     const validName = extractStockName(stockName);
-    const mainRecord = mainDataMap[validName] || {};
+    const mainRecord = findMainRecord(validName);
     const nse = mainRecord.NSE;
     const bse = mainRecord.BSE;
     const fallbackCode = mainRecord.CODE || validName; 
@@ -899,7 +927,7 @@ export default function StockWatchlist() {
                         type="button"
                         onClick={() => {
                           if (!isEditable) { alert("Enable MODIFY mode to edit ticker!"); return; }
-                          const mainRecord = mainDataMap[stockName] || {};
+                          const mainRecord = findMainRecord(stockName);
                           const defaultTicker = mainRecord.NSE ? `${mainRecord.NSE}.NS` : stockName;
                           setTickerModal({ isOpen: true, stockName: stockName, text: stockData["TICKER"] || defaultTicker, defaultTicker: defaultTicker, isManualMode: false });
                         }}
@@ -939,7 +967,7 @@ export default function StockWatchlist() {
         </table>
       </div>
 
-      {/* 1. ADD CONFIRMATION MODAL */}
+      {/* 1. ADD MODAL */}
       {addQueue.length > 0 && (
         <div style={{ position: "fixed", top: 0, left: 0, width: "100vw", height: "100vh", backgroundColor: "rgba(0,0,0,0.85)", display: "flex", justifyContent: "center", alignItems: "center", zIndex: 9999, padding: "20px" }}>
           <div style={{ backgroundColor: "#0f172a", border: `2px solid ${theme.accentGreen}`, borderRadius: "12px", padding: "24px", width: "480px", color: "#f8fafc", boxShadow: "0 10px 40px rgba(0,0,0,0.8)" }}>
@@ -1025,7 +1053,7 @@ export default function StockWatchlist() {
         </div>
       )}
 
-      {/* 2. DELETE CONFIRMATION MODAL */}
+      {/* 2. DELETE MODAL */}
       {deleteQueue.length > 0 && (
         <div style={{ position: "fixed", top: 0, left: 0, width: "100vw", height: "100vh", backgroundColor: "rgba(0,0,0,0.85)", display: "flex", justifyContent: "center", alignItems: "center", zIndex: 9999, padding: "20px" }}>
           <div style={{ backgroundColor: "#0f172a", border: `2px solid ${theme.accentRed}`, borderRadius: "12px", padding: "24px", width: "480px", color: "#f8fafc", boxShadow: "0 10px 40px rgba(0,0,0,0.8)" }}>
@@ -1043,7 +1071,7 @@ export default function StockWatchlist() {
               <h1 style={{ color: theme.accentRed, fontSize: "28px", fontWeight: "900", margin: "0 0 6px 0", letterSpacing: "1px" }}>
                 {deleteQueue[currentDeleteIndex]}
               </h1>
-              <p style={{ margin: 0, fontSize: "12px", color: "#cbd5e1" }}>Permanent removal from Watchlist, Stocklist & OHLC History.</p>
+              <p style={{ margin: 0, fontSize: "12px", color: "#cbd5e1" }}>Permanent removal from Watchlist, Stocklist, OHLC & Param History.</p>
             </div>
 
             <div style={{ display: "flex", flexDirection: "column", gap: "12px", fontSize: "13px", marginBottom: "24px" }}>
@@ -1111,7 +1139,7 @@ export default function StockWatchlist() {
         </div>
       )}
 
-      {/* 3. UPDATE CONFIRMATION MODAL */}
+      {/* 3. UPDATE MODAL */}
       {updateQueue.length > 0 && (
         <div style={{ position: "fixed", top: 0, left: 0, width: "100vw", height: "100vh", backgroundColor: "rgba(0,0,0,0.85)", display: "flex", justifyContent: "center", alignItems: "center", zIndex: 9999, padding: "20px" }}>
           <div style={{ backgroundColor: "#0f172a", border: `2px solid ${theme.accentCyan}`, borderRadius: "12px", padding: "24px", width: "480px", color: "#f8fafc", boxShadow: "0 10px 40px rgba(0,0,0,0.8)" }}>
