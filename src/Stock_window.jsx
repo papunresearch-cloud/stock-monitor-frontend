@@ -439,11 +439,11 @@ export default function Stock_window({
             </tr>
 
             {/* ROWS 5 & 6: MERGED ROOM FOR LAST QTR (rowSpan=2) */}
-            {/* ROW 5: SALES GROWTH (Left 80%) + LAST QTR LABEL (Right 20%) */}
+            {/* ROW 5: SALES GROWTH (Left 90%) + LAST QTR LABEL (Right 10%) */}
             <tr style={{ borderBottom: `1px solid ${BORDER_COLOR}` }}>
               <td colSpan={2} style={{ padding: '4px 2px', whiteSpace: 'nowrap' }}>
-                <span style={{ color: STATIC_TEXT_COLOR }}>SALES GROWTH: </span>
-                <span style={{ color: STATIC_TEXT_COLOR }}>(YOYQ – <span style={{ color: getDiffColor(ysg) }}>{fmtPct(ysg)}</span>) </span>
+                <span style={{ color: STATIC_TEXT_COLOR }}>SG: </span>
+                <span style={{ color: STATIC_TEXT_COLOR }}>(YQ – <span style={{ color: getDiffColor(ysg) }}>{fmtPct(ysg)}</span>) </span>
                 <span style={{ color: STATIC_TEXT_COLOR }}>[TTM – <span style={{ color: getDiffColor(sg_ttm) }}>{fmtPct(sg_ttm)}</span>] </span>
                 <span style={{ color: STATIC_TEXT_COLOR }}>[3Y – <span style={{ color: getDiffColor(sg_3y) }}>{fmtPct(sg_3y)}</span>]</span>
               </td>
@@ -466,8 +466,8 @@ export default function Stock_window({
             {/* ROW 6: PROFIT GROWTH (Left 80%) */}
             <tr style={{ borderBottom: `1px solid ${BORDER_COLOR}` }}>
               <td colSpan={2} style={{ padding: '4px 2px', whiteSpace: 'nowrap' }}>
-                <span style={{ color: STATIC_TEXT_COLOR }}>PROFIT GROWTH: </span>
-                <span style={{ color: STATIC_TEXT_COLOR }}>(YOYQ – <span style={{ color: getDiffColor(ypg) }}>{fmtPct(ypg)}</span>) </span>
+                <span style={{ color: STATIC_TEXT_COLOR }}>PG: </span>
+                <span style={{ color: STATIC_TEXT_COLOR }}>(YQ – <span style={{ color: getDiffColor(ypg) }}>{fmtPct(ypg)}</span>) </span>
                 <span style={{ color: STATIC_TEXT_COLOR }}>[TTM – <span style={{ color: getDiffColor(pg_1) }}>{fmtPct(pg_1)}</span>] </span>
                 <span style={{ color: STATIC_TEXT_COLOR }}>[3Y – <span style={{ color: getDiffColor(pg_3) }}>{fmtPct(pg_3)}</span>]</span>
               </td>
