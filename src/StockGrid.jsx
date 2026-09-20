@@ -53,7 +53,7 @@ export default function StockGrid({
       return;
     }
 
-    // Build unified lookup map across CODE, sanitized key, Name, and TICKER
+    // Unified resolution map across CODE, sanitized keys, Name, and TICKER
     const resolutionMap = {};
     Object.entries(detailedDb).forEach(([k, item]) => {
       if (!item) return;
@@ -75,7 +75,7 @@ export default function StockGrid({
       return resolutionMap[cleanKey] || resolutionMap[rawKey];
     }).filter(stock => stock !== undefined);
 
-    // Deduplicate stocks
+    // Deduplicate entries
     const seenCodes = new Set();
     currentList = currentList.filter(stk => {
       const uniqueId = stk.CODE || sanitizeKey(stk.Name) || stk.TICKER;

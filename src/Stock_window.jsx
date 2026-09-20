@@ -215,11 +215,14 @@ export default function Stock_window({
     ? (((slowData["52WH"] - slowData["52WL"]) / slowData["52WL"]) * 100).toFixed(2) 
     : "0.00";
 
+  // ========================================================
+  // 🎨 FRONT LOOK & COLOR PALETTE
+  // ========================================================
   const COLOR_GREEN = "#00cc00"; 
   const COLOR_RED = "#e62e00";   
-  const LABEL_COLOR = "#a6a6a6";
-  const VAL_COLOR = "#ffffff";
-  const BORDER_COLOR = "#333333";
+  const STATIC_TEXT_COLOR = "#B5C3FF"; // Soft blue-indigo for static labels and brackets
+  const VALUE_COLOR = "#FCC105";       // Warm amber-gold for quantitative figures
+  const BORDER_COLOR = "#2a2f45";      // Thin visual grid separator
 
   const renderStars = () => {
     let starCount = 0;
@@ -240,13 +243,13 @@ export default function Stock_window({
   // Helper formatting routines
   const fmt = (v) => (v !== undefined && v !== null && v !== "" ? v : "xx.xx");
   const fmtPct = (v) => {
-    if (v === undefined || v === null || v === "") return "xx.xx%";
+    if (v === undefined || v === null || v === "") return "xx.xx %";
     const num = parseFloat(v);
-    return `${isNaN(num) ? v : num.toFixed(2)}%`;
+    return `${isNaN(num) ? v : num.toFixed(2)} %`;
   };
   const getDiffColor = (v) => {
     const num = parseFloat(v);
-    if (isNaN(num)) return VAL_COLOR;
+    if (isNaN(num)) return VALUE_COLOR;
     return num >= 0 ? COLOR_GREEN : COLOR_RED;
   };
 
@@ -330,7 +333,7 @@ export default function Stock_window({
       </div>
 
       {/* ======================================================== */}
-      {/* RIGHT: 35% EXTENDED PANEL (NO HEADINGS, DEDICATED ROOM)  */}
+      {/* RIGHT: 35% EXTENDED PANEL (ACCENT COLOR SCHEME APPLIED)  */}
       {/* ======================================================== */}
       <div style={{
         flex: '35',
@@ -359,75 +362,79 @@ export default function Stock_window({
             {/* ROW 1: PE | D.Yield | BV growth(Y) */}
             <tr style={{ borderBottom: `1px solid ${BORDER_COLOR}` }}>
               <td style={{ width: '38%', padding: '4px 2px' }}>
-                <span style={{ color: LABEL_COLOR }}>PE : </span>
-                <span style={{ color: VAL_COLOR }}>{fmt(pe)}</span>
+                <span style={{ color: STATIC_TEXT_COLOR }}>PE : </span>
+                <span style={{ color: VALUE_COLOR }}>{fmt(pe)}</span>
                 <div style={{ fontSize: '10.5px', color: getDiffColor(dpe), paddingLeft: '2px' }}>
                   ({fmtPct(dpe)})
                 </div>
               </td>
               <td style={{ width: '31%', padding: '4px 2px', borderLeft: `1px solid ${BORDER_COLOR}` }}>
-                <span style={{ color: LABEL_COLOR }}>D.Yield: </span>
-                <span style={{ color: VAL_COLOR }}>{fmtPct(dy)}</span>
+                <span style={{ color: STATIC_TEXT_COLOR }}>D.Yield: </span>
+                <span style={{ color: VALUE_COLOR }}>{fmtPct(dy)}</span>
               </td>
               <td style={{ width: '31%', padding: '4px 2px', borderLeft: `1px solid ${BORDER_COLOR}` }}>
-                <span style={{ color: LABEL_COLOR }}>BV growth(Y): </span>
-                <span style={{ color: VAL_COLOR }}>{fmtPct(bvgr)}</span>
+                <span style={{ color: STATIC_TEXT_COLOR }}>BV growth(Y): </span>
+                <span style={{ color: VALUE_COLOR }}>{fmtPct(bvgr)}</span>
               </td>
             </tr>
 
             {/* ROW 2: PB | PS | Avg Dvd Pay */}
             <tr style={{ borderBottom: `1px solid ${BORDER_COLOR}` }}>
               <td style={{ padding: '4px 2px' }}>
-                <span style={{ color: LABEL_COLOR }}>PB : </span>
-                <span style={{ color: VAL_COLOR }}>{fmt(pb)}</span>
+                <span style={{ color: STATIC_TEXT_COLOR }}>PB : </span>
+                <span style={{ color: VALUE_COLOR }}>{fmt(pb)}</span>
                 <div style={{ fontSize: '10.5px', color: getDiffColor(dpb), paddingLeft: '2px' }}>
                   ({fmtPct(dpb)})
                 </div>
               </td>
               <td style={{ padding: '4px 2px', borderLeft: `1px solid ${BORDER_COLOR}` }}>
-                <span style={{ color: LABEL_COLOR }}>PS: </span>
-                <span style={{ color: VAL_COLOR }}>{fmt(ps)}</span>
+                <span style={{ color: STATIC_TEXT_COLOR }}>PS: </span>
+                <span style={{ color: VALUE_COLOR }}>{fmt(ps)}</span>
               </td>
               <td style={{ padding: '4px 2px', borderLeft: `1px solid ${BORDER_COLOR}` }}>
-                <span style={{ color: LABEL_COLOR }}>Avg Dvd Pay: </span>
-                <span style={{ color: VAL_COLOR }}>{fmtPct(advdp)}</span>
+                <span style={{ color: STATIC_TEXT_COLOR }}>Avg Dvd Pay: </span>
+                <span style={{ color: VALUE_COLOR }}>{fmtPct(advdp)}</span>
               </td>
             </tr>
 
             {/* ROW 3: ROE | ROA | ROCE */}
             <tr style={{ borderBottom: `1px solid ${BORDER_COLOR}` }}>
               <td style={{ padding: '4px 2px' }}>
-                <span style={{ color: LABEL_COLOR }}>ROE: </span>
-                <span style={{ color: VAL_COLOR }}>{fmt(roe0)}</span>
-                <div style={{ fontSize: '10.5px', color: '#94a3b8', paddingLeft: '2px' }}>
-                  ({fmt(roe3y)})
+                <span style={{ color: STATIC_TEXT_COLOR }}>ROE: </span>
+                <span style={{ color: VALUE_COLOR }}>{fmt(roe0)}</span>
+                <div style={{ fontSize: '10.5px', color: STATIC_TEXT_COLOR, paddingLeft: '2px' }}>
+                  (<span style={{ color: VALUE_COLOR }}>{fmt(roe3y)}</span>)
                 </div>
               </td>
               <td style={{ padding: '4px 2px', borderLeft: `1px solid ${BORDER_COLOR}` }}>
-                <span style={{ color: LABEL_COLOR }}>ROA: </span>
-                <span style={{ color: VAL_COLOR }}>{fmt(roa0)}</span>
-                <span style={{ fontSize: '10.5px', color: '#94a3b8', marginLeft: '3px' }}>({fmt(roa3y)})</span>
+                <span style={{ color: STATIC_TEXT_COLOR }}>ROA: </span>
+                <span style={{ color: VALUE_COLOR }}>{fmt(roa0)}</span>
+                <span style={{ fontSize: '10.5px', color: STATIC_TEXT_COLOR, marginLeft: '3px' }}>
+                  (<span style={{ color: VALUE_COLOR }}>{fmt(roa3y)}</span>)
+                </span>
               </td>
               <td style={{ padding: '4px 2px', borderLeft: `1px solid ${BORDER_COLOR}` }}>
-                <span style={{ color: LABEL_COLOR }}>ROCE: </span>
-                <span style={{ color: VAL_COLOR }}>{fmt(roce0)}</span>
-                <span style={{ fontSize: '10.5px', color: '#94a3b8', marginLeft: '3px' }}>({fmt(roce3y)})</span>
+                <span style={{ color: STATIC_TEXT_COLOR }}>ROCE: </span>
+                <span style={{ color: VALUE_COLOR }}>{fmt(roce0)}</span>
+                <span style={{ fontSize: '10.5px', color: STATIC_TEXT_COLOR, marginLeft: '3px' }}>
+                  (<span style={{ color: VALUE_COLOR }}>{fmt(roce3y)}</span>)
+                </span>
               </td>
             </tr>
 
             {/* ROW 4: MCAP | MCAP (Pct) | DE */}
             <tr style={{ borderBottom: `1px solid ${BORDER_COLOR}` }}>
               <td style={{ padding: '4px 2px' }}>
-                <span style={{ color: LABEL_COLOR }}>MCAP: </span>
-                <div style={{ color: '#06b6d4', fontSize: '12px' }}>{fmt(mcap)}</div>
+                <span style={{ color: STATIC_TEXT_COLOR }}>MCAP: </span>
+                <div style={{ color: VALUE_COLOR, fontSize: '12px' }}>{fmt(mcap)}</div>
               </td>
               <td style={{ padding: '4px 2px', borderLeft: `1px solid ${BORDER_COLOR}` }}>
-                <span style={{ color: LABEL_COLOR }}>MCAP (Pct): </span>
-                <span style={{ color: VAL_COLOR }}>{fmt(pccap)}</span>
+                <span style={{ color: STATIC_TEXT_COLOR }}>MCAP (Pct): </span>
+                <span style={{ color: VALUE_COLOR }}>{fmt(pccap)}</span>
               </td>
               <td style={{ padding: '4px 2px', borderLeft: `1px solid ${BORDER_COLOR}` }}>
-                <span style={{ color: LABEL_COLOR }}>DE: </span>
-                <span style={{ color: VAL_COLOR }}>{fmt(de)}</span>
+                <span style={{ color: STATIC_TEXT_COLOR }}>DE: </span>
+                <span style={{ color: VALUE_COLOR }}>{fmt(de)}</span>
               </td>
             </tr>
 
@@ -435,22 +442,22 @@ export default function Stock_window({
             {/* ROW 5: SALES GROWTH (Left 80%) + LAST QTR LABEL (Right 20%) */}
             <tr style={{ borderBottom: `1px solid ${BORDER_COLOR}` }}>
               <td colSpan={2} style={{ padding: '4px 2px', whiteSpace: 'nowrap' }}>
-                <span style={{ color: LABEL_COLOR }}>SALES GROWTH: </span>
-                <span style={{ color: '#ffffff' }}>(YOYQ - <span style={{ color: getDiffColor(ysg) }}>{fmtPct(ysg)}</span>) </span>
-                <span style={{ color: '#ffffff' }}>[TTM - <span style={{ color: getDiffColor(sg_ttm) }}>{fmtPct(sg_ttm)}</span>] </span>
-                <span style={{ color: '#ffffff' }}>[3Y - <span style={{ color: getDiffColor(sg_3y) }}>{fmtPct(sg_3y)}</span>]</span>
+                <span style={{ color: STATIC_TEXT_COLOR }}>SALES GROWTH: </span>
+                <span style={{ color: STATIC_TEXT_COLOR }}>(YOYQ – <span style={{ color: getDiffColor(ysg) }}>{fmtPct(ysg)}</span>) </span>
+                <span style={{ color: STATIC_TEXT_COLOR }}>[TTM – <span style={{ color: getDiffColor(sg_ttm) }}>{fmtPct(sg_ttm)}</span>] </span>
+                <span style={{ color: STATIC_TEXT_COLOR }}>[3Y – <span style={{ color: getDiffColor(sg_3y) }}>{fmtPct(sg_3y)}</span>]</span>
               </td>
               <td rowSpan={2} style={{
                 borderLeft: `1px solid ${BORDER_COLOR}`,
                 textAlign: 'center',
                 verticalAlign: 'middle',
                 padding: '4px 2px',
-                backgroundColor: '#0a0a0a'
+                backgroundColor: '#0a0d17'
               }}>
-                <div style={{ color: '#d97706', fontSize: '11px', textTransform: 'uppercase', marginBottom: '2px' }}>
+                <div style={{ color: STATIC_TEXT_COLOR, fontSize: '11px', textTransform: 'uppercase', marginBottom: '2px' }}>
                   LAST QTR:
                 </div>
-                <div style={{ color: '#38bdf8', fontSize: '12px', fontWeight: '900', letterSpacing: '0.5px' }}>
+                <div style={{ color: VALUE_COLOR, fontSize: '12px', fontWeight: '900', letterSpacing: '0.5px' }}>
                   {last_qtr || "JUNE, 2026"}
                 </div>
               </td>
@@ -459,44 +466,44 @@ export default function Stock_window({
             {/* ROW 6: PROFIT GROWTH (Left 80%) */}
             <tr style={{ borderBottom: `1px solid ${BORDER_COLOR}` }}>
               <td colSpan={2} style={{ padding: '4px 2px', whiteSpace: 'nowrap' }}>
-                <span style={{ color: LABEL_COLOR }}>PROFIT GROWTH: </span>
-                <span style={{ color: '#ffffff' }}>(YOYQ - <span style={{ color: getDiffColor(ypg) }}>{fmtPct(ypg)}</span>) </span>
-                <span style={{ color: '#ffffff' }}>[TTM - <span style={{ color: getDiffColor(pg_1) }}>{fmtPct(pg_1)}</span>] </span>
-                <span style={{ color: '#ffffff' }}>[3Y - <span style={{ color: getDiffColor(pg_3) }}>{fmtPct(pg_3)}</span>]</span>
+                <span style={{ color: STATIC_TEXT_COLOR }}>PROFIT GROWTH: </span>
+                <span style={{ color: STATIC_TEXT_COLOR }}>(YOYQ – <span style={{ color: getDiffColor(ypg) }}>{fmtPct(ypg)}</span>) </span>
+                <span style={{ color: STATIC_TEXT_COLOR }}>[TTM – <span style={{ color: getDiffColor(pg_1) }}>{fmtPct(pg_1)}</span>] </span>
+                <span style={{ color: STATIC_TEXT_COLOR }}>[3Y – <span style={{ color: getDiffColor(pg_3) }}>{fmtPct(pg_3)}</span>]</span>
               </td>
             </tr>
 
             {/* ROW 7: T-SCORE | G-SCORE | F-SCORE */}
             <tr style={{ borderBottom: `1px solid ${BORDER_COLOR}` }}>
               <td style={{ padding: '4px 2px' }}>
-                <span style={{ color: LABEL_COLOR }}>T-SCORE: </span>
-                <span style={{ color: '#38bdf8' }}>{fmt(tScore)}</span>
+                <span style={{ color: STATIC_TEXT_COLOR }}>T-SCORE: </span>
+                <span style={{ color: VALUE_COLOR }}>{fmt(tScore)}</span>
               </td>
               <td style={{ padding: '4px 2px', borderLeft: `1px solid ${BORDER_COLOR}` }}>
-                <span style={{ color: LABEL_COLOR }}>G-SCORE: </span>
-                <span style={{ color: '#38bdf8' }}>{fmt(gScore)}</span>
+                <span style={{ color: STATIC_TEXT_COLOR }}>G-SCORE: </span>
+                <span style={{ color: VALUE_COLOR }}>{fmt(gScore)}</span>
               </td>
               <td style={{ padding: '4px 2px', borderLeft: `1px solid ${BORDER_COLOR}` }}>
-                <span style={{ color: LABEL_COLOR }}>F-SCORE: </span>
-                <span style={{ color: '#38bdf8' }}>{fmt(fScore)}</span>
+                <span style={{ color: STATIC_TEXT_COLOR }}>F-SCORE: </span>
+                <span style={{ color: VALUE_COLOR }}>{fmt(fScore)}</span>
               </td>
             </tr>
 
             {/* ROW 8: SINGLE-LINE SHAREHOLDING (PRMTR | FII | DII) */}
             <tr>
               <td style={{ padding: '5px 2px', whiteSpace: 'nowrap' }}>
-                <span style={{ color: LABEL_COLOR }}>PRMTR: </span>
-                <span style={{ color: VAL_COLOR }}>{fmtPct(prh)} </span>
+                <span style={{ color: STATIC_TEXT_COLOR }}>PRMTR: </span>
+                <span style={{ color: VALUE_COLOR }}>{fmtPct(prh)} </span>
                 <span style={{ fontSize: '10.5px', color: getDiffColor(dprh) }}>({fmtPct(dprh)})</span>
               </td>
               <td style={{ padding: '5px 2px', borderLeft: `1px solid ${BORDER_COLOR}`, whiteSpace: 'nowrap' }}>
-                <span style={{ color: LABEL_COLOR }}>FII: </span>
-                <span style={{ color: VAL_COLOR }}>{fmtPct(fii)} </span>
+                <span style={{ color: STATIC_TEXT_COLOR }}>FII: </span>
+                <span style={{ color: VALUE_COLOR }}>{fmtPct(fii)} </span>
                 <span style={{ fontSize: '10.5px', color: getDiffColor(dfii) }}>({fmtPct(dfii)})</span>
               </td>
               <td style={{ padding: '5px 2px', borderLeft: `1px solid ${BORDER_COLOR}`, whiteSpace: 'nowrap' }}>
-                <span style={{ color: LABEL_COLOR }}>DII: </span>
-                <span style={{ color: VAL_COLOR }}>{fmtPct(dii)} </span>
+                <span style={{ color: STATIC_TEXT_COLOR }}>DII: </span>
+                <span style={{ color: VALUE_COLOR }}>{fmtPct(dii)} </span>
                 <span style={{ fontSize: '10.5px', color: getDiffColor(ddii) }}>({fmtPct(ddii)})</span>
               </td>
             </tr>
