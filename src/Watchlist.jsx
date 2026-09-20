@@ -37,7 +37,7 @@ export const APP_CONFIG = {
     "CODE", "DPB%", "DPE%", "DY", "F-score", "G-score", "PB", "PCCAP", 
     "PE", "PS", "T-score", "YPG", "YSG", "industry", "pg-1", "sector", "sg-ttm",
     
-    // Extra requested parameters
+    // Newly requested extra parameters
     "mcap", "roe-0", "roe-3y", "roa-0", "roa-3y", "roce-0", "roce-3y", 
     "sg-3y", "pg-3", "DE", "BVgr", "advdp", "FII", "DFII", "DII", 
     "DDII", "PRH", "DPRH", "Last Qtr"
@@ -260,7 +260,6 @@ export default function StockWatchlist() {
     return map;
   }, [mainData]);
 
-  // Robust finder that searches by sanitized key, exact text, and case-insensitive
   const findMainRecord = useCallback((stockIdentifier) => {
     if (!stockIdentifier) return {};
     const cleanStr = String(stockIdentifier).trim();
@@ -344,11 +343,16 @@ export default function StockWatchlist() {
     const safeStockKey = sanitizeKey(stockToAdd);
     const today = formatDateToDDMMYYYY(new Date());
 
-    // 1. Resolve Screener record: Memory first, Firebase snapshot second
+    // 1. Direct fetch from SCREENER folder by Primary Key or Name
     let mainRecord = findMainRecord(stockToAdd);
 
-    if (!mainRecord || Object.keys(mainRecord).length === 0) {
-      try {
+    try {
+      // Try direct node lookup at SCREENER/<safeStockKey>
+      const directSnap = await get(ref(database, `SCREENER/${safeStockKey}`));
+      if (directSnap.exists()) {
+        mainRecord = directSnap.val();
+      } else {
+        // Fallback: search entire SCREENER
         const snap = await get(ref(database, 'SCREENER'));
         if (snap.exists()) {
           const val = snap.val();
@@ -361,16 +365,16 @@ export default function StockWatchlist() {
           );
           if (found) mainRecord = found;
         }
-      } catch (err) {
-        console.warn("Direct screener fallback fetch warning:", err);
       }
+    } catch (err) {
+      console.warn("Direct screener fallback fetch warning:", err);
     }
 
     // 2. Extract ALL metrics (existing + newly requested parameters)
     const screenerMetrics = extractScreenerFields(mainRecord);
     const ticker = stockDatabase[stockToAdd]?.TICKER || (mainRecord.NSE ? `${mainRecord.NSE}.NS` : stockToAdd);
 
-    // 3. Assemble complete metadata object
+    // 3. Assemble complete metadata object with every single parameter from SCREENER
     const completeStockRecord = {
       ...screenerMetrics,
       CODE: mainRecord.CODE || safeStockKey,
@@ -400,7 +404,7 @@ export default function StockWatchlist() {
       // 1. Update watchlist array
       await set(ref(database, 'watchlist/watchlist'), nextWatchlist);
 
-      // 2. Save full object under watchlist/detailedDb/<StockKey>
+      // 2. Save full object with all parameters under watchlist/detailedDb/<StockKey>
       await set(ref(database, `watchlist/detailedDb/${safeStockKey}`), completeStockRecord);
 
       // 3. Save ticker under stocklist
@@ -548,7 +552,6 @@ export default function StockWatchlist() {
     setOriginalDb(prev => ({ ...prev, [stockToUpdate]: JSON.parse(JSON.stringify(updatedMetadata)) }));
 
     try {
-      // update() leaves all extra screener parameters intact
       await update(ref(database, `watchlist/detailedDb/${safeStockKey}`), updatedMetadata);
 
       if (updatedMetadata.TICKER) {
