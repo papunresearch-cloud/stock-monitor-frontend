@@ -399,7 +399,7 @@ export default function Stock_window({
 
             {/* ROW 3: ROE | ROA | ROCE */}
             <tr style={{ borderBottom: `1px solid ${BORDER_COLOR}` }}>
-              <td style={{ padding: '4px 2px' }}>
+              <td style={{ padding: '4px 2px', borderLeft: `1px solid ${BORDER_COLOR}` }}>
                 <span style={{ color: STATIC_TEXT_COLOR }}>ROE: </span>
                 <span style={{ color: VALUE_COLOR }}>{fmt(roe0)}</span>
                 <div style={{ fontSize: '10.5px', color: STATIC_TEXT_COLOR, marginLeft: '3px'  }}>
