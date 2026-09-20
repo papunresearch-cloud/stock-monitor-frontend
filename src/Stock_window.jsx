@@ -402,8 +402,9 @@ export default function Stock_window({
               <td style={{ padding: '4px 2px' }}>
                 <span style={{ color: STATIC_TEXT_COLOR }}>ROE: </span>
                 <span style={{ color: VALUE_COLOR }}>{fmt(roe0)}</span>
-                <div style={{ fontSize: '10.5px', color: STATIC_TEXT_COLOR, marginLeft: '3px'  }}>
+                <span style={{ fontSize: '10.5px', color: STATIC_TEXT_COLOR, marginLeft: '3px'  }}>
                   (<span style={{ color: VALUE_COLOR }}>{fmt(roe3y)}</span>)
+                </span>
               </td>
               <td style={{ padding: '4px 2px', borderLeft: `1px solid ${BORDER_COLOR}` }}>
                 <span style={{ color: STATIC_TEXT_COLOR }}>ROA: </span>
