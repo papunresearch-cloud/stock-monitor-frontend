@@ -414,7 +414,7 @@ export default function Stock_window({
                 <span style={{ color: VALUE_COLOR }}>{fmtPct(dy)}</span>
               </td>
               <td style={{ width: '29%', padding: '4px 2px', borderLeft: `1px solid ${BORDER_COLOR}`, whiteSpace: 'nowrap' }}>
-                <span style={{ color: STATIC_TEXT_COLOR }}>BVgr: </span>
+                <span style={{ color: STATIC_TEXT_COLOR }}>BVgr(Y): </span>
                 <span style={{ color: VALUE_COLOR }}>{fmtPct(bvgr)}</span>
               </td>
             </tr>
@@ -483,7 +483,7 @@ export default function Stock_window({
             <tr style={{ borderBottom: `1px solid ${BORDER_COLOR}` }}>
               <td colSpan={3} style={{ padding: '5px 2px', whiteSpace: 'nowrap' }}>
                 <span style={{ color: STATIC_TEXT_COLOR }}>SG: </span>
-                <span style={{ color: STATIC_TEXT_COLOR }}>(YQ – <span style={{ color: getDiffColor(ysg) }}>{fmtPct(ysg)}</span>) </span>
+                <span style={{ color: STATIC_TEXT_COLOR }}>(YOYQ – <span style={{ color: getDiffColor(ysg) }}>{fmtPct(ysg)}</span>) </span>
                 <span style={{ color: STATIC_TEXT_COLOR }}>[TTM – <span style={{ color: getDiffColor(sg_ttm) }}>{fmtPct(sg_ttm)}</span>] </span>
                 <span style={{ color: STATIC_TEXT_COLOR }}>[3Y – <span style={{ color: getDiffColor(sg_3y) }}>{fmtPct(sg_3y)}</span>]</span>
               </td>
@@ -493,7 +493,7 @@ export default function Stock_window({
             <tr style={{ borderBottom: `1px solid ${BORDER_COLOR}` }}>
               <td colSpan={3} style={{ padding: '5px 2px', whiteSpace: 'nowrap' }}>
                 <span style={{ color: STATIC_TEXT_COLOR }}>PG: </span>
-                <span style={{ color: STATIC_TEXT_COLOR }}>(YQ – <span style={{ color: getDiffColor(ypg) }}>{fmtPct(ypg)}</span>) </span>
+                <span style={{ color: STATIC_TEXT_COLOR }}>(YOYQ – <span style={{ color: getDiffColor(ypg) }}>{fmtPct(ypg)}</span>) </span>
                 <span style={{ color: STATIC_TEXT_COLOR }}>[TTM – <span style={{ color: getDiffColor(pg_1) }}>{fmtPct(pg_1)}</span>] </span>
                 <span style={{ color: STATIC_TEXT_COLOR }}>[3Y – <span style={{ color: getDiffColor(pg_3) }}>{fmtPct(pg_3)}</span>]</span>
               </td>
