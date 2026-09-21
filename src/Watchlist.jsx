@@ -32,11 +32,8 @@ export const APP_CONFIG = {
     "TICKER"
   ],
   enrichmentMetrics: [
-    // Original parameters
     "CODE", "DPB%", "DPE%", "DY", "F-score", "G-score", "PB", "PCCAP", 
     "PE", "PS", "T-score", "YPG", "YSG", "industry", "pg-1", "sector", "sg-ttm",
-    
-    // Extra requested parameters
     "mcap", "roe-0", "roe-3y", "roa-0", "roa-3y", "roce-0", "roce-3y", 
     "sg-3y", "pg-3", "DE", "BVgr", "advdp", "FII", "DFII", "DII", 
     "DDII", "PRH", "DPRH", "Last Qtr"
@@ -295,11 +292,19 @@ export default function StockWatchlist() {
     else setSelectedStockNames(new Set());
   };
 
-  const triggerBackendSync = async () => {
+  // Cloud Event Dispatcher to instruct master.py
+  const dispatchStockEvent = async (action, stockName, ticker = "") => {
     try {
-      await fetch("http://127.0.0.1:10000/sync", { method: "POST" });
-    } catch {
-      // Backend daemon trigger
+      const cmdRef = ref(database, "system_commands/stock_event");
+      await set(cmdRef, {
+        action: action,
+        stock: stockName,
+        ticker: ticker,
+        timestamp: Date.now()
+      });
+      console.log(`[EVENT] Dispatched ${action} for ${stockName} (${ticker})`);
+    } catch (err) {
+      console.error("[EVENT] Failed to dispatch stock event:", err);
     }
   };
 
@@ -364,7 +369,7 @@ export default function StockWatchlist() {
       updates[`stocklist/${safeStockKey}`] = ticker;
 
       await update(ref(database), updates);
-      await triggerBackendSync();
+      await dispatchStockEvent("ADD", stockToAdd, ticker);
 
       setBannerMsg({ text: `Successfully enrolled ${stockToAdd}! ✅`, type: "success" });
       setTimeout(() => setBannerMsg({ text: "", type: "info" }), 3500);
@@ -434,6 +439,8 @@ export default function StockWatchlist() {
       await remove(ref(database, `watchlist/detailedDb/${safeStockKey}`));
       await remove(ref(database, `stocks/${safeStockKey}`));
       await remove(ref(database, `param/${safeStockKey}`));
+
+      await dispatchStockEvent("DELETE", stockToDelete);
 
       setBannerMsg({ text: `Purged ${stockToDelete} cleanly. 🗑️`, type: "success" });
       setTimeout(() => setBannerMsg({ text: "", type: "info" }), 3500);
