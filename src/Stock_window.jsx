@@ -515,23 +515,23 @@ export default function Stock_window({
               </td>
             </tr>
 
-            {/* ROW 8: STACKED SHAREHOLDING (Same font size across base value and delta) */}
+            {/* ROW 8: STACKED SHAREHOLDING (Left-Aligned, Same Font Size) */}
             <tr>
-              <td style={{ padding: '3px 2px', textAlign: 'center' }}>
+              <td style={{ padding: '3px 4px', textAlign: 'left' }}>
                 <div style={{ color: STATIC_TEXT_COLOR, fontSize: '10.5px', marginBottom: '2px' }}>PRMTR</div>
                 <div style={{ fontSize: '11px', whiteSpace: 'nowrap' }}>
                   <span style={{ color: VALUE_COLOR }}>{fmtPct(prh)} </span>
                   <span style={{ color: getDiffColor(dprh) }}>({fmtPct(dprh)})</span>
                 </div>
               </td>
-              <td style={{ padding: '3px 2px', borderLeft: `1px solid ${BORDER_COLOR}`, textAlign: 'center' }}>
+              <td style={{ padding: '3px 4px', borderLeft: `1px solid ${BORDER_COLOR}`, textAlign: 'left' }}>
                 <div style={{ color: STATIC_TEXT_COLOR, fontSize: '10.5px', marginBottom: '2px' }}>FII</div>
                 <div style={{ fontSize: '11px', whiteSpace: 'nowrap' }}>
                   <span style={{ color: VALUE_COLOR }}>{fmtPct(fii)} </span>
                   <span style={{ color: getDiffColor(dfii) }}>({fmtPct(dfii)})</span>
                 </div>
               </td>
-              <td style={{ padding: '3px 2px', borderLeft: `1px solid ${BORDER_COLOR}`, textAlign: 'center' }}>
+              <td style={{ padding: '3px 4px', borderLeft: `1px solid ${BORDER_COLOR}`, textAlign: 'left' }}>
                 <div style={{ color: STATIC_TEXT_COLOR, fontSize: '10.5px', marginBottom: '2px' }}>DII</div>
                 <div style={{ fontSize: '11px', whiteSpace: 'nowrap' }}>
                   <span style={{ color: VALUE_COLOR }}>{fmtPct(dii)} </span>
