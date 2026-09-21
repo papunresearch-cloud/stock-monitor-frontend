@@ -1,412 +1,560 @@
-import React, { useState, useEffect } from 'react';
-import { ref, get } from 'firebase/database';
-import { database } from './firebase';
+import React, { useState, useEffect, useCallback } from 'react';
 
-export default function Stock_window({ 
-  stockKey, 
-  stockData = {}, 
-  detailedDb = {}, 
-  isAutoMode, 
-  isFrozen 
-}) {
-  // =========================================================================
-  // 1. THEME PALETTE & STYLING CONSTANTS
-  // =========================================================================
-  const THEME = {
-    cardBg: "#0a0f1d",
-    panelBg: "#040814",
-    labels: "#B5C3FF",       // Static labels / parameter names
-    values: "#FCC105",       // Standard values & scores
-    green: "#00cc00",        // Positive returns / deltas
-    red: "#e62e00",          // Negative returns / deltas
-    border: "#1e293b",       // Subtle grid separators
-    subText: "#94a3b8",
-    accentAmber: "#f59e0b",
-    accentCyan: "#06b6d4"
-  };
+const FIREBASE_DB_URL = 'https://stock-dashboard-5c25c-default-rtdb.asia-southeast1.firebasedatabase.app';
 
-  // =========================================================================
-  // 2. DATA RESOLUTION & NORMALIZATION
-  // =========================================================================
-  // Resolve root metadata across varying case structures
-  const stockName = stockData.Name || stockData.name || stockKey || "UNKNOWN";
-  const ticker = stockData.Ticker || stockData.ticker || stockData.NSE || stockKey;
-  const cmp = stockData.cmp || stockData.CMP || "0.00";
-  const chgT = stockData.chgT || stockData.pct_change || stockData.tdy_chg || 0;
-  const chgY = stockData.chgY || stockData.ydy_chg || 0;
+const sanitizeKey = (key) =>
+  String(key || '').trim().replace(/[.#$\[\]\/]/g, '').toUpperCase();
 
-  // Resolve detailed fundamentals from detailedDb prop or stockData
-  const details = detailedDb[stockKey] || detailedDb[stockName] || detailedDb[ticker] || stockData.details || {};
-
-  // Formatter helpers
-  const fmt = (val, fallback = "N/A") => (val !== undefined && val !== null && val !== "" ? val : fallback);
-  const numFmt = (val, decimals = 2) => {
-    if (val === undefined || val === null || val === "" || isNaN(val)) return "N/A";
-    return parseFloat(val).toFixed(decimals);
-  };
-  const getDiffColor = (val) => {
-    const num = parseFloat(val);
-    if (isNaN(num)) return THEME.values;
-    return num >= 0 ? THEME.green : THEME.red;
-  };
-
-  // Funda values extraction
-  const pe = details.PE || details.pe;
-  const dpe = details["DPE%"] || details.DPE || details.dpe;
-  const dy = details.DY || details.dy;
-  const bvgr = details.BVgr || details.bvgr;
-
-  const pb = details.PB || details.pb;
-  const dpb = details["DPB%"] || details.DPB || details.dpb;
-  const ps = details.PS || details.ps;
-  const payout = details.advdp || details.Payout || details.payout;
-
-  const roe0 = details["roe-0"] || details.roe;
-  const roe3y = details["roe-3y"] || details.roe_3y;
-  const roa0 = details["roa-0"] || details.roa;
-  const roa3y = details["roa-3y"] || details.roa_3y;
-  const roce0 = details["roce-0"] || details.roce;
-  const roce3y = details["roce-3y"] || details.roce_3y;
-
-  const mcap = details.mcap || details.MCAP;
-  const pcap = details.PCCAP || details.pcap;
-  const de = details.DE || details.de;
-
-  const ysg = details.YSG || details.ysg;
-  const sgTtm = details["sg-ttm"] || details.sg_ttm;
-  const sg3y = details["sg-3y"] || details.sg_3y;
-  const lastQtr = details["Last Qtr"] || details.last_qtr || details.LastQtr || "JUNE, 2026";
-
-  const ypg = details.YPG || details.ypg;
-  const pg1 = details["pg-1"] || details.pg_1;
-  const pg3 = details["pg-3"] || details.pg_3;
-
-  const tScore = details["T-score"] || details.tScore;
-  const gScore = details["G-score"] || details.gScore;
-  const fScore = details["F-score"] || details.fScore;
-
-  const prmtr = details.PRH || details.prmtr;
-  const dprmtr = details.DPRH || details.dprmtr || "0.00";
-  const fii = details.FII || details.fii;
-  const dfii = details.DFII || details.dfii || "0.00";
-  const dii = details.DII || details.dii;
-  const ddii = details.DDII || details.ddii || "0.00";
-
-  // Returns array for Main Window 8-column return block
-  const returnsGrid = [
-    { label: "Tdy-%chng", val: chgT },
-    { label: "Ydy-%chng", val: chgY },
-    { label: "1W", val: stockData["1WR"] || details["1WR"] || "0.0" },
-    { label: "1M", val: stockData["1MR"] || details["1MR"] || "0.0" },
-    { label: "3M", val: stockData["3MR"] || details["3MR"] || "0.0" },
-    { label: "1YR", val: stockData["1YR"] || details["1YR"] || "0.0" },
-    { label: "3YR", val: stockData["3YR"] || details["3YR"] || "0.0" },
-    { label: "RSI", val: stockData.RSI || details.RSI || "50" }
-  ];
+// ==========================================
+// 1. 3D BUTTON COMPONENT (100% UNTOUCHED)
+// ==========================================
+const Button3D = ({ label, color, shadowColor, onClick, title, padding = '8px 16px' }) => {
+  const [isActive, setIsActive] = useState(false);
 
   return (
-    <div className="stock-window-card">
-      {/* Dynamic Scoped CSS for Breakpoint Responsiveness */}
-      <style>{`
-        .stock-window-card {
-          display: flex;
-          flex-direction: row;
-          align-items: stretch;
-          background-color: ${THEME.cardBg};
-          border: 1px solid ${THEME.border};
-          border-radius: 8px;
-          margin-bottom: 12px;
-          overflow: hidden;
-          font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-          width: 100%;
-          box-sizing: border-box;
-          box-shadow: 0 4px 12px rgba(0,0,0,0.5);
-        }
-        .main-sub-window {
-          width: 65%;
-          padding: 10px 14px;
-          box-sizing: border-box;
-          border-right: 1px solid ${THEME.border};
-          display: flex;
-          flex-direction: column;
-          justify-content: space-between;
-        }
-        .extended-sub-window {
-          width: 35%;
-          background-color: ${THEME.panelBg};
-          padding: 6px 8px;
-          box-sizing: border-box;
-          display: flex;
-          flex-direction: column;
-          justify-content: space-between;
-        }
-        .ext-row {
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          border-bottom: 1px solid ${THEME.border};
-          padding: 4px 0;
-          font-size: 11px;
-        }
-        .ext-row:last-child {
-          border-bottom: none;
-        }
-        .ext-cell-3col {
-          flex: 1;
-          display: flex;
-          align-items: center;
-          justify-content: flex-start;
-          overflow: hidden;
-          white-space: nowrap;
-          padding: 0 3px;
-        }
-        .ext-cell-stacked {
-          flex: 1;
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          justify-content: center;
-          text-align: center;
-          padding: 2px 3px;
-        }
+    <button
+      title={title} 
+      onMouseDown={() => setIsActive(true)}
+      onMouseUp={() => setIsActive(false)}
+      onMouseLeave={() => setIsActive(false)}
+      onClick={onClick}
+      style={{
+        padding: padding, 
+        backgroundColor: color,
+        color: '#ffffff',
+        border: '1px solid #111',
+        borderRadius: '6px',
+        fontWeight: 'bold',
+        fontSize: '12px',
+        cursor: 'pointer',
+        width: '100%', 
+        boxShadow: isActive ? `0 0px 0 ${shadowColor}` : `0 4px 0 ${shadowColor}`,
+        transform: isActive ? 'translateY(4px)' : 'none',
+        transition: 'all 0.1s ease',
+        textShadow: '1px 1px 2px rgba(0,0,0,0.6)',
+        outline: 'none',
+      }}
+    >
+      {label}
+    </button>
+  );
+};
 
-        /* MOBILE AND COMPACT VIEWPORTS (< 1024px) */
+// ==========================================
+// 2. VISUAL MAP PIN (100% UNTOUCHED)
+// ==========================================
+const Marker = ({ value, color, circleSize, lineHeight, label, isTop = false, rawValue = null, scaleTo100 }) => {
+  const positionPercent = scaleTo100(value);
+  return (
+    <div 
+      title={`${label}: ₹${value}`}
+      style={{
+        position: 'absolute',
+        [isTop ? 'bottom' : 'top']: '50%', 
+        left: `${positionPercent}%`,
+        display: 'flex',
+        flexDirection: isTop ? 'column-reverse' : 'column',
+        alignItems: 'center',
+        transform: 'translateX(-50%)', 
+        zIndex: isTop ? 10 : 5
+      }}
+    >
+      {isTop ? (
+        <div style={{ 
+          width: 0, 
+          height: 0, 
+          borderLeft: `${circleSize}px solid transparent`, 
+          borderRight: `${circleSize}px solid transparent`, 
+          borderTop: `${circleSize * 1.5}px solid ${color}` 
+        }}></div>
+      ) : (
+        <>
+          <div style={{ width: '2px', height: `${lineHeight}px`, backgroundColor: color }}></div>
+          <div style={{ width: `${circleSize}px`, height: `${circleSize}px`, backgroundColor: color, borderRadius: '50%', border: '1px solid #111' }}></div>
+        </>
+      )}
+
+      {rawValue !== null && (
+        <div style={{ fontSize: '13px', color: '#FFFF00', marginBottom: isTop ? '4px' : '0', marginTop: isTop ? '0' : '4px', fontWeight: '100' }}>
+          ₹{rawValue}
+        </div>
+      )}
+    </div>
+  );
+};
+
+// ==========================================
+// 3. MAIN STOCK COMPONENT
+// ==========================================
+export default function Stock_window({ 
+  code, name, ticker, nse,
+  // Valuation
+  pe, dpe, pb, dpb, ps, dy, bvgr, advdp,
+  // Ratios
+  roe0, roe3y, roa0, roa3y, roce0, roce3y,
+  // Market Cap & Leverage
+  mcap, pccap, de,
+  // Growth
+  ysg, sg_ttm, sg_3y, last_qtr,
+  ypg, pg_1, pg_3,
+  // Scores
+  tScore, gScore, fScore,
+  // Shareholding
+  prh, dprh, fii, dfii, dii, ddii,
+  // Meta
+  review, group, remark, duration, sector, industry,
+  isAutoMode, isFrozen, refreshRate, refreshTrigger, updateTrigger 
+}) {
+  const [fastData, setFastData] = useState({ CMP: 0, Tdy_chng: 0, Ydy_chng: 0 });
+  const [slowData, setSlowData] = useState({
+    "10MA": 0, "25MA": 0, "50MA": 0, "200MA": 0,
+    "52WH": 0, "52WL": 0, "1W": 0, "1M": 0, "3M": 0, "1YR": 0, "3YR": 0, "RSI": 0
+  });
+
+  const [isRemarkOpen, setIsRemarkOpen] = useState(false);
+
+  const openPopup = (url) => {
+    if (url) {
+      window.open(url, "_blank", "toolbar=no,menubar=no,scrollbars=yes,resizable=yes,top=100,left=200,width=1000,height=700");
+    }
+  };
+
+  const primaryKey = (code || sanitizeKey(name) || sanitizeKey(ticker) || '').trim();
+  const legacyTarget = (name || ticker || '').trim();
+
+  const tvc_link = `https://in.tradingview.com/chart/?symbol=${nse || code || ticker}`;
+  const yfc_link = `https://finance.yahoo.com/chart/${ticker || `${code}.NS`}#`;
+  const scr_link = `https://www.screener.in/company/${code || nse}/consolidated/`; 
+
+  const fetchStockData = useCallback(async () => {
+    if (isFrozen || !primaryKey) return;
+
+    try {
+      let paramRes = await fetch(`${FIREBASE_DB_URL}/param/${encodeURIComponent(primaryKey)}.json`);
+      let data = paramRes.ok ? await paramRes.json() : null;
+
+      if (!data && legacyTarget && legacyTarget !== primaryKey) {
+        const fallbackRes = await fetch(`${FIREBASE_DB_URL}/param/${encodeURIComponent(legacyTarget)}.json`);
+        if (fallbackRes.ok) data = await fallbackRes.json();
+      }
+
+      let [liveRes0, liveRes1] = await Promise.all([
+        fetch(`${FIREBASE_DB_URL}/stocks/${encodeURIComponent(primaryKey)}/0.json`),
+        fetch(`${FIREBASE_DB_URL}/stocks/${encodeURIComponent(primaryKey)}/1.json`)
+      ]);
+
+      let c0 = liveRes0.ok ? await liveRes0.json() : null;
+      let c1 = liveRes1.ok ? await liveRes1.json() : null;
+
+      if (!c0 && !c1 && legacyTarget && legacyTarget !== primaryKey) {
+        const [fb0, fb1] = await Promise.all([
+          fetch(`${FIREBASE_DB_URL}/stocks/${encodeURIComponent(legacyTarget)}/0.json`),
+          fetch(`${FIREBASE_DB_URL}/stocks/${encodeURIComponent(legacyTarget)}/1.json`)
+        ]);
+        if (fb0.ok) c0 = await fb0.json();
+        if (fb1.ok) c1 = await fb1.json();
+      }
+
+      const currentCmp = Number(
+        c0?.close ?? c0?.c ?? c1?.close ?? c1?.c ?? data?.CMP ?? data?.cmp ?? 0
+      );
+
+      setFastData({
+        CMP: currentCmp,
+        Tdy_chng: Number(data?.['2dy-%chng'] ?? data?.['Tdy-%chng'] ?? data?.tdyChange ?? 0),
+        Ydy_chng: Number(data?.['Ydy-%chng'] ?? data?.ydyChange ?? 0)
+      });
+
+      setSlowData({
+        "10MA": Number(data?.['10ma'] ?? data?.['10MA'] ?? 0),
+        "25MA": Number(data?.['25ma'] ?? data?.['25MA'] ?? 0),
+        "50MA": Number(data?.['50ma'] ?? data?.['50MA'] ?? 0),
+        "200MA": Number(data?.['200ma'] ?? data?.['200MA'] ?? 0),
+        "52WH": Number(data?.['52wh'] ?? data?.['52WH'] ?? 0),
+        "52WL": Number(data?.['52wl'] ?? data?.['52WL'] ?? 0),
+        "1W": Number(data?.['1wr'] ?? data?.['1W'] ?? 0),
+        "1M": Number(data?.['1mr'] ?? data?.['1M'] ?? 0),
+        "3M": Number(data?.['3mr'] ?? data?.['3M'] ?? 0),
+        "1YR": Number(data?.['1yr'] ?? data?.['1YR'] ?? 0),
+        "3YR": Number(data?.['3yr'] ?? data?.['3YR'] ?? 0),
+        "RSI": Number(data?.RSI ?? data?.rsi ?? 0)
+      });
+    } catch (error) {
+      console.error(`Error loading stock metrics for ${primaryKey}:`, error);
+    }
+  }, [primaryKey, legacyTarget, isFrozen]);
+
+  useEffect(() => {
+    fetchStockData();
+  }, [fetchStockData]);
+
+  useEffect(() => {
+    if (updateTrigger > 0 || refreshTrigger > 0) {
+      fetchStockData();
+    }
+  }, [updateTrigger, refreshTrigger, fetchStockData]);
+
+  useEffect(() => {
+    let intervalId;
+    if (isAutoMode && !isFrozen && refreshRate > 0) {
+      intervalId = setInterval(fetchStockData, (refreshRate || 10) * 1000);
+    }
+    return () => {
+      if (intervalId) clearInterval(intervalId);
+    };
+  }, [isAutoMode, isFrozen, refreshRate, fetchStockData]);
+
+  const scaleTo100 = useCallback((value) => {
+    const { "52WL": low52, "52WH": high52 } = slowData;
+    if (!low52 || !high52 || high52 === low52) return 0;
+    const rawPercentage = (((value - low52) / (high52 - low52)) * 100);
+    return Math.max(0, Math.min(100, rawPercentage));
+  }, [slowData]);
+
+  const rangeValue = slowData["52WL"] 
+    ? (((slowData["52WH"] - slowData["52WL"]) / slowData["52WL"]) * 100).toFixed(2) 
+    : "0.00";
+
+  // ========================================================
+  // 🎨 FRONT LOOK & COLOR PALETTE
+  // ========================================================
+  const COLOR_GREEN = "#00cc00"; 
+  const COLOR_RED = "#e62e00";   
+  const STATIC_TEXT_COLOR = "#B5C3FF"; // Soft blue-indigo for static labels
+  const VALUE_COLOR = "#FCC105";       // Warm amber-gold for quantitative figures
+  const BORDER_COLOR = "#2a2f45";      // Thin visual grid separator
+
+  const renderStars = () => {
+    let starCount = 0;
+    if (review && String(review).includes("STAR")) {
+      starCount = parseInt(String(review).split(" ")[0]) || 0;
+    }
+    return (
+      <span style={{ fontSize: '18px', letterSpacing: '2px' }}>
+        {[1, 2, 3, 4, 5].map((num) => (
+          <span key={num} style={{ color: num <= starCount ? '#FFD700' : '#A0AAB5' }}>★</span>
+        ))}
+      </span>
+    );
+  };
+
+  const displayName = name ? name.split('(')[0].trim() : (code || '');
+
+  // Helper formatting routines
+  const fmt = (v) => (v !== undefined && v !== null && v !== "" ? v : "xx.xx");
+  const fmtPct = (v) => {
+    if (v === undefined || v === null || v === "") return "xx.xx %";
+    const num = parseFloat(v);
+    return `${isNaN(num) ? v : num.toFixed(2)} %`;
+  };
+  const getDiffColor = (v) => {
+    const num = parseFloat(v);
+    if (isNaN(num)) return VALUE_COLOR;
+    return num >= 0 ? COLOR_GREEN : COLOR_RED;
+  };
+
+  return (
+    <div className="stock-window-wrapper" style={{
+      display: 'flex',
+      alignItems: 'stretch',
+      gap: '12px',
+      width: '98%',
+      margin: '0 auto 14px auto',
+      position: 'relative',
+      opacity: isFrozen ? 0.7 : 1,
+      transition: 'opacity 0.3s ease',
+      boxSizing: 'border-box'
+    }}>
+      
+      {/* Responsive Stylesheet for Breakpoint Reflow */}
+      <style>{`
         @media (max-width: 1024px) {
-          .stock-window-card {
+          .stock-window-wrapper {
             flex-direction: column !important;
-            height: auto !important;
           }
-          .main-sub-window {
+          .stock-main-panel {
             width: 100% !important;
-            border-right: none !important;
-            border-bottom: 1px solid ${THEME.border};
+            flex: none !important;
           }
-          .extended-sub-window {
+          .stock-extended-panel {
             width: 100% !important;
-          }
-          .ext-row {
-            padding: 6px 0;
+            flex: none !important;
           }
         }
       `}</style>
 
-      {/* =================================================================== */}
-      {/* 3. MAIN WINDOW (65% on Desktop, 100% on Mobile)                    */}
-      {/* =================================================================== */}
-      <div className="main-sub-window">
-        {/* Header: Company Name, Ticker, LAST QTR metadata, and Rating */}
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "6px" }}>
-          <div>
-            <div style={{ display: "flex", alignItems: "baseline", flexWrap: "wrap", gap: "6px" }}>
-              <span style={{ fontSize: "15px", fontWeight: "900", color: "#ffffff", letterSpacing: "0.5px" }}>
-                {stockName}
-              </span>
-              <span style={{ fontSize: "12px", fontWeight: "700", color: THEME.accentCyan }}>
-                [{ticker}]
-              </span>
-              {/* LAST QTR Data relocated cleanly to Main Window Header */}
-              <span style={{ fontSize: "11px", fontWeight: "800", color: THEME.accentAmber, marginLeft: "4px" }}>
-                (LAST QTR: {lastQtr})
-              </span>
-            </div>
-          </div>
-          <div style={{ color: "#eab308", fontSize: "13px", letterSpacing: "2px" }} title="Rating">
-            ★★★★★
-          </div>
+      {/* ======================================================== */}
+      {/* LEFT: 65% MAIN TECHNICAL FACE-PLATE (100% PRESERVED)     */}
+      {/* ======================================================== */}
+      <div className="stock-main-panel" style={{
+        flex: '65',
+        position: 'relative',
+        padding: '15px',
+        fontFamily: 'sans-serif',
+        backgroundColor: '#000000',
+        color: '#e0e0e0',
+        border: '4px solid #C0C0C0',
+        borderRadius: '8px',
+        boxSizing: 'border-box',
+        overflow: 'hidden'
+      }}>
+        
+        {/* REVIEW/REMARK BADGE */}
+        <div style={{ position: 'absolute', top: '4px', right: '10px', zIndex: 20, width: '130px' }}>
+          <Button3D 
+            label={renderStars()} 
+            title={`GROUP: ${group || 'N/A'}\nDURATION: ${duration || 'N/A'}\nSECTOR: ${sector || 'N/A'}\nINDUSTRY: ${industry || 'N/A'}`} 
+            color="#708090"        
+            shadowColor="#4A5560"
+            padding="4px 16px" 
+            onClick={() => setIsRemarkOpen(true)} 
+          />
         </div>
 
-        {/* 8-Column Returns Mini-Matrix */}
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(8, 1fr)", gap: "4px", margin: "6px 0", textAlign: "center" }}>
-          {returnsGrid.map((item, idx) => {
-            const isRsi = item.label === "RSI";
-            const valNum = parseFloat(item.val);
-            const color = isRsi ? THEME.values : (valNum >= 0 ? THEME.green : THEME.red);
-            return (
-              <div key={idx} style={{ background: "#0f172a", border: `1px solid ${THEME.border}`, borderRadius: "4px", padding: "3px 1px" }}>
-                <div style={{ fontSize: "9px", color: THEME.subText, fontWeight: "bold" }}>{item.label}</div>
-                <div style={{ fontSize: "11px", fontWeight: "900", color }}>
-                  {isRsi ? item.val : `${valNum >= 0 ? "+" : ""}${item.val}%`}
-                </div>
+        {/* STOCK NAME, CODE & RELOCATED (LAST QTR) */}
+        <div style={{ display: 'flex', justifyContent: 'flex-start', alignItems: 'center', marginBottom: '15px', gap: '10px', flexWrap: 'wrap' }}>
+          <h2 style={{ margin: 0, color: '#f7d026', fontSize: '18px', letterSpacing: '1px', textTransform: 'uppercase' }}>
+            {displayName}
+          </h2>
+          {code && (
+            <span style={{ fontSize: '12px', color: '#06b6d4', fontWeight: 'bold', backgroundColor: '#0f172a', padding: '2px 8px', borderRadius: '4px', border: '1px solid #1e3a8a' }}>
+              {code}
+            </span>
+          )}
+          {/* Relocated LAST QTR Data cleanly next to Code */}
+          <span style={{ fontSize: '12px', color: '#f59e0b', fontWeight: 'bold', letterSpacing: '0.5px' }}>
+            (LAST QTR: {last_qtr || "JUNE, 2026"})
+          </span>
+        </div>
+
+        {/* 8-COLUMN DATA TABLE */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(8, 1fr)', backgroundColor: '#111111', border: '1px solid #444', borderRadius: '6px', marginBottom: '25px', textAlign: 'center', overflow: 'hidden' }}>
+          {['Tdy-%chng', 'Ydy-%chng', '1W', '1M', '3M', '1YR', '3YR', 'RSI'].map((head, idx) => (
+            <div key={`h-${idx}`} style={{ padding: '8px 2px', fontSize: '12px', fontWeight: '900', backgroundColor: '#1a1a1a', borderRight: idx < 7 ? '1px solid #444' : 'none', borderBottom: '1px solid #444', color: '#cccccc' }}>
+              {head}
+            </div>
+          ))}
+          
+          <div style={{ padding: '10px 2px', borderRight: '1px solid #444', fontSize: '14px', fontWeight: 'bold', color: fastData.Tdy_chng >= 0 ? COLOR_GREEN : COLOR_RED }}>{fastData.Tdy_chng}%</div>
+          <div style={{ padding: '10px 2px', borderRight: '1px solid #444', fontSize: '14px', fontWeight: 'bold', color: fastData.Ydy_chng >= 0 ? COLOR_GREEN : COLOR_RED }}>{fastData.Ydy_chng}%</div>
+          <div style={{ padding: '10px 2px', borderRight: '1px solid #444', fontSize: '14px', fontWeight: 'bold', color: slowData["1W"] >= 0 ? COLOR_GREEN : COLOR_RED }}>{slowData["1W"]}%</div>
+          <div style={{ padding: '10px 2px', borderRight: '1px solid #444', fontSize: '14px', fontWeight: 'bold', color: slowData["1M"] >= 0 ? COLOR_GREEN : COLOR_RED }}>{slowData["1M"]}%</div>
+          <div style={{ padding: '10px 2px', borderRight: '1px solid #444', fontSize: '14px', fontWeight: 'bold', color: slowData["3M"] >= 0 ? COLOR_GREEN : COLOR_RED }}>{slowData["3M"]}%</div>
+          <div style={{ padding: '10px 2px', borderRight: '1px solid #444', fontSize: '14px', fontWeight: 'bold', color: slowData["1YR"] >= 0 ? COLOR_GREEN : COLOR_RED }}>{slowData["1YR"]}%</div>
+          <div style={{ padding: '10px 2px', borderRight: '1px solid #444', fontSize: '14px', fontWeight: 'bold', color: slowData["3YR"] >= 0 ? COLOR_GREEN : COLOR_RED }}>{slowData["3YR"]}%</div>
+          <div style={{ padding: '10px 2px', fontSize: '14px', fontWeight: 'bold', color: slowData.RSI > 50 ? COLOR_GREEN : COLOR_RED }}>{slowData.RSI}</div>
+        </div>
+
+        {/* SCALE TRACK & QUICK BUTTONS */}
+        <div style={{ display: 'flex', width: '100%', alignItems: 'center' }}>
+          <div style={{ width: '85%', display: 'flex', flexDirection: 'column', paddingRight: '15px', borderRight: '1px dashed #444' }}>
+            <div style={{ position: 'relative', height: '110px', width: '100%' }}>
+              <div style={{ position: 'absolute', left: 0, top: '50%', transform: 'translateY(-50%)', fontWeight: 'bold', fontSize: '12px', color: '#cccccc' }}>52WL</div>
+              <div style={{ position: 'absolute', right: 0, top: '50%', transform: 'translateY(-50%)', fontWeight: 'bold', fontSize: '12px', color: '#cccccc' }}>52WH</div>
+
+              <div style={{ position: 'absolute', top: '50%', left: '50px', right: '50px', height: '3px', backgroundColor: '#666', transform: 'translateY(-50%)', borderRadius: '2px' }}>
+                <Marker value={fastData.CMP} scaleTo100={scaleTo100} color="rgba(33, 150, 243, 0.95)" circleSize={12} lineHeight={12} label="CMP" isTop={true} rawValue={fastData.CMP} />
+                <Marker value={slowData["200MA"]} scaleTo100={scaleTo100} color="rgba(255, 68, 68, 0.85)" circleSize={14} lineHeight={40} label="200MA" />
+                <Marker value={slowData["50MA"]}  scaleTo100={scaleTo100} color="rgba(255, 152, 0, 0.85)" circleSize={12} lineHeight={26} label="50MA" />
+                <Marker value={slowData["25MA"]}  scaleTo100={scaleTo100} color="rgba(255, 235, 59, 0.85)" circleSize={10} lineHeight={16} label="25MA" />
+                <Marker value={slowData["10MA"]}  scaleTo100={scaleTo100} color="rgba(0, 230, 118, 0.9)" circleSize={8} lineHeight={8} label="10MA" />
               </div>
-            );
-          })}
-        </div>
-
-        {/* Range Bar & Moving Average Track Visualizer */}
-        <div style={{ margin: "6px 0" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", fontSize: "10px", color: THEME.subText, fontWeight: "bold" }}>
-            <span>52WL: ₹{fmt(stockData["52WL"] || details["52WL"])}</span>
-            <span style={{ color: THEME.values, fontWeight: "900" }}>CMP: ₹{cmp}</span>
-            <span>52WH: ₹{fmt(stockData["52WH"] || details["52WH"])}</span>
-          </div>
-          <div style={{ position: "relative", height: "5px", background: "#334155", borderRadius: "3px", margin: "4px 0" }}>
-            <div style={{ position: "absolute", left: "60%", width: "10px", height: "10px", background: THEME.accentCyan, borderRadius: "50%", top: "-2.5px" }}></div>
-          </div>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <div style={{ fontSize: "9px", color: THEME.subText }}>
-              🔺200MA &nbsp; ▴50MA &nbsp; ▵25MA &nbsp; ▹10MA
             </div>
-            <div style={{ display: "flex", gap: "4px" }}>
-              <button style={{ background: "#1e293b", color: "#38bdf8", border: "1px solid #334155", borderRadius: "3px", padding: "2px 6px", fontSize: "10px", fontWeight: "bold", cursor: "pointer" }}>SCR</button>
-              <button style={{ background: "#1e293b", color: "#38bdf8", border: "1px solid #334155", borderRadius: "3px", padding: "2px 6px", fontSize: "10px", fontWeight: "bold", cursor: "pointer" }}>TVC</button>
-              <button style={{ background: "#1e293b", color: "#38bdf8", border: "1px solid #334155", borderRadius: "3px", padding: "2px 6px", fontSize: "10px", fontWeight: "bold", cursor: "pointer" }}>YFC</button>
+            <div style={{ color: '#cccccc', fontWeight: '900', fontSize: '11px', display: 'flex', alignItems: 'center', justifyContent: 'center', letterSpacing: '1px' }}>
+              &lt; <span style={{ flex: 1, height: '1px', backgroundColor: '#555', margin: '0 15px' }}></span> 
+              RANGE: {rangeValue}% 
+              <span style={{ flex: 1, height: '1px', backgroundColor: '#555', margin: '0 15px' }}></span> &gt;
             </div>
+          </div>
+          <div style={{ width: '15%', paddingLeft: '15px', display: 'flex', flexDirection: 'column', gap: '12px', alignItems: 'center', justifyContent: 'center' }}>
+            <Button3D label="SCR" color="#0A5E01" shadowColor="#0E6B30" onClick={() => openPopup(scr_link)} />
+            <Button3D label="TVC" color="#2962FF" shadowColor="#1565C0" onClick={() => openPopup(tvc_link)} />
+            <Button3D label="YFC" color="#9C27B0" shadowColor="#6A1B9A" onClick={() => openPopup(yfc_link)} />
           </div>
         </div>
       </div>
 
-      {/* =================================================================== */}
-      {/* 4. EXTENDED PANEL (35% on Desktop, 100% on Mobile)                 */}
-      {/* =================================================================== */}
-      <div className="extended-sub-window">
-        {/* ROW 1: PE (DPE) | DY | BVgr */}
-        <div className="ext-row">
-          <div className="ext-cell-3col">
-            <span style={{ color: THEME.labels }}>PE: </span>
-            <span style={{ color: THEME.values, marginLeft: "3px" }}>{numFmt(pe)}</span>
-            {dpe !== undefined && (
-              <span style={{ color: getDiffColor(dpe), marginLeft: "3px" }}>
-                ({parseFloat(dpe) >= 0 ? "+" : ""}{numFmt(dpe)}%)
-              </span>
-            )}
-          </div>
-          <div className="ext-cell-3col">
-            <span style={{ color: THEME.labels }}>DY: </span>
-            <span style={{ color: THEME.values, marginLeft: "3px" }}>{numFmt(dy)}%</span>
-          </div>
-          <div className="ext-cell-3col">
-            <span style={{ color: THEME.labels }}>BVgr: </span>
-            <span style={{ color: THEME.values, marginLeft: "3px" }}>{numFmt(bvgr)}%</span>
-          </div>
-        </div>
+      {/* ======================================================== */}
+      {/* RIGHT: 35% EXTENDED PANEL (WITH REQUESTED MODIFICATIONS) */}
+      {/* ======================================================== */}
+      <div className="stock-extended-panel" style={{
+        flex: '35',
+        position: 'relative',
+        backgroundColor: '#000000',
+        border: '4px solid #C0C0C0',
+        borderRadius: '8px',
+        padding: '10px 14px',
+        color: '#ffffff',
+        fontFamily: 'sans-serif',
+        display: 'flex',
+        flexDirection: 'column',
+        justifyContent: 'space-between',
+        boxShadow: '4px 4px 10px rgba(0,0,0,0.6)',
+        boxSizing: 'border-box'
+      }}>
+        <table style={{
+          width: '100%',
+          height: '100%',
+          borderCollapse: 'collapse',
+          fontSize: '11.5px',
+          fontWeight: 'bold',
+          tableLayout: 'fixed'
+        }}>
+          <tbody>
+            {/* ROW 1: PE | DY | BVgr */}
+            <tr style={{ borderBottom: `1px solid ${BORDER_COLOR}` }}>
+              <td style={{ width: '38%', padding: '4px 2px' }}>
+                <span style={{ color: STATIC_TEXT_COLOR }}>PE : </span>
+                <span style={{ color: VALUE_COLOR }}>{fmt(pe)}</span>
+                <div style={{ fontSize: '10.5px', color: getDiffColor(dpe), paddingLeft: '2px' }}>
+                  ({fmtPct(dpe)})
+                </div>
+              </td>
+              <td style={{ width: '31%', padding: '4px 2px', borderLeft: `1px solid ${BORDER_COLOR}` }}>
+                <span style={{ color: STATIC_TEXT_COLOR }}>DY: </span>
+                <span style={{ color: VALUE_COLOR }}>{fmtPct(dy)}</span>
+              </td>
+              <td style={{ width: '31%', padding: '4px 2px', borderLeft: `1px solid ${BORDER_COLOR}` }}>
+                <span style={{ color: STATIC_TEXT_COLOR }}>BVgr: </span>
+                <span style={{ color: VALUE_COLOR }}>{fmtPct(bvgr)}</span>
+              </td>
+            </tr>
 
-        {/* ROW 2: PB (DPB) | PS | Payout */}
-        <div className="ext-row">
-          <div className="ext-cell-3col">
-            <span style={{ color: THEME.labels }}>PB: </span>
-            <span style={{ color: THEME.values, marginLeft: "3px" }}>{numFmt(pb)}</span>
-            {dpb !== undefined && (
-              <span style={{ color: getDiffColor(dpb), marginLeft: "3px" }}>
-                ({parseFloat(dpb) >= 0 ? "+" : ""}{numFmt(dpb)}%)
-              </span>
-            )}
-          </div>
-          <div className="ext-cell-3col">
-            <span style={{ color: THEME.labels }}>PS: </span>
-            <span style={{ color: THEME.values, marginLeft: "3px" }}>{numFmt(ps)}</span>
-          </div>
-          <div className="ext-cell-3col">
-            <span style={{ color: THEME.labels }}>Payout: </span>
-            <span style={{ color: THEME.values, marginLeft: "3px" }}>{numFmt(payout)}%</span>
-          </div>
-        </div>
+            {/* ROW 2: PB | PS | Payout */}
+            <tr style={{ borderBottom: `1px solid ${BORDER_COLOR}` }}>
+              <td style={{ padding: '4px 2px' }}>
+                <span style={{ color: STATIC_TEXT_COLOR }}>PB : </span>
+                <span style={{ color: VALUE_COLOR }}>{fmt(pb)}</span>
+                <div style={{ fontSize: '10.5px', color: getDiffColor(dpb), paddingLeft: '2px' }}>
+                  ({fmtPct(dpb)})
+                </div>
+              </td>
+              <td style={{ padding: '4px 2px', borderLeft: `1px solid ${BORDER_COLOR}` }}>
+                <span style={{ color: STATIC_TEXT_COLOR }}>PS: </span>
+                <span style={{ color: VALUE_COLOR }}>{fmt(ps)}</span>
+              </td>
+              <td style={{ padding: '4px 2px', borderLeft: `1px solid ${BORDER_COLOR}` }}>
+                <span style={{ color: STATIC_TEXT_COLOR }}>Payout: </span>
+                <span style={{ color: VALUE_COLOR }}>{fmtPct(advdp)}</span>
+              </td>
+            </tr>
 
-        {/* ROW 3: ROE | ROA | ROCE */}
-        <div className="ext-row">
-          <div className="ext-cell-3col">
-            <span style={{ color: THEME.labels }}>ROE: </span>
-            <span style={{ color: THEME.values, marginLeft: "3px" }}>{numFmt(roe0)}</span>
-            <span style={{ color: THEME.subText, marginLeft: "3px" }}>({numFmt(roe3y)})</span>
-          </div>
-          <div className="ext-cell-3col">
-            <span style={{ color: THEME.labels }}>ROA: </span>
-            <span style={{ color: THEME.values, marginLeft: "3px" }}>{numFmt(roa0)}</span>
-            <span style={{ color: THEME.subText, marginLeft: "3px" }}>({numFmt(roa3y)})</span>
-          </div>
-          <div className="ext-cell-3col">
-            <span style={{ color: THEME.labels }}>ROCE: </span>
-            <span style={{ color: THEME.values, marginLeft: "3px" }}>{numFmt(roce0)}</span>
-            <span style={{ color: THEME.subText, marginLeft: "3px" }}>({numFmt(roce3y)})</span>
-          </div>
-        </div>
+            {/* ROW 3: ROE | ROA | ROCE */}
+            <tr style={{ borderBottom: `1px solid ${BORDER_COLOR}` }}>
+              <td style={{ padding: '4px 2px' }}>
+                <span style={{ color: STATIC_TEXT_COLOR }}>ROE: </span>
+                <span style={{ color: VALUE_COLOR }}>{fmt(roe0)}</span>
+                <span style={{ fontSize: '10.5px', color: STATIC_TEXT_COLOR, marginLeft: '3px'  }}>
+                  (<span style={{ color: VALUE_COLOR }}>{fmt(roe3y)}</span>)
+                </span>
+              </td>
+              <td style={{ padding: '4px 2px', borderLeft: `1px solid ${BORDER_COLOR}` }}>
+                <span style={{ color: STATIC_TEXT_COLOR }}>ROA: </span>
+                <span style={{ color: VALUE_COLOR }}>{fmt(roa0)}</span>
+                <span style={{ fontSize: '10.5px', color: STATIC_TEXT_COLOR, marginLeft: '3px' }}>
+                  (<span style={{ color: VALUE_COLOR }}>{fmt(roa3y)}</span>)
+                </span>
+              </td>
+              <td style={{ padding: '4px 2px', borderLeft: `1px solid ${BORDER_COLOR}` }}>
+                <span style={{ color: STATIC_TEXT_COLOR }}>ROCE: </span>
+                <span style={{ color: VALUE_COLOR }}>{fmt(roce0)}</span>
+                <span style={{ fontSize: '10.5px', color: STATIC_TEXT_COLOR, marginLeft: '3px' }}>
+                  (<span style={{ color: VALUE_COLOR }}>{fmt(roce3y)}</span>)
+                </span>
+              </td>
+            </tr>
 
-        {/* ROW 4: MCAP | PCAP | DE */}
-        <div className="ext-row">
-          <div className="ext-cell-3col">
-            <span style={{ color: THEME.labels }}>MCAP: </span>
-            <span style={{ color: THEME.values, marginLeft: "3px" }}>{fmt(mcap)}</span>
-          </div>
-          <div className="ext-cell-3col">
-            <span style={{ color: THEME.labels }}>PCAP: </span>
-            <span style={{ color: THEME.values, marginLeft: "3px" }}>{numFmt(pcap)}</span>
-          </div>
-          <div className="ext-cell-3col">
-            <span style={{ color: THEME.labels }}>DE: </span>
-            <span style={{ color: THEME.values, marginLeft: "3px" }}>{numFmt(de)}</span>
-          </div>
-        </div>
+            {/* ROW 4: MCAP | PCAP | DE */}
+            <tr style={{ borderBottom: `1px solid ${BORDER_COLOR}` }}>
+              <td style={{ padding: '4px 2px' }}>
+                <span style={{ color: STATIC_TEXT_COLOR }}>MCAP: </span>
+                <div style={{ color: VALUE_COLOR, fontSize: '12px' }}>{fmt(mcap)}</div>
+              </td>
+              <td style={{ padding: '4px 2px', borderLeft: `1px solid ${BORDER_COLOR}` }}>
+                <span style={{ color: STATIC_TEXT_COLOR }}>PCAP: </span>
+                <span style={{ color: VALUE_COLOR }}>{fmt(pccap)}</span>
+              </td>
+              <td style={{ padding: '4px 2px', borderLeft: `1px solid ${BORDER_COLOR}` }}>
+                <span style={{ color: STATIC_TEXT_COLOR }}>DE: </span>
+                <span style={{ color: VALUE_COLOR }}>{fmt(de)}</span>
+              </td>
+            </tr>
 
-        {/* ROW 5: SALES GROWTH (100% full panel width) */}
-        <div className="ext-row" style={{ justifyContent: "flex-start", gap: "6px" }}>
-          <span style={{ color: THEME.labels, fontWeight: "bold" }}>SALES GROWTH:</span>
-          <span style={{ color: THEME.labels }}>(YOYQ -</span>
-          <span style={{ color: getDiffColor(ysg), fontWeight: "bold" }}>{numFmt(ysg)}%</span>
-          <span style={{ color: THEME.labels }}>) [TTM -</span>
-          <span style={{ color: getDiffColor(sgTtm), fontWeight: "bold" }}>{numFmt(sgTtm)}%</span>
-          <span style={{ color: THEME.labels }}>] [3Y -</span>
-          <span style={{ color: getDiffColor(sg3y), fontWeight: "bold" }}>{numFmt(sg3y)}%</span>
-          <span style={{ color: THEME.labels }}>]</span>
-        </div>
+            {/* ROW 5: SALES GROWTH (100% full width, no LAST QTR room) */}
+            <tr style={{ borderBottom: `1px solid ${BORDER_COLOR}` }}>
+              <td colSpan={3} style={{ padding: '5px 2px', whiteSpace: 'nowrap' }}>
+                <span style={{ color: STATIC_TEXT_COLOR }}>SG: </span>
+                <span style={{ color: STATIC_TEXT_COLOR }}>(YQ – <span style={{ color: getDiffColor(ysg) }}>{fmtPct(ysg)}</span>) </span>
+                <span style={{ color: STATIC_TEXT_COLOR }}>[TTM – <span style={{ color: getDiffColor(sg_ttm) }}>{fmtPct(sg_ttm)}</span>] </span>
+                <span style={{ color: STATIC_TEXT_COLOR }}>[3Y – <span style={{ color: getDiffColor(sg_3y) }}>{fmtPct(sg_3y)}</span>]</span>
+              </td>
+            </tr>
 
-        {/* ROW 6: PROFIT GROWTH (100% full panel width) */}
-        <div className="ext-row" style={{ justifyContent: "flex-start", gap: "6px" }}>
-          <span style={{ color: THEME.labels, fontWeight: "bold" }}>PROFIT GROWTH:</span>
-          <span style={{ color: THEME.labels }}>(YOYQ -</span>
-          <span style={{ color: getDiffColor(ypg), fontWeight: "bold" }}>{numFmt(ypg)}%</span>
-          <span style={{ color: THEME.labels }}>) [TTM -</span>
-          <span style={{ color: getDiffColor(pg1), fontWeight: "bold" }}>{numFmt(pg1)}%</span>
-          <span style={{ color: THEME.labels }}>] [3Y -</span>
-          <span style={{ color: getDiffColor(pg3), fontWeight: "bold" }}>{numFmt(pg3)}%</span>
-          <span style={{ color: THEME.labels }}>]</span>
-        </div>
+            {/* ROW 6: PROFIT GROWTH (100% full width) */}
+            <tr style={{ borderBottom: `1px solid ${BORDER_COLOR}` }}>
+              <td colSpan={3} style={{ padding: '5px 2px', whiteSpace: 'nowrap' }}>
+                <span style={{ color: STATIC_TEXT_COLOR }}>PG: </span>
+                <span style={{ color: STATIC_TEXT_COLOR }}>(YQ – <span style={{ color: getDiffColor(ypg) }}>{fmtPct(ypg)}</span>) </span>
+                <span style={{ color: STATIC_TEXT_COLOR }}>[TTM – <span style={{ color: getDiffColor(pg_1) }}>{fmtPct(pg_1)}</span>] </span>
+                <span style={{ color: STATIC_TEXT_COLOR }}>[3Y – <span style={{ color: getDiffColor(pg_3) }}>{fmtPct(pg_3)}</span>]</span>
+              </td>
+            </tr>
 
-        {/* ROW 7: QUANT SCORES */}
-        <div className="ext-row">
-          <div className="ext-cell-3col">
-            <span style={{ color: THEME.labels }}>T-SCORE: </span>
-            <span style={{ color: THEME.values, fontWeight: "bold", marginLeft: "3px" }}>{numFmt(tScore)}</span>
-          </div>
-          <div className="ext-cell-3col">
-            <span style={{ color: THEME.labels }}>G-SCORE: </span>
-            <span style={{ color: THEME.values, fontWeight: "bold", marginLeft: "3px" }}>{numFmt(gScore)}</span>
-          </div>
-          <div className="ext-cell-3col">
-            <span style={{ color: THEME.labels }}>F-SCORE: </span>
-            <span style={{ color: THEME.values, fontWeight: "bold", marginLeft: "3px" }}>{numFmt(fScore)}</span>
-          </div>
-        </div>
+            {/* ROW 7: T-SCORE | G-SCORE | F-SCORE */}
+            <tr style={{ borderBottom: `1px solid ${BORDER_COLOR}` }}>
+              <td style={{ padding: '4px 2px' }}>
+                <span style={{ color: STATIC_TEXT_COLOR }}>T-SCORE: </span>
+                <span style={{ color: VALUE_COLOR }}>{fmt(tScore)}</span>
+              </td>
+              <td style={{ padding: '4px 2px', borderLeft: `1px solid ${BORDER_COLOR}` }}>
+                <span style={{ color: STATIC_TEXT_COLOR }}>G-SCORE: </span>
+                <span style={{ color: VALUE_COLOR }}>{fmt(gScore)}</span>
+              </td>
+              <td style={{ padding: '4px 2px', borderLeft: `1px solid ${BORDER_COLOR}` }}>
+                <span style={{ color: STATIC_TEXT_COLOR }}>F-SCORE: </span>
+                <span style={{ color: VALUE_COLOR }}>{fmt(fScore)}</span>
+              </td>
+            </tr>
 
-        {/* ROW 8: STACKED SHAREHOLDING (Label at top, Value below) */}
-        <div className="ext-row" style={{ padding: "2px 0" }}>
-          <div className="ext-cell-stacked">
-            <span style={{ color: THEME.labels, fontWeight: "bold", fontSize: "10px" }}>PRMTR</span>
-            <div style={{ fontSize: "11px", fontWeight: "bold" }}>
-              <span style={{ color: THEME.values }}>{numFmt(prmtr)}% </span>
-              <span style={{ color: getDiffColor(dprmtr), fontSize: "10px" }}>
-                ({parseFloat(dprmtr) >= 0 ? "+" : ""}{numFmt(dprmtr)}%)
-              </span>
-            </div>
-          </div>
-          <div className="ext-cell-stacked">
-            <span style={{ color: THEME.labels, fontWeight: "bold", fontSize: "10px" }}>FII</span>
-            <div style={{ fontSize: "11px", fontWeight: "bold" }}>
-              <span style={{ color: THEME.values }}>{numFmt(fii)}% </span>
-              <span style={{ color: getDiffColor(dfii), fontSize: "10px" }}>
-                ({parseFloat(dfii) >= 0 ? "+" : ""}{numFmt(dfii)}%)
-              </span>
-            </div>
-          </div>
-          <div className="ext-cell-stacked">
-            <span style={{ color: THEME.labels, fontWeight: "bold", fontSize: "10px" }}>DII</span>
-            <div style={{ fontSize: "11px", fontWeight: "bold" }}>
-              <span style={{ color: THEME.values }}>{numFmt(dii)}% </span>
-              <span style={{ color: getDiffColor(ddii), fontSize: "10px" }}>
-                ({parseFloat(ddii) >= 0 ? "+" : ""}{numFmt(ddii)}%)
-              </span>
-            </div>
-          </div>
-        </div>
+            {/* ROW 8: STACKED SHAREHOLDING (Label on Top, Value & Delta Below) */}
+            <tr>
+              <td style={{ padding: '3px 2px', textAlign: 'center' }}>
+                <div style={{ color: STATIC_TEXT_COLOR, fontSize: '10.5px', marginBottom: '2px' }}>PRMTR</div>
+                <div style={{ fontSize: '11px', whiteSpace: 'nowrap' }}>
+                  <span style={{ color: VALUE_COLOR }}>{fmtPct(prh)} </span>
+                  <span style={{ fontSize: '10px', color: getDiffColor(dprh) }}>({fmtPct(dprh)})</span>
+                </div>
+              </td>
+              <td style={{ padding: '3px 2px', borderLeft: `1px solid ${BORDER_COLOR}`, textAlign: 'center' }}>
+                <div style={{ color: STATIC_TEXT_COLOR, fontSize: '10.5px', marginBottom: '2px' }}>FII</div>
+                <div style={{ fontSize: '11px', whiteSpace: 'nowrap' }}>
+                  <span style={{ color: VALUE_COLOR }}>{fmtPct(fii)} </span>
+                  <span style={{ fontSize: '10px', color: getDiffColor(dfii) }}>({fmtPct(dfii)})</span>
+                </div>
+              </td>
+              <td style={{ padding: '3px 2px', borderLeft: `1px solid ${BORDER_COLOR}`, textAlign: 'center' }}>
+                <div style={{ color: STATIC_TEXT_COLOR, fontSize: '10.5px', marginBottom: '2px' }}>DII</div>
+                <div style={{ fontSize: '11px', whiteSpace: 'nowrap' }}>
+                  <span style={{ color: VALUE_COLOR }}>{fmtPct(dii)} </span>
+                  <span style={{ fontSize: '10px', color: getDiffColor(ddii) }}>({fmtPct(ddii)})</span>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
       </div>
+
+      {/* REMARK NOTEBOOK MODAL (100% UNTOUCHED) */}
+      {isRemarkOpen && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0, 0, 0, 0.8)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ backgroundColor: '#121212', border: '2px solid #C0C0C0', borderRadius: '10px', padding: '25px', width: '450px', height: '350px', overflowY: 'auto', boxShadow: '0 10px 30px rgba(0,0,0,0.8)', position: 'relative', boxSizing: 'border-box' }}>
+            <button onClick={() => setIsRemarkOpen(false)} style={{ position: 'absolute', top: '10px', right: '15px', background: 'transparent', border: 'none', color: '#ff5252', fontSize: '20px', cursor: 'pointer', fontWeight: 'bold' }}>✕</button>
+            <h2 style={{ marginTop: 0, color: '#FFD700', borderBottom: '1px solid #444', paddingBottom: '10px' }}>Remark: {displayName}</h2>
+            <p style={{ color: '#ffffff', fontSize: '16px', lineHeight: '1.6' }}>{remark || "No remarks available for this stock."}</p>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }
