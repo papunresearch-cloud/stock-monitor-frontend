@@ -321,7 +321,6 @@ export default function Stock_window({
               {code}
             </span>
           )}
-          {/* Relocated LAST QTR Data cleanly next to Code */}
           <span style={{ fontSize: '12px', color: '#f59e0b', fontWeight: 'bold', letterSpacing: '0.5px' }}>
             (LAST QTR: {last_qtr || "JUNE, 2026"})
           </span>
@@ -375,7 +374,7 @@ export default function Stock_window({
       </div>
 
       {/* ======================================================== */}
-      {/* RIGHT: 35% EXTENDED PANEL (WITH REQUESTED MODIFICATIONS) */}
+      {/* RIGHT: 35% EXTENDED PANEL                                */}
       {/* ======================================================== */}
       <div className="stock-extended-panel" style={{
         flex: '35',
@@ -401,39 +400,39 @@ export default function Stock_window({
           tableLayout: 'fixed'
         }}>
           <tbody>
-            {/* ROW 1: PE | DY | BVgr */}
+            {/* ROW 1: PE (value + delta on same line) | DY | BVgr */}
             <tr style={{ borderBottom: `1px solid ${BORDER_COLOR}` }}>
-              <td style={{ width: '38%', padding: '4px 2px' }}>
+              <td style={{ width: '42%', padding: '4px 2px', whiteSpace: 'nowrap' }}>
                 <span style={{ color: STATIC_TEXT_COLOR }}>PE : </span>
                 <span style={{ color: VALUE_COLOR }}>{fmt(pe)}</span>
-                <div style={{ fontSize: '10.5px', color: getDiffColor(dpe), paddingLeft: '2px' }}>
+                <span style={{ color: getDiffColor(dpe), marginLeft: '3px' }}>
                   ({fmtPct(dpe)})
-                </div>
+                </span>
               </td>
-              <td style={{ width: '31%', padding: '4px 2px', borderLeft: `1px solid ${BORDER_COLOR}` }}>
+              <td style={{ width: '29%', padding: '4px 2px', borderLeft: `1px solid ${BORDER_COLOR}`, whiteSpace: 'nowrap' }}>
                 <span style={{ color: STATIC_TEXT_COLOR }}>DY: </span>
                 <span style={{ color: VALUE_COLOR }}>{fmtPct(dy)}</span>
               </td>
-              <td style={{ width: '31%', padding: '4px 2px', borderLeft: `1px solid ${BORDER_COLOR}` }}>
+              <td style={{ width: '29%', padding: '4px 2px', borderLeft: `1px solid ${BORDER_COLOR}`, whiteSpace: 'nowrap' }}>
                 <span style={{ color: STATIC_TEXT_COLOR }}>BVgr: </span>
                 <span style={{ color: VALUE_COLOR }}>{fmtPct(bvgr)}</span>
               </td>
             </tr>
 
-            {/* ROW 2: PB | PS | Payout */}
+            {/* ROW 2: PB (value + delta on same line) | PS | Payout */}
             <tr style={{ borderBottom: `1px solid ${BORDER_COLOR}` }}>
-              <td style={{ padding: '4px 2px' }}>
+              <td style={{ padding: '4px 2px', whiteSpace: 'nowrap' }}>
                 <span style={{ color: STATIC_TEXT_COLOR }}>PB : </span>
                 <span style={{ color: VALUE_COLOR }}>{fmt(pb)}</span>
-                <div style={{ fontSize: '10.5px', color: getDiffColor(dpb), paddingLeft: '2px' }}>
+                <span style={{ color: getDiffColor(dpb), marginLeft: '3px' }}>
                   ({fmtPct(dpb)})
-                </div>
+                </span>
               </td>
-              <td style={{ padding: '4px 2px', borderLeft: `1px solid ${BORDER_COLOR}` }}>
+              <td style={{ padding: '4px 2px', borderLeft: `1px solid ${BORDER_COLOR}`, whiteSpace: 'nowrap' }}>
                 <span style={{ color: STATIC_TEXT_COLOR }}>PS: </span>
                 <span style={{ color: VALUE_COLOR }}>{fmt(ps)}</span>
               </td>
-              <td style={{ padding: '4px 2px', borderLeft: `1px solid ${BORDER_COLOR}` }}>
+              <td style={{ padding: '4px 2px', borderLeft: `1px solid ${BORDER_COLOR}`, whiteSpace: 'nowrap' }}>
                 <span style={{ color: STATIC_TEXT_COLOR }}>Payout: </span>
                 <span style={{ color: VALUE_COLOR }}>{fmtPct(advdp)}</span>
               </td>
@@ -444,7 +443,7 @@ export default function Stock_window({
               <td style={{ padding: '4px 2px' }}>
                 <span style={{ color: STATIC_TEXT_COLOR }}>ROE: </span>
                 <span style={{ color: VALUE_COLOR }}>{fmt(roe0)}</span>
-                <span style={{ fontSize: '10.5px', color: STATIC_TEXT_COLOR, marginLeft: '3px'  }}>
+                <span style={{ fontSize: '10.5px', color: STATIC_TEXT_COLOR, marginLeft: '3px' }}>
                   (<span style={{ color: VALUE_COLOR }}>{fmt(roe3y)}</span>)
                 </span>
               </td>
@@ -468,7 +467,7 @@ export default function Stock_window({
             <tr style={{ borderBottom: `1px solid ${BORDER_COLOR}` }}>
               <td style={{ padding: '4px 2px' }}>
                 <span style={{ color: STATIC_TEXT_COLOR }}>MCAP: </span>
-                <div style={{ color: VALUE_COLOR, fontSize: '12px' }}>{fmt(mcap)}</div>
+                <span style={{ color: VALUE_COLOR, fontSize: '12px' }}>{fmt(mcap)}</span>
               </td>
               <td style={{ padding: '4px 2px', borderLeft: `1px solid ${BORDER_COLOR}` }}>
                 <span style={{ color: STATIC_TEXT_COLOR }}>PCAP: </span>
@@ -480,7 +479,7 @@ export default function Stock_window({
               </td>
             </tr>
 
-            {/* ROW 5: SALES GROWTH (100% full width, no LAST QTR room) */}
+            {/* ROW 5: SALES GROWTH (Full Width) */}
             <tr style={{ borderBottom: `1px solid ${BORDER_COLOR}` }}>
               <td colSpan={3} style={{ padding: '5px 2px', whiteSpace: 'nowrap' }}>
                 <span style={{ color: STATIC_TEXT_COLOR }}>SG: </span>
@@ -490,7 +489,7 @@ export default function Stock_window({
               </td>
             </tr>
 
-            {/* ROW 6: PROFIT GROWTH (100% full width) */}
+            {/* ROW 6: PROFIT GROWTH (Full Width) */}
             <tr style={{ borderBottom: `1px solid ${BORDER_COLOR}` }}>
               <td colSpan={3} style={{ padding: '5px 2px', whiteSpace: 'nowrap' }}>
                 <span style={{ color: STATIC_TEXT_COLOR }}>PG: </span>
@@ -516,27 +515,27 @@ export default function Stock_window({
               </td>
             </tr>
 
-            {/* ROW 8: STACKED SHAREHOLDING (Label on Top, Value & Delta Below) */}
+            {/* ROW 8: STACKED SHAREHOLDING (Same font size across base value and delta) */}
             <tr>
               <td style={{ padding: '3px 2px', textAlign: 'center' }}>
                 <div style={{ color: STATIC_TEXT_COLOR, fontSize: '10.5px', marginBottom: '2px' }}>PRMTR</div>
                 <div style={{ fontSize: '11px', whiteSpace: 'nowrap' }}>
                   <span style={{ color: VALUE_COLOR }}>{fmtPct(prh)} </span>
-                  <span style={{ fontSize: '10px', color: getDiffColor(dprh) }}>({fmtPct(dprh)})</span>
+                  <span style={{ color: getDiffColor(dprh) }}>({fmtPct(dprh)})</span>
                 </div>
               </td>
               <td style={{ padding: '3px 2px', borderLeft: `1px solid ${BORDER_COLOR}`, textAlign: 'center' }}>
                 <div style={{ color: STATIC_TEXT_COLOR, fontSize: '10.5px', marginBottom: '2px' }}>FII</div>
                 <div style={{ fontSize: '11px', whiteSpace: 'nowrap' }}>
                   <span style={{ color: VALUE_COLOR }}>{fmtPct(fii)} </span>
-                  <span style={{ fontSize: '10px', color: getDiffColor(dfii) }}>({fmtPct(dfii)})</span>
+                  <span style={{ color: getDiffColor(dfii) }}>({fmtPct(dfii)})</span>
                 </div>
               </td>
               <td style={{ padding: '3px 2px', borderLeft: `1px solid ${BORDER_COLOR}`, textAlign: 'center' }}>
                 <div style={{ color: STATIC_TEXT_COLOR, fontSize: '10.5px', marginBottom: '2px' }}>DII</div>
                 <div style={{ fontSize: '11px', whiteSpace: 'nowrap' }}>
                   <span style={{ color: VALUE_COLOR }}>{fmtPct(dii)} </span>
-                  <span style={{ fontSize: '10px', color: getDiffColor(ddii) }}>({fmtPct(ddii)})</span>
+                  <span style={{ color: getDiffColor(ddii) }}>({fmtPct(ddii)})</span>
                 </div>
               </td>
             </tr>
