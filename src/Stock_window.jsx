@@ -467,7 +467,7 @@ export default function Stock_window({
                     bottom: 0,
                     left: span25.left,
                     width: span25.width,
-                    background: 'linear-gradient(180deg, #E3A602 0%, #A17603 100%)',
+                    background: 'linear-gradient(180deg, #fbbf24 0%, #ea580c 100%)',
                     borderLeft: '1px solid rgba(255,255,255,0.9)',
                     borderRight: '1px solid rgba(255,255,255,0.9)',
                     boxShadow: '0 0 8px rgba(234,88,12,0.8), inset 0 1px 2px rgba(255,255,255,0.5)',
