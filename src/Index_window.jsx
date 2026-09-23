@@ -47,7 +47,7 @@ const Marker = ({ value, color, circleSize, lineHeight, label, isTop = false, ra
       title={`${label}: ₹${value}`}
       style={{
         position: 'absolute',
-        [isTop ? 'bottom' : 'top']: '50%', 
+        [isTop ? 'bottom' : 'top']: '100%', 
         left: `${positionPercent}%`,
         display: 'flex',
         flexDirection: isTop ? 'column-reverse' : 'column',
@@ -82,7 +82,7 @@ const Marker = ({ value, color, circleSize, lineHeight, label, isTop = false, ra
 };
 
 // ==========================================
-// 3. MAIN INDEX COMPONENT (STANDALONE ONLY)
+// 3. MAIN INDEX COMPONENT
 // ==========================================
 export default function Index_window({ 
   indexName = "NIFTY50",
@@ -95,7 +95,11 @@ export default function Index_window({
 }) {
   const [fastData, setFastData] = useState({ cmp: 0, tdyChange: 0, ydyChange: 0 });
   const [slowData, setSlowData] = useState({
-    ma10: 0, ma25: 0, ma50: 0, ma200: 0, high52: 0, low52: 0,
+    ma10: 0, ma25: 0, ma50: 0, ma200: 0, 
+    high52: 0, low52: 0,
+    h100: 0, l100: 0,
+    h50: 0, l50: 0,
+    h25: 0, l25: 0,
     return1W: 0, return1M: 0, return3M: 0, return1Yr: 0, return3Yr: 0,
     rsi: 0, yfc_link: "#", tvc_link: "#" 
   });
@@ -150,6 +154,12 @@ export default function Index_window({
         ma200: Number(data?.['200ma'] ?? data?.['200MA'] ?? data?.ma200 ?? 0),
         high52: Number(data?.['52wh'] ?? data?.['52WH'] ?? data?.high52 ?? 0),
         low52: Number(data?.['52wl'] ?? data?.['52WL'] ?? data?.low52 ?? 0),
+        h100: Number(data?.['100H'] ?? data?.['100h'] ?? 0),
+        l100: Number(data?.['100L'] ?? data?.['100l'] ?? 0),
+        h50: Number(data?.['50H'] ?? data?.['50h'] ?? 0),
+        l50: Number(data?.['50L'] ?? data?.['50l'] ?? 0),
+        h25: Number(data?.['25H'] ?? data?.['25h'] ?? 0),
+        l25: Number(data?.['25L'] ?? data?.['25l'] ?? 0),
         return1W: Number(data?.['1wr'] ?? data?.['1W'] ?? data?.return1W ?? 0),
         return1M: Number(data?.['1mr'] ?? data?.['1M'] ?? data?.return1M ?? 0),
         return3M: Number(data?.['3mr'] ?? data?.['3M'] ?? data?.return3M ?? 0),
@@ -187,10 +197,25 @@ export default function Index_window({
 
   const scaleTo100 = useCallback((value) => {
     const { low52, high52 } = slowData;
-    if (!low52 || !high52 || high52 === low52) return 0;
+    if (!low52 || !high52 || high52 === low52 || !value) return 0;
     const rawPercentage = (((value - low52) / (high52 - low52)) * 100);
     return Math.max(0, Math.min(100, rawPercentage));
   }, [slowData]);
+
+  // Compute sub-bar dimensions
+  const getSubRangeSpan = (low, high) => {
+    if (!low || !high) return null;
+    const left = scaleTo100(low);
+    const right = scaleTo100(high);
+    return {
+      left: `${left}%`,
+      width: `${Math.max(0, right - left)}%`
+    };
+  };
+
+  const span100 = getSubRangeSpan(slowData.l100, slowData.h100);
+  const span50 = getSubRangeSpan(slowData.l50, slowData.h50);
+  const span25 = getSubRangeSpan(slowData.l25, slowData.h25);
 
   const rangeValue = slowData.low52 
     ? (((slowData.high52 - slowData.low52) / slowData.low52) * 100).toFixed(2)
@@ -246,20 +271,82 @@ export default function Index_window({
         
         {/* Left: 80% Scale Visualizer */}
         <div style={{ width: isMobile ? '100%' : '80%', display: 'flex', flexDirection: 'column', paddingRight: isMobile ? '0' : '15px', borderRight: isMobile ? 'none' : '1px dashed #444' }}>
-          <div style={{ position: 'relative', height: '130px', width: '100%' }}>
-            <div style={{ position: 'absolute', left: 0, top: '50%', transform: 'translateY(-50%)', fontWeight: 'bold', fontSize: '16px', color: '#cccccc' }}>52WL</div>
-            <div style={{ position: 'absolute', right: 0, top: '50%', transform: 'translateY(-50%)', fontWeight: 'bold', fontSize: '16px', color: '#cccccc' }}>52WH</div>
+          <div style={{ position: 'relative', height: '140px', width: '100%' }}>
+            <div style={{ position: 'absolute', left: 0, top: '50%', transform: 'translateY(-50%)', fontWeight: 'bold', fontSize: '15px', color: '#cccccc' }}>52WL</div>
+            <div style={{ position: 'absolute', right: 0, top: '50%', transform: 'translateY(-50%)', fontWeight: 'bold', fontSize: '15px', color: '#cccccc' }}>52WH</div>
 
-            <div style={{ position: 'absolute', top: '50%', left: '55px', right: '55px', height: '3px', backgroundColor: '#666', transform: 'translateY(-50%)', borderRadius: '2px' }}>
-              <Marker value={fastData.cmp} scaleTo100={scaleTo100} color="rgba(33, 150, 243, 0.95)" circleSize={12} lineHeight={12} label="CMP" isTop={true} rawValue={fastData.cmp} />
-              <Marker value={slowData.ma200} scaleTo100={scaleTo100} color="rgba(255, 68, 68, 0.85)" circleSize={16} lineHeight={45} label="200MA" />
-              <Marker value={slowData.ma50} scaleTo100={scaleTo100} color="rgba(255, 152, 0, 0.85)" circleSize={14} lineHeight={30} label="50MA" />
-              <Marker value={slowData.ma25} scaleTo100={scaleTo100} color="rgba(255, 235, 59, 0.85)" circleSize={12} lineHeight={18} label="25MA" />
-              <Marker value={slowData.ma10} scaleTo100={scaleTo100} color="rgba(0, 230, 118, 0.9)" circleSize={10} lineHeight={8} label="10MA" />
+            {/* HEAVY MULTI-LAYER RANGE BAR TRACK */}
+            <div style={{ 
+              position: 'absolute', 
+              top: '50%', 
+              left: '55px', 
+              right: '55px', 
+              height: '18px', 
+              backgroundColor: '#00E5FF', /* 52W Layer: Sky Blue */
+              transform: 'translateY(-50%)', 
+              borderRadius: '4px',
+              border: '1px solid #004d40',
+              boxShadow: 'inset 0 1px 3px rgba(0,0,0,0.5)',
+              zIndex: 1
+            }}>
+              
+              {/* 100D Range Layer (Crimson Red) */}
+              {span100 && (
+                <div style={{
+                  position: 'absolute',
+                  top: 0,
+                  bottom: 0,
+                  left: span100.left,
+                  width: span100.width,
+                  backgroundColor: '#E53935',
+                  borderRadius: '2px',
+                  boxShadow: '0 0 4px rgba(0,0,0,0.3)',
+                  zIndex: 2
+                }} />
+              )}
+
+              {/* 50D Range Layer (Royal Blue) */}
+              {span50 && (
+                <div style={{
+                  position: 'absolute',
+                  top: 0,
+                  bottom: 0,
+                  left: span50.left,
+                  width: span50.width,
+                  backgroundColor: '#1E88E5',
+                  borderRadius: '2px',
+                  boxShadow: '0 0 4px rgba(0,0,0,0.3)',
+                  zIndex: 3
+                }} />
+              )}
+
+              {/* 25D Range Layer (Amber Orange) */}
+              {span25 && (
+                <div style={{
+                  position: 'absolute',
+                  top: 0,
+                  bottom: 0,
+                  left: span25.left,
+                  width: span25.width,
+                  backgroundColor: '#FF9800',
+                  borderRadius: '2px',
+                  boxShadow: '0 0 4px rgba(0,0,0,0.3)',
+                  zIndex: 4
+                }} />
+              )}
+
+              {/* CMP (Above Bar) */}
+              <Marker value={fastData.cmp} scaleTo100={scaleTo100} color="#00E5FF" circleSize={12} lineHeight={14} label="CMP" isTop={true} rawValue={fastData.cmp} />
+              
+              {/* Moving Averages (Below Bar) */}
+              <Marker value={slowData.ma200} scaleTo100={scaleTo100} color="rgba(255, 68, 68, 0.95)" circleSize={16} lineHeight={45} label="200MA" />
+              <Marker value={slowData.ma50} scaleTo100={scaleTo100} color="rgba(255, 152, 0, 0.95)" circleSize={14} lineHeight={30} label="50MA" />
+              <Marker value={slowData.ma25} scaleTo100={scaleTo100} color="rgba(255, 235, 59, 0.95)" circleSize={12} lineHeight={18} label="25MA" />
+              <Marker value={slowData.ma10} scaleTo100={scaleTo100} color="rgba(0, 230, 118, 0.95)" circleSize={10} lineHeight={8} label="10MA" />
             </div>
           </div>
           
-          <div style={{ marginTop: '0px', color: '#cccccc', fontWeight: '900', fontSize: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', letterSpacing: '1px' }}>
+          <div style={{ marginTop: '5px', color: '#cccccc', fontWeight: '900', fontSize: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', letterSpacing: '1px' }}>
             &lt; <span style={{ flex: 1, height: '1px', backgroundColor: '#555', margin: '0 15px' }}></span> 
             RANGE: {rangeValue}% 
             <span style={{ flex: 1, height: '1px', backgroundColor: '#555', margin: '0 15px' }}></span> &gt;
