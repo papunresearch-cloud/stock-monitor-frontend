@@ -293,7 +293,7 @@ export default function Index_window({
           50DR
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '5px', color: '#e2e8f0' }}>
-          <span style={{ width: '9px', height: '9px', borderRadius: '2px', background: 'linear-gradient(180deg, #94FFC6, #038A42)', border: '1px solid #7c2d12', display: 'inline-block' }}></span>
+          <span style={{ width: '9px', height: '9px', borderRadius: '2px', background: 'linear-gradient(180deg, #027D31, #467D02)', border: '1px solid #7c2d12', display: 'inline-block' }}></span>
           25DR
         </div>
       </div>
@@ -362,7 +362,7 @@ export default function Index_window({
                   bottom: 0,
                   left: span25.left,
                   width: span25.width,
-                  background: 'linear-gradient(180deg, #94FFC6 0%, #038A42 100%)',
+                  background: 'linear-gradient(180deg, #027D31 0%, #467D02 100%)',
                   borderLeft: '1px solid rgba(255,255,255,0.9)',
                   borderRight: '1px solid rgba(255,255,255,0.9)',
                   boxShadow: '0 0 8px rgba(234,88,12,0.8), inset 0 1px 2px rgba(255,255,255,0.5)',
