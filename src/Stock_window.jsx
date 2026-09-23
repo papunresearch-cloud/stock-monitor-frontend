@@ -41,7 +41,7 @@ const Button3D = ({ label, color, shadowColor, onClick, title, padding = '8px 16
 };
 
 // ==========================================
-// 2. VISUAL MAP PIN (100% UNTOUCHED)
+// 2. VISUAL MAP PIN (100% UNTOUCHED LOGIC)
 // ==========================================
 const Marker = ({ value, color, circleSize, lineHeight, label, isTop = false, rawValue = null, scaleTo100 }) => {
   const positionPercent = scaleTo100(value);
@@ -50,7 +50,7 @@ const Marker = ({ value, color, circleSize, lineHeight, label, isTop = false, ra
       title={`${label}: ₹${value}`}
       style={{
         position: 'absolute',
-        [isTop ? 'bottom' : 'top']: '50%', 
+        [isTop ? 'bottom' : 'top']: '100%', 
         left: `${positionPercent}%`,
         display: 'flex',
         flexDirection: isTop ? 'column-reverse' : 'column',
@@ -65,17 +65,18 @@ const Marker = ({ value, color, circleSize, lineHeight, label, isTop = false, ra
           height: 0, 
           borderLeft: `${circleSize}px solid transparent`, 
           borderRight: `${circleSize}px solid transparent`, 
-          borderTop: `${circleSize * 1.5}px solid ${color}` 
+          borderTop: `${circleSize * 1.5}px solid ${color}`,
+          filter: 'drop-shadow(0 2px 3px rgba(0,0,0,0.8))'
         }}></div>
       ) : (
         <>
-          <div style={{ width: '2px', height: `${lineHeight}px`, backgroundColor: color }}></div>
-          <div style={{ width: `${circleSize}px`, height: `${circleSize}px`, backgroundColor: color, borderRadius: '50%', border: '1px solid #111' }}></div>
+          <div style={{ width: '2px', height: `${lineHeight}px`, backgroundColor: color, boxShadow: `0 0 3px ${color}` }}></div>
+          <div style={{ width: `${circleSize}px`, height: `${circleSize}px`, backgroundColor: color, borderRadius: '50%', border: '1px solid #111', boxShadow: '0 2px 4px rgba(0,0,0,0.7)' }}></div>
         </>
       )}
 
       {rawValue !== null && (
-        <div style={{ fontSize: '13px', color: '#FFFF00', marginBottom: isTop ? '4px' : '0', marginTop: isTop ? '0' : '4px', fontWeight: '100' }}>
+        <div style={{ fontSize: '13px', color: '#FFFF00', marginBottom: isTop ? '4px' : '0', marginTop: isTop ? '0' : '4px', fontWeight: 'bold', textShadow: '1px 1px 2px #000', whiteSpace: 'nowrap' }}>
           ₹{rawValue}
         </div>
       )}
@@ -108,7 +109,11 @@ export default function Stock_window({
   const [fastData, setFastData] = useState({ CMP: 0, Tdy_chng: 0, Ydy_chng: 0 });
   const [slowData, setSlowData] = useState({
     "10MA": 0, "25MA": 0, "50MA": 0, "200MA": 0,
-    "52WH": 0, "52WL": 0, "1W": 0, "1M": 0, "3M": 0, "1YR": 0, "3YR": 0, "RSI": 0
+    "52WH": 0, "52WL": 0,
+    "100H": 0, "100L": 0,
+    "50H": 0, "50L": 0,
+    "25H": 0, "25L": 0,
+    "1W": 0, "1M": 0, "3M": 0, "1YR": 0, "3YR": 0, "RSI": 0
   });
 
   const [isRemarkOpen, setIsRemarkOpen] = useState(false);
@@ -130,6 +135,7 @@ export default function Stock_window({
     if (isFrozen || !primaryKey) return;
 
     try {
+      // PARAM DATA: Strictly loaded from /param/<script> folder
       let paramRes = await fetch(`${FIREBASE_DB_URL}/param/${encodeURIComponent(primaryKey)}.json`);
       let data = paramRes.ok ? await paramRes.json() : null;
 
@@ -138,6 +144,7 @@ export default function Stock_window({
         if (fallbackRes.ok) data = await fallbackRes.json();
       }
 
+      // LIVE OHLC DATA: Live candle endpoints
       let [liveRes0, liveRes1] = await Promise.all([
         fetch(`${FIREBASE_DB_URL}/stocks/${encodeURIComponent(primaryKey)}/0.json`),
         fetch(`${FIREBASE_DB_URL}/stocks/${encodeURIComponent(primaryKey)}/1.json`)
@@ -170,8 +177,15 @@ export default function Stock_window({
         "25MA": Number(data?.['25ma'] ?? data?.['25MA'] ?? 0),
         "50MA": Number(data?.['50ma'] ?? data?.['50MA'] ?? 0),
         "200MA": Number(data?.['200ma'] ?? data?.['200MA'] ?? 0),
-        "52WH": Number(data?.['52wh'] ?? data?.['52WH'] ?? 0),
-        "52WL": Number(data?.['52wl'] ?? data?.['52WL'] ?? 0),
+        // Range metrics strictly from /param folder
+        "52WH": Number(data?.['52WH'] ?? data?.['52wh'] ?? 0),
+        "52WL": Number(data?.['52WL'] ?? data?.['52wl'] ?? 0),
+        "100H": Number(data?.['100H'] ?? data?.['100h'] ?? 0),
+        "100L": Number(data?.['100L'] ?? data?.['100l'] ?? 0),
+        "50H": Number(data?.['50H'] ?? data?.['50h'] ?? 0),
+        "50L": Number(data?.['50L'] ?? data?.['50l'] ?? 0),
+        "25H": Number(data?.['25H'] ?? data?.['25h'] ?? 0),
+        "25L": Number(data?.['25L'] ?? data?.['25l'] ?? 0),
         "1W": Number(data?.['1wr'] ?? data?.['1W'] ?? 0),
         "1M": Number(data?.['1mr'] ?? data?.['1M'] ?? 0),
         "3M": Number(data?.['3mr'] ?? data?.['3M'] ?? 0),
@@ -206,23 +220,43 @@ export default function Stock_window({
 
   const scaleTo100 = useCallback((value) => {
     const { "52WL": low52, "52WH": high52 } = slowData;
-    if (!low52 || !high52 || high52 === low52) return 0;
+    if (!low52 || !high52 || high52 === low52 || !value) return 0;
     const rawPercentage = (((value - low52) / (high52 - low52)) * 100);
     return Math.max(0, Math.min(100, rawPercentage));
   }, [slowData]);
 
+  // Scaled sub-range bar positions (100L/100H, 50L/50H, 25L/25H mapped to 52W range)
+  const getSubRangeSpan = (low, high) => {
+    if (!low || !high || !slowData["52WL"] || !slowData["52WH"]) return null;
+    const left = scaleTo100(low);
+    const right = scaleTo100(high);
+    const width = Math.max(0, right - left);
+    if (width === 0) return null;
+    return {
+      left: `${left}%`,
+      width: `${width}%`
+    };
+  };
+
+  const span100 = getSubRangeSpan(slowData["100L"], slowData["100H"]);
+  const span50 = getSubRangeSpan(slowData["50L"], slowData["50H"]);
+  const span25 = getSubRangeSpan(slowData["25L"], slowData["25H"]);
+
   const rangeValue = slowData["52WL"] 
     ? (((slowData["52WH"] - slowData["52WL"]) / slowData["52WL"]) * 100).toFixed(2) 
     : "0.00";
+
+  // Legend size variable
+  const Legend_Size = "9px";
 
   // ========================================================
   // 🎨 FRONT LOOK & COLOR PALETTE
   // ========================================================
   const COLOR_GREEN = "#00cc00"; 
   const COLOR_RED = "#e62e00";   
-  const STATIC_TEXT_COLOR = "#B5C3FF"; // Soft blue-indigo for static labels
-  const VALUE_COLOR = "#FCC105";       // Warm amber-gold for quantitative figures
-  const BORDER_COLOR = "#2a2f45";      // Thin visual grid separator
+  const STATIC_TEXT_COLOR = "#B5C3FF"; 
+  const VALUE_COLOR = "#FCC105";       
+  const BORDER_COLOR = "#2a2f45";      
 
   const renderStars = () => {
     let starCount = 0;
@@ -240,7 +274,6 @@ export default function Stock_window({
 
   const displayName = name ? name.split('(')[0].trim() : (code || '');
 
-  // Helper formatting routines
   const fmt = (v) => (v !== undefined && v !== null && v !== "" ? v : "xx.xx");
   const fmtPct = (v) => {
     if (v === undefined || v === null || v === "") return "xx.xx %";
@@ -266,7 +299,7 @@ export default function Stock_window({
       boxSizing: 'border-box'
     }}>
       
-      {/* Responsive Stylesheet for Breakpoint Reflow */}
+      {/* Responsive Stylesheet */}
       <style>{`
         @media (max-width: 1024px) {
           .stock-window-wrapper {
@@ -284,7 +317,7 @@ export default function Stock_window({
       `}</style>
 
       {/* ======================================================== */}
-      {/* LEFT: 65% MAIN TECHNICAL FACE-PLATE (100% PRESERVED)     */}
+      {/* LEFT: 65% MAIN TECHNICAL FACE-PLATE                      */}
       {/* ======================================================== */}
       <div className="stock-main-panel" style={{
         flex: '65',
@@ -311,7 +344,7 @@ export default function Stock_window({
           />
         </div>
 
-        {/* STOCK NAME, CODE & RELOCATED (LAST QTR) */}
+        {/* STOCK NAME, CODE & (LAST QTR) */}
         <div style={{ display: 'flex', justifyContent: 'flex-start', alignItems: 'center', marginBottom: '15px', gap: '10px', flexWrap: 'wrap' }}>
           <h2 style={{ margin: 0, color: '#f7d026', fontSize: '18px', letterSpacing: '1px', textTransform: 'uppercase' }}>
             {displayName}
@@ -327,7 +360,7 @@ export default function Stock_window({
         </div>
 
         {/* 8-COLUMN DATA TABLE */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(8, 1fr)', backgroundColor: '#111111', border: '1px solid #444', borderRadius: '6px', marginBottom: '25px', textAlign: 'center', overflow: 'hidden' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(8, 1fr)', backgroundColor: '#111111', border: '1px solid #444', borderRadius: '6px', marginBottom: '14px', textAlign: 'center', overflow: 'hidden' }}>
           {['Tdy-%chng', 'Ydy-%chng', '1W', '1M', '3M', '1YR', '3YR', 'RSI'].map((head, idx) => (
             <div key={`h-${idx}`} style={{ padding: '8px 2px', fontSize: '12px', fontWeight: '900', backgroundColor: '#1a1a1a', borderRight: idx < 7 ? '1px solid #444' : 'none', borderBottom: '1px solid #444', color: '#cccccc' }}>
               {head}
@@ -344,27 +377,122 @@ export default function Stock_window({
           <div style={{ padding: '10px 2px', fontSize: '14px', fontWeight: 'bold', color: slowData.RSI > 50 ? COLOR_GREEN : COLOR_RED }}>{slowData.RSI}</div>
         </div>
 
+        {/* 3. LEGEND STRIP (Left-aligned, below data table, above scale visualizer) */}
+        <div style={{ 
+          display: 'flex', 
+          alignItems: 'center', 
+          gap: '14px', 
+          fontSize: Legend_Size, 
+          fontWeight: 'bold', 
+          letterSpacing: '0.8px',
+          marginBottom: '6px',
+          paddingLeft: '4px'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '5px', color: '#e2e8f0' }}>
+            <span style={{ width: '9px', height: '9px', borderRadius: '2px', background: 'linear-gradient(180deg, #22d3ee, #0891b2)', border: '1px solid #164e63', display: 'inline-block' }}></span>
+            52WR
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '5px', color: '#e2e8f0' }}>
+            <span style={{ width: '9px', height: '9px', borderRadius: '2px', background: 'linear-gradient(180deg, #fb7185, #e11d48)', border: '1px solid #881337', display: 'inline-block' }}></span>
+            100DR
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '5px', color: '#e2e8f0' }}>
+            <span style={{ width: '9px', height: '9px', borderRadius: '2px', background: 'linear-gradient(180deg, #818cf8, #4f46e5)', border: '1px solid #312e81', display: 'inline-block' }}></span>
+            50DR
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '5px', color: '#e2e8f0' }}>
+            <span style={{ width: '9px', height: '9px', borderRadius: '2px', background: 'linear-gradient(180deg, #fbbf24, #ea580c)', border: '1px solid #7c2d12', display: 'inline-block' }}></span>
+            25DR
+          </div>
+        </div>
+
         {/* SCALE TRACK & QUICK BUTTONS */}
         <div style={{ display: 'flex', width: '100%', alignItems: 'center' }}>
           <div style={{ width: '85%', display: 'flex', flexDirection: 'column', paddingRight: '15px', borderRight: '1px dashed #444' }}>
-            <div style={{ position: 'relative', height: '110px', width: '100%' }}>
-              <div style={{ position: 'absolute', left: 0, top: '50%', transform: 'translateY(-50%)', fontWeight: 'bold', fontSize: '12px', color: '#cccccc' }}>52WL</div>
-              <div style={{ position: 'absolute', right: 0, top: '50%', transform: 'translateY(-50%)', fontWeight: 'bold', fontSize: '12px', color: '#cccccc' }}>52WH</div>
+            <div style={{ position: 'relative', height: '140px', width: '100%' }}>
+              <div style={{ position: 'absolute', left: 0, top: '50%', transform: 'translateY(-50%)', fontWeight: 'bold', fontSize: '13px', color: '#cccccc' }}>52WL</div>
+              <div style={{ position: 'absolute', right: 0, top: '50%', transform: 'translateY(-50%)', fontWeight: 'bold', fontSize: '13px', color: '#cccccc' }}>52WH</div>
 
-              <div style={{ position: 'absolute', top: '50%', left: '50px', right: '50px', height: '3px', backgroundColor: '#666', transform: 'translateY(-50%)', borderRadius: '2px' }}>
-                <Marker value={fastData.CMP} scaleTo100={scaleTo100} color="rgba(33, 150, 243, 0.95)" circleSize={12} lineHeight={12} label="CMP" isTop={true} rawValue={fastData.CMP} />
-                <Marker value={slowData["200MA"]} scaleTo100={scaleTo100} color="rgba(255, 68, 68, 0.85)" circleSize={14} lineHeight={40} label="200MA" />
-                <Marker value={slowData["50MA"]}  scaleTo100={scaleTo100} color="rgba(255, 152, 0, 0.85)" circleSize={12} lineHeight={26} label="50MA" />
-                <Marker value={slowData["25MA"]}  scaleTo100={scaleTo100} color="rgba(255, 235, 59, 0.85)" circleSize={10} lineHeight={16} label="25MA" />
-                <Marker value={slowData["10MA"]}  scaleTo100={scaleTo100} color="rgba(0, 230, 118, 0.9)" circleSize={8} lineHeight={8} label="10MA" />
+              {/* 3D MULTI-LAYER RANGE BAR */}
+              <div style={{ 
+                position: 'absolute', 
+                top: '50%', 
+                left: '50px', 
+                right: '50px', 
+                height: '18px', 
+                background: 'linear-gradient(180deg, #22d3ee 0%, #0891b2 100%)', /* 52WR: Cyan Base */
+                transform: 'translateY(-50%)', 
+                borderRadius: '6px',
+                border: '1px solid rgba(255, 255, 255, 0.4)',
+                boxShadow: '0 4px 10px rgba(0,0,0,0.8), inset 0 2px 3px rgba(255,255,255,0.45), inset 0 -2px 4px rgba(0,0,0,0.6)',
+                zIndex: 1
+              }}>
+                {/* 100DR Layer (Crimson Red) */}
+                {span100 && (
+                  <div style={{
+                    position: 'absolute',
+                    top: 0,
+                    bottom: 0,
+                    left: span100.left,
+                    width: span100.width,
+                    background: 'linear-gradient(180deg, #fb7185 0%, #e11d48 100%)',
+                    borderLeft: '1px solid rgba(255,255,255,0.6)',
+                    borderRight: '1px solid rgba(255,255,255,0.6)',
+                    boxShadow: '0 0 6px rgba(225,29,72,0.6), inset 0 1px 2px rgba(255,255,255,0.4)',
+                    zIndex: 2
+                  }} />
+                )}
+
+                {/* 50DR Layer (Royal Indigo/Blue) */}
+                {span50 && (
+                  <div style={{
+                    position: 'absolute',
+                    top: 0,
+                    bottom: 0,
+                    left: span50.left,
+                    width: span50.width,
+                    background: 'linear-gradient(180deg, #818cf8 0%, #4f46e5 100%)',
+                    borderLeft: '1px solid rgba(255,255,255,0.7)',
+                    borderRight: '1px solid rgba(255,255,255,0.7)',
+                    boxShadow: '0 0 7px rgba(79,70,229,0.7), inset 0 1px 2px rgba(255,255,255,0.45)',
+                    zIndex: 3
+                  }} />
+                )}
+
+                {/* 25DR Layer (Sunset Tangerine Orange) */}
+                {span25 && (
+                  <div style={{
+                    position: 'absolute',
+                    top: 0,
+                    bottom: 0,
+                    left: span25.left,
+                    width: span25.width,
+                    background: 'linear-gradient(180deg, #fbbf24 0%, #ea580c 100%)',
+                    borderLeft: '1px solid rgba(255,255,255,0.9)',
+                    borderRight: '1px solid rgba(255,255,255,0.9)',
+                    boxShadow: '0 0 8px rgba(234,88,12,0.8), inset 0 1px 2px rgba(255,255,255,0.5)',
+                    zIndex: 4
+                  }} />
+                )}
+
+                {/* CMP Marker */}
+                <Marker value={fastData.CMP} scaleTo100={scaleTo100} color="#00E5FF" circleSize={12} lineHeight={14} label="CMP" isTop={true} rawValue={fastData.CMP} />
+                
+                {/* Moving Averages */}
+                <Marker value={slowData["200MA"]} scaleTo100={scaleTo100} color="rgba(255, 68, 68, 0.95)" circleSize={14} lineHeight={40} label="200MA" />
+                <Marker value={slowData["50MA"]}  scaleTo100={scaleTo100} color="rgba(255, 152, 0, 0.95)" circleSize={12} lineHeight={26} label="50MA" />
+                <Marker value={slowData["25MA"]}  scaleTo100={scaleTo100} color="rgba(255, 235, 59, 0.95)" circleSize={10} lineHeight={16} label="25MA" />
+                <Marker value={slowData["10MA"]}  scaleTo100={scaleTo100} color="rgba(0, 230, 118, 0.95)" circleSize={8} lineHeight={8} label="10MA" />
               </div>
             </div>
-            <div style={{ color: '#cccccc', fontWeight: '900', fontSize: '11px', display: 'flex', alignItems: 'center', justifyContent: 'center', letterSpacing: '1px' }}>
+
+            <div style={{ marginTop: '5px', color: '#cccccc', fontWeight: '900', fontSize: '11px', display: 'flex', alignItems: 'center', justifyContent: 'center', letterSpacing: '1px' }}>
               &lt; <span style={{ flex: 1, height: '1px', backgroundColor: '#555', margin: '0 15px' }}></span> 
               RANGE: {rangeValue}% 
               <span style={{ flex: 1, height: '1px', backgroundColor: '#555', margin: '0 15px' }}></span> &gt;
             </div>
           </div>
+
           <div style={{ width: '15%', paddingLeft: '15px', display: 'flex', flexDirection: 'column', gap: '12px', alignItems: 'center', justifyContent: 'center' }}>
             <Button3D label="SCR" color="#0A5E01" shadowColor="#0E6B30" onClick={() => openPopup(scr_link)} />
             <Button3D label="TVC" color="#2962FF" shadowColor="#1565C0" onClick={() => openPopup(tvc_link)} />
@@ -374,7 +502,7 @@ export default function Stock_window({
       </div>
 
       {/* ======================================================== */}
-      {/* RIGHT: 35% EXTENDED PANEL                                */}
+      {/* RIGHT: 35% EXTENDED PANEL (100% UNTOUCHED)                */}
       {/* ======================================================== */}
       <div className="stock-extended-panel" style={{
         flex: '35',
