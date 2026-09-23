@@ -314,7 +314,7 @@ export default function Index_window({
               left: '55px', 
               right: '55px', 
               height: '18px', 
-              background: 'linear-gradient(180deg, #22d3ee 0%, #0891b2 100%)', /* 52WR: Cyan Base */
+              background: 'linear-gradient(180deg, #C0C0C0 0%, #808080 100%)', /* 52WR: Cyan Base */
               transform: 'translateY(-50%)', 
               borderRadius: '6px',
               border: '1px solid rgba(255, 255, 255, 0.4)',
