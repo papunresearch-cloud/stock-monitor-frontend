@@ -63,17 +63,18 @@ const Marker = ({ value, color, circleSize, lineHeight, label, isTop = false, ra
           height: 0, 
           borderLeft: `${circleSize}px solid transparent`, 
           borderRight: `${circleSize}px solid transparent`, 
-          borderTop: `${circleSize * 1.5}px solid ${color}` 
+          borderTop: `${circleSize * 1.5}px solid ${color}`,
+          filter: 'drop-shadow(0 2px 3px rgba(0,0,0,0.8))'
         }}></div>
       ) : (
         <>
-          <div style={{ width: '2px', height: `${lineHeight}px`, backgroundColor: color }}></div>
-          <div style={{ width: `${circleSize}px`, height: `${circleSize}px`, backgroundColor: color, borderRadius: '50%', border: '1px solid #111' }}></div>
+          <div style={{ width: '2px', height: `${lineHeight}px`, backgroundColor: color, boxShadow: `0 0 3px ${color}` }}></div>
+          <div style={{ width: `${circleSize}px`, height: `${circleSize}px`, backgroundColor: color, borderRadius: '50%', border: '1px solid #111', boxShadow: '0 2px 4px rgba(0,0,0,0.7)' }}></div>
         </>
       )}
 
       {rawValue !== null && (
-        <div style={{ fontSize: '14px', color: '#ffffff', marginBottom: isTop ? '4px' : '0', marginTop: isTop ? '0' : '4px', fontWeight: 'bold' }}>
+        <div style={{ fontSize: '13px', color: '#ffffff', marginBottom: isTop ? '4px' : '0', marginTop: isTop ? '0' : '4px', fontWeight: 'bold', textShadow: '1px 1px 2px #000', whiteSpace: 'nowrap' }}>
           ₹{rawValue}
         </div>
       )}
@@ -95,7 +96,7 @@ export default function Index_window({
 }) {
   const [fastData, setFastData] = useState({ cmp: 0, tdyChange: 0, ydyChange: 0 });
   const [slowData, setSlowData] = useState({
-    ma10: 0, ma25: 0, ma50: 0, ma200: 0, 
+    ma10: 0, ma25: 0, ma50: 0, ma200: 0,
     high52: 0, low52: 0,
     h100: 0, l100: 0,
     h50: 0, l50: 0,
@@ -124,22 +125,18 @@ export default function Index_window({
     if (isFrozen || !safeTarget) return;
 
     try {
+      // Direct queries to /param and live candles
       const [paramRes, liveRes0, liveRes1] = await Promise.all([
         fetch(`${FIREBASE_DB_URL}/param/${encodeURIComponent(safeTarget)}.json`),
         fetch(`${FIREBASE_DB_URL}/stocks/${encodeURIComponent(safeTarget)}/0.json`),
         fetch(`${FIREBASE_DB_URL}/stocks/${encodeURIComponent(safeTarget)}/1.json`)
       ]);
 
-      let data = paramRes.ok ? await paramRes.json() : null;
+      const data = paramRes.ok ? await paramRes.json() : null;
       const c0 = liveRes0.ok ? await liveRes0.json() : null;
       const c1 = liveRes1.ok ? await liveRes1.json() : null;
 
-      if (!data) {
-        const fallbackRes = await fetch(`${FIREBASE_DB_URL}/indices/${encodeURIComponent(safeTarget)}.json`);
-        if (fallbackRes.ok) data = await fallbackRes.json();
-      }
-
-      const currentCmp = Number(c0?.close ?? c0?.c ?? c1?.close ?? c1?.c ?? 0);
+      const currentCmp = Number(c0?.close ?? c0?.c ?? c1?.close ?? c1?.c ?? data?.CMP ?? data?.cmp ?? 0);
 
       setFastData({
         cmp: currentCmp,
@@ -148,23 +145,24 @@ export default function Index_window({
       });
 
       setSlowData({
-        ma10: Number(data?.['10ma'] ?? data?.['10MA'] ?? data?.ma10 ?? 0),
-        ma25: Number(data?.['25ma'] ?? data?.['25MA'] ?? data?.ma25 ?? 0),
-        ma50: Number(data?.['50ma'] ?? data?.['50MA'] ?? data?.ma50 ?? 0),
-        ma200: Number(data?.['200ma'] ?? data?.['200MA'] ?? data?.ma200 ?? 0),
-        high52: Number(data?.['52wh'] ?? data?.['52WH'] ?? data?.high52 ?? 0),
-        low52: Number(data?.['52wl'] ?? data?.['52WL'] ?? data?.low52 ?? 0),
+        ma10: Number(data?.['10ma'] ?? data?.['10MA'] ?? 0),
+        ma25: Number(data?.['25ma'] ?? data?.['25MA'] ?? 0),
+        ma50: Number(data?.['50ma'] ?? data?.['50MA'] ?? 0),
+        ma200: Number(data?.['200ma'] ?? data?.['200MA'] ?? 0),
+        // Exact keys from /param/<script>
+        high52: Number(data?.['52WH'] ?? data?.['52wh'] ?? 0),
+        low52: Number(data?.['52WL'] ?? data?.['52wl'] ?? 0),
         h100: Number(data?.['100H'] ?? data?.['100h'] ?? 0),
         l100: Number(data?.['100L'] ?? data?.['100l'] ?? 0),
         h50: Number(data?.['50H'] ?? data?.['50h'] ?? 0),
         l50: Number(data?.['50L'] ?? data?.['50l'] ?? 0),
         h25: Number(data?.['25H'] ?? data?.['25h'] ?? 0),
         l25: Number(data?.['25L'] ?? data?.['25l'] ?? 0),
-        return1W: Number(data?.['1wr'] ?? data?.['1W'] ?? data?.return1W ?? 0),
-        return1M: Number(data?.['1mr'] ?? data?.['1M'] ?? data?.return1M ?? 0),
-        return3M: Number(data?.['3mr'] ?? data?.['3M'] ?? data?.return3M ?? 0),
-        return1Yr: Number(data?.['1yr'] ?? data?.['1YR'] ?? data?.return1Yr ?? 0),
-        return3Yr: Number(data?.['3yr'] ?? data?.['3YR'] ?? data?.return3Yr ?? 0),
+        return1W: Number(data?.['1wr'] ?? data?.['1W'] ?? 0),
+        return1M: Number(data?.['1mr'] ?? data?.['1M'] ?? 0),
+        return3M: Number(data?.['3mr'] ?? data?.['3M'] ?? 0),
+        return1Yr: Number(data?.['1yr'] ?? data?.['1YR'] ?? 0),
+        return3Yr: Number(data?.['3yr'] ?? data?.['3YR'] ?? 0),
         rsi: Number(data?.RSI ?? data?.rsi ?? 0),
         yfc_link: `https://finance.yahoo.com/chart/${ticker}#`,
         tvc_link: `https://in.tradingview.com/chart/?symbol=${indexName === 'NIFTY50' ? 'NIFTY' : ticker}`
@@ -202,14 +200,16 @@ export default function Index_window({
     return Math.max(0, Math.min(100, rawPercentage));
   }, [slowData]);
 
-  // Compute sub-bar dimensions
+  // Scaled sub-range bar positions (100L/100H, 50L/50H, 25L/25H mapped to 52W range)
   const getSubRangeSpan = (low, high) => {
-    if (!low || !high) return null;
+    if (!low || !high || !slowData.low52 || !slowData.high52) return null;
     const left = scaleTo100(low);
     const right = scaleTo100(high);
+    const width = Math.max(0, right - left);
+    if (width === 0) return null;
     return {
       left: `${left}%`,
-      width: `${Math.max(0, right - left)}%`
+      width: `${width}%`
     };
   };
 
@@ -220,6 +220,9 @@ export default function Index_window({
   const rangeValue = slowData.low52 
     ? (((slowData.high52 - slowData.low52) / slowData.low52) * 100).toFixed(2)
     : "0.00";
+
+  // Legend size variable
+  const Legend_Size = "9px";
 
   const COLOR_GREEN = "#00E676";
   const COLOR_RED = "#FF5252";
@@ -247,7 +250,7 @@ export default function Index_window({
       </h2>
 
       {/* 2. 8-COLUMN DATA TABLE */}
-      <div style={{ overflowX: 'auto', marginBottom: '25px', borderRadius: '6px', border: '1px solid #444' }}>
+      <div style={{ overflowX: 'auto', marginBottom: '14px', borderRadius: '6px', border: '1px solid #444' }}>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(8, 1fr)', backgroundColor: '#111111', textAlign: 'center', minWidth: isMobile ? '500px' : '100%' }}>
           {['Tdy-%chng', 'Ydy-%chng', '1W', '1M', '3M', '1YR', '3YR', 'RSI'].map((head, idx) => (
             <div key={`h-${idx}`} style={{ padding: '8px 4px', fontSize: '13px', fontWeight: '900', backgroundColor: '#1a1a1a', borderRight: idx < 7 ? '1px solid #444' : 'none', borderBottom: '1px solid #444', color: '#cccccc' }}>
@@ -266,31 +269,60 @@ export default function Index_window({
         </div>
       </div>
 
-      {/* 3. RULE SCALE & 3D BUTTONS */}
+      {/* 3. LEGEND STRIP (Left-aligned, below data table, above scale visualizer) */}
+      <div style={{ 
+        display: 'flex', 
+        alignItems: 'center', 
+        gap: '14px', 
+        fontSize: Legend_Size, 
+        fontWeight: 'bold', 
+        letterSpacing: '0.8px',
+        marginBottom: '6px',
+        paddingLeft: '4px'
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '5px', color: '#e2e8f0' }}>
+          <span style={{ width: '9px', height: '9px', borderRadius: '2px', background: 'linear-gradient(180deg, #22d3ee, #0891b2)', border: '1px solid #164e63', display: 'inline-block' }}></span>
+          52WR
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '5px', color: '#e2e8f0' }}>
+          <span style={{ width: '9px', height: '9px', borderRadius: '2px', background: 'linear-gradient(180deg, #fb7185, #e11d48)', border: '1px solid #881337', display: 'inline-block' }}></span>
+          100DR
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '5px', color: '#e2e8f0' }}>
+          <span style={{ width: '9px', height: '9px', borderRadius: '2px', background: 'linear-gradient(180deg, #818cf8, #4f46e5)', border: '1px solid #312e81', display: 'inline-block' }}></span>
+          50DR
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '5px', color: '#e2e8f0' }}>
+          <span style={{ width: '9px', height: '9px', borderRadius: '2px', background: 'linear-gradient(180deg, #fbbf24, #ea580c)', border: '1px solid #7c2d12', display: 'inline-block' }}></span>
+          25DR
+        </div>
+      </div>
+
+      {/* 4. RULE SCALE & 3D BUTTONS */}
       <div style={{ display: 'flex', width: '100%', alignItems: 'center', flexDirection: isMobile ? 'column' : 'row', gap: isMobile ? '20px' : '0' }}>
         
-        {/* Left: 80% Scale Visualizer */}
+        {/* Left: Scale Visualizer */}
         <div style={{ width: isMobile ? '100%' : '80%', display: 'flex', flexDirection: 'column', paddingRight: isMobile ? '0' : '15px', borderRight: isMobile ? 'none' : '1px dashed #444' }}>
           <div style={{ position: 'relative', height: '140px', width: '100%' }}>
             <div style={{ position: 'absolute', left: 0, top: '50%', transform: 'translateY(-50%)', fontWeight: 'bold', fontSize: '15px', color: '#cccccc' }}>52WL</div>
             <div style={{ position: 'absolute', right: 0, top: '50%', transform: 'translateY(-50%)', fontWeight: 'bold', fontSize: '15px', color: '#cccccc' }}>52WH</div>
 
-            {/* HEAVY MULTI-LAYER RANGE BAR TRACK */}
+            {/* 3D MULTI-LAYER RANGE BAR */}
             <div style={{ 
               position: 'absolute', 
               top: '50%', 
               left: '55px', 
               right: '55px', 
               height: '18px', 
-              backgroundColor: '#00E5FF', /* 52W Layer: Sky Blue */
+              background: 'linear-gradient(180deg, #22d3ee 0%, #0891b2 100%)', /* 52WR: Cyan Base */
               transform: 'translateY(-50%)', 
-              borderRadius: '4px',
-              border: '1px solid #004d40',
-              boxShadow: 'inset 0 1px 3px rgba(0,0,0,0.5)',
+              borderRadius: '6px',
+              border: '1px solid rgba(255, 255, 255, 0.4)',
+              boxShadow: '0 4px 10px rgba(0,0,0,0.8), inset 0 2px 3px rgba(255,255,255,0.45), inset 0 -2px 4px rgba(0,0,0,0.6)',
               zIndex: 1
             }}>
               
-              {/* 100D Range Layer (Crimson Red) */}
+              {/* 100DR (Red) */}
               {span100 && (
                 <div style={{
                   position: 'absolute',
@@ -298,14 +330,15 @@ export default function Index_window({
                   bottom: 0,
                   left: span100.left,
                   width: span100.width,
-                  backgroundColor: '#E53935',
-                  borderRadius: '2px',
-                  boxShadow: '0 0 4px rgba(0,0,0,0.3)',
+                  background: 'linear-gradient(180deg, #fb7185 0%, #e11d48 100%)',
+                  borderLeft: '1px solid rgba(255,255,255,0.6)',
+                  borderRight: '1px solid rgba(255,255,255,0.6)',
+                  boxShadow: '0 0 6px rgba(225,29,72,0.6), inset 0 1px 2px rgba(255,255,255,0.4)',
                   zIndex: 2
                 }} />
               )}
 
-              {/* 50D Range Layer (Royal Blue) */}
+              {/* 50DR (Royal Blue/Indigo) */}
               {span50 && (
                 <div style={{
                   position: 'absolute',
@@ -313,14 +346,15 @@ export default function Index_window({
                   bottom: 0,
                   left: span50.left,
                   width: span50.width,
-                  backgroundColor: '#1E88E5',
-                  borderRadius: '2px',
-                  boxShadow: '0 0 4px rgba(0,0,0,0.3)',
+                  background: 'linear-gradient(180deg, #818cf8 0%, #4f46e5 100%)',
+                  borderLeft: '1px solid rgba(255,255,255,0.7)',
+                  borderRight: '1px solid rgba(255,255,255,0.7)',
+                  boxShadow: '0 0 7px rgba(79,70,229,0.7), inset 0 1px 2px rgba(255,255,255,0.45)',
                   zIndex: 3
                 }} />
               )}
 
-              {/* 25D Range Layer (Amber Orange) */}
+              {/* 25DR (Sunset Orange) */}
               {span25 && (
                 <div style={{
                   position: 'absolute',
@@ -328,17 +362,18 @@ export default function Index_window({
                   bottom: 0,
                   left: span25.left,
                   width: span25.width,
-                  backgroundColor: '#FF9800',
-                  borderRadius: '2px',
-                  boxShadow: '0 0 4px rgba(0,0,0,0.3)',
+                  background: 'linear-gradient(180deg, #fbbf24 0%, #ea580c 100%)',
+                  borderLeft: '1px solid rgba(255,255,255,0.9)',
+                  borderRight: '1px solid rgba(255,255,255,0.9)',
+                  boxShadow: '0 0 8px rgba(234,88,12,0.8), inset 0 1px 2px rgba(255,255,255,0.5)',
                   zIndex: 4
                 }} />
               )}
 
-              {/* CMP (Above Bar) */}
+              {/* CMP Marker */}
               <Marker value={fastData.cmp} scaleTo100={scaleTo100} color="#00E5FF" circleSize={12} lineHeight={14} label="CMP" isTop={true} rawValue={fastData.cmp} />
               
-              {/* Moving Averages (Below Bar) */}
+              {/* Moving Averages */}
               <Marker value={slowData.ma200} scaleTo100={scaleTo100} color="rgba(255, 68, 68, 0.95)" circleSize={16} lineHeight={45} label="200MA" />
               <Marker value={slowData.ma50} scaleTo100={scaleTo100} color="rgba(255, 152, 0, 0.95)" circleSize={14} lineHeight={30} label="50MA" />
               <Marker value={slowData.ma25} scaleTo100={scaleTo100} color="rgba(255, 235, 59, 0.95)" circleSize={12} lineHeight={18} label="25MA" />
@@ -353,7 +388,7 @@ export default function Index_window({
           </div>
         </div>
 
-        {/* Right: 20% Action Buttons */}
+        {/* Right: Action Buttons */}
         <div style={{ width: isMobile ? '100%' : '20%', paddingLeft: isMobile ? '0' : '15px', minHeight: isMobile ? 'auto' : '140px', display: 'flex', flexDirection: isMobile ? 'row' : 'column', gap: '20px', alignItems: 'center', justifyContent: 'center' }}>
           <Button3D label="TVC" color="#2962FF" shadowColor="#1565C0" onClick={() => openPopup(slowData.tvc_link)} />
           <Button3D label="YFC" color="#9C27B0" shadowColor="#6A1B9A" onClick={() => openPopup(slowData.yfc_link)} />
