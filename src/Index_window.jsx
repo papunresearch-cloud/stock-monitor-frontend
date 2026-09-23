@@ -281,19 +281,19 @@ export default function Index_window({
         paddingLeft: '4px'
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '5px', color: '#e2e8f0' }}>
-          <span style={{ width: '9px', height: '9px', borderRadius: '2px', background: 'linear-gradient(180deg, #22d3ee, #0891b2)', border: '1px solid #164e63', display: 'inline-block' }}></span>
+          <span style={{ width: '9px', height: '9px', borderRadius: '2px', background: 'linear-gradient(180deg, #D8D8D8, #808080)', border: '1px solid #164e63', display: 'inline-block' }}></span>
           52WR
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '5px', color: '#e2e8f0' }}>
-          <span style={{ width: '9px', height: '9px', borderRadius: '2px', background: 'linear-gradient(180deg, #fb7185, #e11d48)', border: '1px solid #881337', display: 'inline-block' }}></span>
+          <span style={{ width: '9px', height: '9px', borderRadius: '2px', background: 'linear-gradient(180deg, #FC7979, #F20202)', border: '1px solid #881337', display: 'inline-block' }}></span>
           100DR
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '5px', color: '#e2e8f0' }}>
-          <span style={{ width: '9px', height: '9px', borderRadius: '2px', background: 'linear-gradient(180deg, #818cf8, #4f46e5)', border: '1px solid #312e81', display: 'inline-block' }}></span>
+          <span style={{ width: '9px', height: '9px', borderRadius: '2px', background: 'linear-gradient(180deg, #3870FF, #0234B8)', border: '1px solid #312e81', display: 'inline-block' }}></span>
           50DR
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '5px', color: '#e2e8f0' }}>
-          <span style={{ width: '9px', height: '9px', borderRadius: '2px', background: 'linear-gradient(180deg, #fbbf24, #ea580c)', border: '1px solid #7c2d12', display: 'inline-block' }}></span>
+          <span style={{ width: '9px', height: '9px', borderRadius: '2px', background: 'linear-gradient(180deg, #94FFC6, #038A42)', border: '1px solid #7c2d12', display: 'inline-block' }}></span>
           25DR
         </div>
       </div>
@@ -314,7 +314,7 @@ export default function Index_window({
               left: '55px', 
               right: '55px', 
               height: '18px', 
-              background: 'linear-gradient(180deg, #C0C0C0 0%, #808080 100%)', /* 52WR: Cyan Base */
+              background: 'linear-gradient(180deg, #D8D8D8 0%, #808080 100%)', /* 52WR: Cyan Base */
               transform: 'translateY(-50%)', 
               borderRadius: '6px',
               border: '1px solid rgba(255, 255, 255, 0.4)',
@@ -330,7 +330,7 @@ export default function Index_window({
                   bottom: 0,
                   left: span100.left,
                   width: span100.width,
-                  background: 'linear-gradient(180deg, #fb7185 0%, #e11d48 100%)',
+                  background: 'linear-gradient(180deg, #FC7979 0%, #F20202 100%)',
                   borderLeft: '1px solid rgba(255,255,255,0.6)',
                   borderRight: '1px solid rgba(255,255,255,0.6)',
                   boxShadow: '0 0 6px rgba(225,29,72,0.6), inset 0 1px 2px rgba(255,255,255,0.4)',
@@ -346,7 +346,7 @@ export default function Index_window({
                   bottom: 0,
                   left: span50.left,
                   width: span50.width,
-                  background: 'linear-gradient(180deg, #818cf8 0%, #4f46e5 100%)',
+                  background: 'linear-gradient(180deg, #3870FF 0%, #0234B8 100%)',
                   borderLeft: '1px solid rgba(255,255,255,0.7)',
                   borderRight: '1px solid rgba(255,255,255,0.7)',
                   boxShadow: '0 0 7px rgba(79,70,229,0.7), inset 0 1px 2px rgba(255,255,255,0.45)',
@@ -362,7 +362,7 @@ export default function Index_window({
                   bottom: 0,
                   left: span25.left,
                   width: span25.width,
-                  background: 'linear-gradient(180deg, #fbbf24 0%, #ea580c 100%)',
+                  background: 'linear-gradient(180deg, #94FFC6 0%, #038A42 100%)',
                   borderLeft: '1px solid rgba(255,255,255,0.9)',
                   borderRight: '1px solid rgba(255,255,255,0.9)',
                   boxShadow: '0 0 8px rgba(234,88,12,0.8), inset 0 1px 2px rgba(255,255,255,0.5)',
