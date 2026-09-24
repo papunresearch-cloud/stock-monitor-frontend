@@ -21,8 +21,6 @@ export default function AlertSystemModal({ isOpen, onClose }) {
   const [editingWaId, setEditingWaId] = useState(null);
   const [editingWaText, setEditingWaText] = useState("");
 
-  const [banner, setBanner] = useState({ text: "", type: "info" });
-
   // Confirmation Audit Modal State (N - Y - N)
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [confirmAnswers, setConfirmAnswers] = useState({ q1: "", q2: "", q3: "" });
@@ -75,7 +73,7 @@ export default function AlertSystemModal({ isOpen, onClose }) {
         setWhatsappList(parsedWa);
       } catch (err) {
         console.error("Alert config load error:", err);
-        setBanner({ text: `Failed to load: ${err.message}`, type: "error" });
+        alert(`Failed to load alert configuration: ${err.message}`);
       } finally {
         setLoading(false);
       }
@@ -131,9 +129,7 @@ export default function AlertSystemModal({ isOpen, onClose }) {
   const handleAddEmail = () => {
     const email = newEmail.trim();
     if (!email || !email.includes("@") || !email.includes(".")) {
-      const errMsg = "❌ Please enter a valid email address (e.g. trader@gmail.com)!";
-      alert(errMsg);
-      setBanner({ text: errMsg, type: "error" });
+      alert("❌ Please enter a valid email address!");
       return;
     }
     const newEntry = {
@@ -143,8 +139,6 @@ export default function AlertSystemModal({ isOpen, onClose }) {
     };
     setEmailList((prev) => [...prev, newEntry]);
     setNewEmail("");
-    setBanner({ text: `✅ Added email: ${email}`, type: "success" });
-    setTimeout(() => setBanner({ text: "", type: "info" }), 3000);
   };
 
   const handleDeleteEmail = (id) => {
@@ -160,9 +154,7 @@ export default function AlertSystemModal({ isOpen, onClose }) {
   const handleSaveEditEmail = (id) => {
     const text = editingEmailText.trim();
     if (!text || !text.includes("@") || !text.includes(".")) {
-      const errMsg = "❌ Invalid email format!";
-      alert(errMsg);
-      setBanner({ text: errMsg, type: "error" });
+      alert("❌ Invalid email format!");
       return;
     }
     setEmailList((prev) =>
@@ -179,25 +171,19 @@ export default function AlertSystemModal({ isOpen, onClose }) {
     const rawNumber = newWhatsapp.trim();
 
     if (!rawNumber) {
-      const errMsg = "❌ Please enter a mobile number!";
-      alert(errMsg);
-      setBanner({ text: errMsg, type: "error" });
+      alert("❌ Please enter a mobile number!");
       return;
     }
 
     const { valid, cleaned } = cleanAndValidateIndianMobile(rawNumber);
     if (!valid) {
-      const errMsg = `❌ Invalid mobile number: "${rawNumber}"\nIn India, it must be exactly a pure 10-digit number (e.g., 9876543210).`;
-      alert(errMsg);
-      setBanner({ text: errMsg, type: "error" });
+      alert("❌ Invalid mobile number! Must be a 10-digit number.");
       return;
     }
 
     const isDuplicate = whatsappList.some((item) => item.phone === cleaned);
     if (isDuplicate) {
-      const errMsg = `⚠️ Mobile number ${cleaned} is already in the list!`;
-      alert(errMsg);
-      setBanner({ text: errMsg, type: "error" });
+      alert(`⚠️ Mobile number ${cleaned} is already in the list!`);
       return;
     }
 
@@ -208,8 +194,6 @@ export default function AlertSystemModal({ isOpen, onClose }) {
     };
     setWhatsappList((prev) => [...prev, newEntry]);
     setNewWhatsapp("");
-    setBanner({ text: `✅ Added WhatsApp number: ${cleaned}`, type: "success" });
-    setTimeout(() => setBanner({ text: "", type: "info" }), 3000);
   };
 
   const handleDeleteWhatsapp = (id) => {
@@ -226,9 +210,7 @@ export default function AlertSystemModal({ isOpen, onClose }) {
     const rawNumber = editingWaText.trim();
     const { valid, cleaned } = cleanAndValidateIndianMobile(rawNumber);
     if (!valid) {
-      const errMsg = `❌ Invalid mobile number: "${rawNumber}"\nMust be a 10-digit pure number.`;
-      alert(errMsg);
-      setBanner({ text: errMsg, type: "error" });
+      alert("❌ Invalid mobile number! Must be a 10-digit number.");
       return;
     }
     setWhatsappList((prev) =>
@@ -236,8 +218,6 @@ export default function AlertSystemModal({ isOpen, onClose }) {
     );
     setEditingWaId(null);
     setEditingWaText("");
-    setBanner({ text: `✅ Updated WhatsApp number to: ${cleaned}`, type: "success" });
-    setTimeout(() => setBanner({ text: "", type: "info" }), 3000);
   };
 
   // --------------------------------------------------------------------------
@@ -276,14 +256,11 @@ export default function AlertSystemModal({ isOpen, onClose }) {
 
       await update(ref(database), updates);
 
-      setBanner({ text: "Alert settings successfully verified & saved to Firebase! ✅", type: "success" });
-      setTimeout(() => {
-        setBanner({ text: "", type: "info" });
-        onClose();
-      }, 1500);
+      alert("✅ Alert settings successfully saved to Firebase!");
+      onClose();
     } catch (err) {
       console.error("Save error:", err);
-      setBanner({ text: `Save error: ${err.message}`, type: "error" });
+      alert(`Save error: ${err.message}`);
     } finally {
       setSaving(false);
     }
@@ -363,23 +340,6 @@ export default function AlertSystemModal({ isOpen, onClose }) {
             ✕
           </button>
         </div>
-
-        {/* NOTIFICATION BANNER */}
-        {banner.text && (
-          <div
-            style={{
-              padding: "10px 16px",
-              backgroundColor: banner.type === "error" ? "rgba(239, 68, 68, 0.3)" : "rgba(16, 185, 129, 0.3)",
-              borderBottom: `2px solid ${banner.type === "error" ? "#ef4444" : "#10b981"}`,
-              color: banner.type === "error" ? "#fca5a5" : "#6ee7b7",
-              fontSize: "13px",
-              fontWeight: "900",
-              letterSpacing: "0.3px",
-            }}
-          >
-            {banner.text}
-          </div>
-        )}
 
         {/* MODAL BODY (SCROLLABLE) */}
         <div style={{ overflowY: "auto", padding: "18px 20px", display: "flex", flexDirection: "column", gap: "18px" }}>
@@ -599,7 +559,7 @@ export default function AlertSystemModal({ isOpen, onClose }) {
           <div style={{ backgroundColor: "#111c38", border: "1px solid #10b981", borderRadius: "10px", padding: "14px 16px" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px" }}>
               <span style={{ color: "#34d399", fontWeight: "900", fontSize: "13px", textTransform: "uppercase" }}>
-                WHATSAPP PHONE NUMBERS (10-DIGIT INDIAN MOBILE ONLY) ({whatsappList.length})
+                WHATSAPP PHONE NUMBERS (10-DIGIT NUMBER ONLY) ({whatsappList.length})
               </span>
             </div>
 
