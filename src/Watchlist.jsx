@@ -898,7 +898,7 @@ export default function StockWatchlist() {
                         disabled={!isEditable}
                         value={stockData["preset_low"] !== undefined ? stockData["preset_low"] : 0}
                         onChange={(e) => handleFieldChange(stockName, "preset_low", e.target.value)}
-                        style={{ width: "90px", padding: "6px", backgroundColor: isEditable ? "#0f172a" : "#cbd5e1", color: isEditable ? theme.accentGreen : "#000000", fontWeight: "900", borderRadius: "4px", border: "1px solid #334155", cursor: isEditable ? "text" : "not-allowed", textAlign: "center", fontSize: "12px", boxSizing: "border-box" }}
+                        style={{ width: "90px", padding: "6px", backgroundColor: isEditable ? "#0f172a" : "#cbd5e1", color: isEditable ? "#7393B3" : "#000000", fontWeight: "900", borderRadius: "4px", border: "1px solid #334155", cursor: isEditable ? "text" : "not-allowed", textAlign: "center", fontSize: "12px", boxSizing: "border-box" }}
                       />
                     </td>
 
@@ -910,7 +910,7 @@ export default function StockWatchlist() {
                         disabled={!isEditable}
                         value={stockData["preset_high"] !== undefined ? stockData["preset_high"] : 99999999}
                         onChange={(e) => handleFieldChange(stockName, "preset_high", e.target.value)}
-                        style={{ width: "110px", padding: "6px", backgroundColor: isEditable ? "#0f172a" : "#cbd5e1", color: isEditable ? theme.accentRed : "#000000", fontWeight: "900", borderRadius: "4px", border: "1px solid #334155", cursor: isEditable ? "text" : "not-allowed", textAlign: "center", fontSize: "12px", boxSizing: "border-box" }}
+                        style={{ width: "110px", padding: "6px", backgroundColor: isEditable ? "#0f172a" : "#cbd5e1", color: isEditable ? "#7393B3" : "#000000", fontWeight: "900", borderRadius: "4px", border: "1px solid #334155", cursor: isEditable ? "text" : "not-allowed", textAlign: "center", fontSize: "12px", boxSizing: "border-box" }}
                       />
                     </td>
 
