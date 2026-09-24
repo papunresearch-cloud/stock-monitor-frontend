@@ -27,6 +27,8 @@ export const APP_CONFIG = {
     "GROUP",
     "REVIEW", 
     "DURATION", 
+    "PRESET LOW",
+    "PRESET HIGH",
     "REMARK", 
     "DATE",
     "TICKER"
@@ -206,6 +208,8 @@ export default function StockWatchlist() {
               GROUP: existingStock.GROUP || "GROUP-0",
               REVIEW: existingStock.REVIEW || "NR",
               DURATION: existingStock.DURATION || "NR",
+              preset_low: existingStock.preset_low !== undefined ? existingStock.preset_low : 0,
+              preset_high: existingStock.preset_high !== undefined ? existingStock.preset_high : 99999999,
               REMARK: existingStock.REMARK || "",
               DATE: existingStock.DATE || formatDateToDDMMYYYY(new Date()),
               TICKER: existingStock.TICKER || (screenerRecord.NSE ? `${screenerRecord.NSE}.NS` : stk),
@@ -337,6 +341,12 @@ export default function StockWatchlist() {
     const screenerMetrics = extractScreenerFields(mainRecord);
     const ticker = stockDatabase[stockToAdd]?.TICKER || (mainRecord.NSE ? `${mainRecord.NSE}.NS` : stockToAdd);
 
+    // Read low/high from current inputs or apply requested defaults
+    const rawLow = stockDatabase[stockToAdd]?.preset_low;
+    const rawHigh = stockDatabase[stockToAdd]?.preset_high;
+    const preset_low = (rawLow !== undefined && rawLow !== "" && !isNaN(rawLow)) ? Number(rawLow) : 0;
+    const preset_high = (rawHigh !== undefined && rawHigh !== "" && !isNaN(rawHigh)) ? Number(rawHigh) : 99999999;
+
     const completeStockRecord = {
       ...screenerMetrics,
       CODE: mainRecord.CODE || safeStockKey,
@@ -344,6 +354,8 @@ export default function StockWatchlist() {
       GROUP: stockDatabase[stockToAdd]?.GROUP || "GROUP-0",
       REVIEW: stockDatabase[stockToAdd]?.REVIEW || "NR",
       DURATION: stockDatabase[stockToAdd]?.DURATION || "NR",
+      preset_low: preset_low,
+      preset_high: preset_high,
       REMARK: stockDatabase[stockToAdd]?.REMARK || "",
       DATE: today,
       TICKER: ticker
@@ -489,12 +501,19 @@ export default function StockWatchlist() {
     const curr = stockDatabase[stockToUpdate] || {};
     const orig = originalDb[stockToUpdate] || {};
 
+    const rawLow = curr.preset_low;
+    const rawHigh = curr.preset_high;
+    const preset_low = (rawLow !== undefined && rawLow !== "" && !isNaN(rawLow)) ? Number(rawLow) : 0;
+    const preset_high = (rawHigh !== undefined && rawHigh !== "" && !isNaN(rawHigh)) ? Number(rawHigh) : 99999999;
+
     const coreChanged =
       curr.GROUP !== orig.GROUP ||
       curr.DURATION !== orig.DURATION ||
       curr.REVIEW !== orig.REVIEW ||
       curr.REMARK !== orig.REMARK ||
-      curr.TICKER !== orig.TICKER;
+      curr.TICKER !== orig.TICKER ||
+      Number(orig.preset_low ?? 0) !== preset_low ||
+      Number(orig.preset_high ?? 99999999) !== preset_high;
 
     const updatedDate = coreChanged ? today : (curr.DATE || today);
 
@@ -503,6 +522,8 @@ export default function StockWatchlist() {
       GROUP: curr.GROUP || "GROUP-0",
       REVIEW: curr.REVIEW || "NR",
       DURATION: curr.DURATION || "NR",
+      preset_low: preset_low,
+      preset_high: preset_high,
       REMARK: curr.REMARK || "",
       DATE: updatedDate,
       TICKER: curr.TICKER || stockToUpdate
@@ -791,7 +812,7 @@ export default function StockWatchlist() {
           <tbody>
             {displayedStockNames.length === 0 ? (
               <tr>
-                <td colSpan={9} style={{ textAlign: "center", padding: "40px", color: "#64748b", fontWeight: "bold" }}>
+                <td colSpan={11} style={{ textAlign: "center", padding: "40px", color: "#64748b", fontWeight: "bold" }}>
                   No stocks found in {activeTab}.
                 </td>
               </tr>
@@ -829,6 +850,7 @@ export default function StockWatchlist() {
                       )}
                     </td>
 
+                    {/* GROUP */}
                     <td style={{ padding: "6px 10px", border: theme.tableCellBorder, textAlign: "center" }}>
                       <input
                         type="text"
@@ -840,6 +862,7 @@ export default function StockWatchlist() {
                       />
                     </td>
 
+                    {/* REVIEW */}
                     <td style={{ padding: "6px 10px", border: theme.tableCellBorder, textAlign: "center" }}>
                       <select
                         disabled={!isEditable}
@@ -853,6 +876,7 @@ export default function StockWatchlist() {
                       </select>
                     </td>
 
+                    {/* DURATION */}
                     <td style={{ padding: "6px 10px", border: theme.tableCellBorder, textAlign: "center" }}>
                       <select
                         disabled={!isEditable}
@@ -866,6 +890,31 @@ export default function StockWatchlist() {
                       </select>
                     </td>
 
+                    {/* PRESET LOW */}
+                    <td style={{ padding: "6px 10px", border: theme.tableCellBorder, textAlign: "center" }}>
+                      <input
+                        type="number"
+                        step="any"
+                        disabled={!isEditable}
+                        value={stockData["preset_low"] !== undefined ? stockData["preset_low"] : 0}
+                        onChange={(e) => handleFieldChange(stockName, "preset_low", e.target.value)}
+                        style={{ width: "90px", padding: "6px", backgroundColor: isEditable ? "#0f172a" : "#cbd5e1", color: isEditable ? theme.accentGreen : "#000000", fontWeight: "900", borderRadius: "4px", border: "1px solid #334155", cursor: isEditable ? "text" : "not-allowed", textAlign: "center", fontSize: "12px", boxSizing: "border-box" }}
+                      />
+                    </td>
+
+                    {/* PRESET HIGH */}
+                    <td style={{ padding: "6px 10px", border: theme.tableCellBorder, textAlign: "center" }}>
+                      <input
+                        type="number"
+                        step="any"
+                        disabled={!isEditable}
+                        value={stockData["preset_high"] !== undefined ? stockData["preset_high"] : 99999999}
+                        onChange={(e) => handleFieldChange(stockName, "preset_high", e.target.value)}
+                        style={{ width: "110px", padding: "6px", backgroundColor: isEditable ? "#0f172a" : "#cbd5e1", color: isEditable ? theme.accentRed : "#000000", fontWeight: "900", borderRadius: "4px", border: "1px solid #334155", cursor: isEditable ? "text" : "not-allowed", textAlign: "center", fontSize: "12px", boxSizing: "border-box" }}
+                      />
+                    </td>
+
+                    {/* REMARK */}
                     <td style={{ padding: "6px 10px", border: theme.tableCellBorder, textAlign: "center" }}>
                       <button
                         type="button"
@@ -879,10 +928,12 @@ export default function StockWatchlist() {
                       </button>
                     </td>
 
+                    {/* DATE */}
                     <td style={{ padding: "6px 10px", border: theme.tableCellBorder, textAlign: "center", color: "#16a34a", fontWeight: "900", whiteSpace: "nowrap" }}>
                       {stockData["DATE"] || ""}
                     </td>
 
+                    {/* TICKER */}
                     <td style={{ padding: "6px 10px", border: theme.tableCellBorder, textAlign: "center" }}>
                       <button
                         type="button"
@@ -912,6 +963,7 @@ export default function StockWatchlist() {
                       </button>
                     </td>
 
+                    {/* LINK BUTTONS */}
                     <td style={{ padding: "6px 10px", border: theme.tableCellBorder, textAlign: "center" }}>
                       <div style={{ display: "flex", justifyContent: "center", gap: "4px" }}>
                         <button type="button" onClick={() => openExternalLink("SCR", stockName)} style={{ backgroundColor: "#2563eb", color: "#fff", border: "none", padding: "4px 8px", borderRadius: "4px", fontWeight: "bold", fontSize: "11px", cursor: "pointer" }}>SCR</button>
@@ -1219,11 +1271,13 @@ export default function StockWatchlist() {
               <p>🔹 <b>GROUP:</b> Manual portfolio grouping. Default is <b>GROUP-0</b>.</p>
               <p>🔹 <b>REVIEW:</b> Manual star rating from <b>NR to 5 STAR</b>.</p>
               <p>🔹 <b>DURATION:</b> Manual time horizon selection.</p>
+              <p>🔹 <b>PRESET LOW:</b> Lower price boundary for alert triggers (default: <b>0</b>).</p>
+              <p>🔹 <b>PRESET HIGH:</b> Upper price boundary for alert triggers (default: <b>99999999</b>).</p>
               <p>🔹 <b>REMARK:</b> Detailed notes (up to 1000 words max).</p>
               <p>🔹 <b>DATE:</b> Read-only; auto-records update date in DD-MM-YYYY format.</p>
               <p>🔹 <b>TICKER:</b> Yahoo Finance tracking ticker (e.g. MAHABANK.NS).</p>
               <hr style={{ borderColor: "#334155", margin: "10px 0" }} />
-              <p style={{ color: theme.accentCyan }}>🟢 Screener metrics and extra financial parameters are kept in real-time sync with Firebase.</p>
+              <p style={{ color: theme.accentCyan }}>🟢 Screener metrics and alert thresholds are kept in real-time sync with Firebase.</p>
             </div>
             <div style={{ textAlign: "right" }}>
               <button onClick={() => setShowHelpModal(false)} style={{ backgroundColor: theme.accentAmber, color: "#000000", border: "none", padding: "10px 24px", borderRadius: "6px", fontWeight: "900", cursor: "pointer", textTransform: "uppercase" }}>GOT IT</button>
