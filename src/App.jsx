@@ -10,10 +10,14 @@ import Filter from "./Filter";
 import AdvancedFilter from "./Advanced_Filter";
 import Watchlist from "./Watchlist";
 
+// Alert System Modal Component
+import AlertSystemModal from "./alert_system";
+
 export default function App() {
   const [isScreenerSyncing, setIsScreenerSyncing] = useState(false);
+  const [isAlertModalOpen, setIsAlertModalOpen] = useState(false);
 
-  // Modal State
+  // Modal State for Screener Sync
   const [isSyncModalOpen, setIsSyncModalOpen] = useState(false);
   const [updateChoice, setUpdateChoice] = useState(""); // "Y" or "N"
   
@@ -69,7 +73,6 @@ export default function App() {
     setIsScreenerSyncing(true);
 
     try {
-      // 1. Overwrite Firebase telemetry node with the entered date
       try {
         await update(ref(database, "system_status/screener_sync"), {
           "Date of database data": databaseDate,
@@ -79,7 +82,6 @@ export default function App() {
         console.error("Firebase sync telemetry update error:", fbErr);
       }
 
-      // 2. Trigger pipeline execution on backend
       const response = await fetch(`${BACKEND_URL}/sync-screener`, {
         method: "POST",
         mode: "cors",
@@ -96,7 +98,6 @@ export default function App() {
       console.error("Failed to trigger screener pipeline:", err);
       alert("❌ Could not connect to Render backend. Check Render server status.");
     } finally {
-      // 5-minute cooldown (300,000 ms) as specified
       setTimeout(() => {
         setIsScreenerSyncing(false);
       }, 300000);
@@ -149,8 +150,33 @@ export default function App() {
             <NavLink to="/Watchlist" style={getLinkStyle}>📋 Watchlist</NavLink>
           </nav>
 
-          {/* CLOUD SCREENER SYNC BUTTON */}
-          <div>
+          {/* TOP RIGHT ACTION BUTTONS */}
+          <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+            {/* 1. ALERT SETTING BUTTON (Positioned right before SYNC SCREENER) */}
+            <button
+              onClick={() => setIsAlertModalOpen(true)}
+              style={{
+                backgroundColor: "#f59e0b",
+                color: "#000000",
+                border: "none",
+                padding: "7px 14px",
+                borderRadius: "6px",
+                fontWeight: "900",
+                fontSize: "12px",
+                letterSpacing: "0.5px",
+                cursor: "pointer",
+                boxShadow: "0 0 12px rgba(245, 158, 11, 0.4)",
+                transition: "all 0.2s ease-in-out",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "6px",
+                textTransform: "uppercase",
+              }}
+            >
+              🔔 ALERT SETTING
+            </button>
+
+            {/* 2. CLOUD SCREENER SYNC BUTTON */}
             <button
               onClick={handleOpenSyncModal}
               disabled={isScreenerSyncing}
@@ -176,7 +202,13 @@ export default function App() {
           </div>
         </header>
 
-        {/* CUSTOM POPUP MODAL */}
+        {/* ALERT SETTING CUSTOM POPUP */}
+        <AlertSystemModal
+          isOpen={isAlertModalOpen}
+          onClose={() => setIsAlertModalOpen(false)}
+        />
+
+        {/* SCREENER SYNC MODAL */}
         {isSyncModalOpen && (
           <div
             style={{
@@ -209,7 +241,6 @@ export default function App() {
                 gap: "20px",
               }}
             >
-              {/* Header */}
               <div
                 style={{
                   display: "flex",
@@ -240,7 +271,6 @@ export default function App() {
                 </span>
               </div>
 
-              {/* Question 1 */}
               <div
                 style={{
                   backgroundColor: "#1e293b",
@@ -279,7 +309,6 @@ export default function App() {
                 </div>
               </div>
 
-              {/* Question 2 */}
               <div
                 style={{
                   backgroundColor: "#1e293b",
@@ -319,7 +348,6 @@ export default function App() {
                 />
               </div>
 
-              {/* Modal Actions */}
               <div
                 style={{
                   display: "flex",
