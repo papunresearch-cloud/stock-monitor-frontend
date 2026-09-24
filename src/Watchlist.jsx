@@ -296,6 +296,14 @@ export default function StockWatchlist() {
     else setSelectedStockNames(new Set());
   };
 
+  // Resolved list of selected stocks for updating (respects table selection or expansion checkboxes)
+  const targetUpdateStocks = useMemo(() => {
+    if (activeTab === "WATCHLIST" && selectedStockNames.size > 0) {
+      return Array.from(selectedStockNames).filter((name) => watchlistNames.includes(name));
+    }
+    return Array.from(watchlistEditSelected).filter((name) => watchlistNames.includes(name));
+  }, [activeTab, selectedStockNames, watchlistEditSelected, watchlistNames]);
+
   // Cloud Event Dispatcher to instruct master.py
   const dispatchStockEvent = async (action, stockName, ticker = "") => {
     try {
@@ -341,7 +349,6 @@ export default function StockWatchlist() {
     const screenerMetrics = extractScreenerFields(mainRecord);
     const ticker = stockDatabase[stockToAdd]?.TICKER || (mainRecord.NSE ? `${mainRecord.NSE}.NS` : stockToAdd);
 
-    // Read low/high from current inputs or apply requested defaults
     const rawLow = stockDatabase[stockToAdd]?.preset_low;
     const rawHigh = stockDatabase[stockToAdd]?.preset_high;
     const preset_low = (rawLow !== undefined && rawLow !== "" && !isNaN(rawLow)) ? Number(rawLow) : 0;
@@ -484,11 +491,12 @@ export default function StockWatchlist() {
   };
 
   // ============================================================================
-  // 3. UPDATE HANDLER
+  // 3. UPDATE HANDLER (SELECTION-AWARE)
   // ============================================================================
   const startUpdateProcess = () => {
-    if (watchlistNames.length === 0) return;
-    setUpdateQueue([...watchlistNames]);
+    if (!isModify) return; // Gate by Modify Mode
+    if (targetUpdateStocks.length === 0) return;
+    setUpdateQueue([...targetUpdateStocks]);
     setCurrentUpdateIndex(0);
     setUpdateAnswers({ q1: "", q2: "", q3: "" });
   };
@@ -766,11 +774,12 @@ export default function StockWatchlist() {
               ✔️ APPLY ({watchlistEditSelected.size})
             </button>
 
+            {/* SELECTION-AWARE UPDATE DATABASE BUTTON */}
             <button 
               onClick={startUpdateProcess} 
-              disabled={watchlistNames.length === 0}
+              disabled={!isModify || targetUpdateStocks.length === 0}
               style={{ 
-                backgroundColor: theme.accentCyan, 
+                backgroundColor: !isModify || targetUpdateStocks.length === 0 ? "#475569" : theme.accentCyan, 
                 color: "#000000", 
                 border: "none", 
                 padding: "8px 16px", 
@@ -778,11 +787,12 @@ export default function StockWatchlist() {
                 fontWeight: "900", 
                 fontSize: "12px", 
                 marginLeft: "auto", 
-                cursor: watchlistNames.length === 0 ? "not-allowed" : "pointer", 
-                opacity: watchlistNames.length === 0 ? 0.5 : 1
+                cursor: !isModify || targetUpdateStocks.length === 0 ? "not-allowed" : "pointer", 
+                opacity: !isModify || targetUpdateStocks.length === 0 ? 0.5 : 1
               }}
+              title={!isModify ? "Enable MODIFY mode to update" : targetUpdateStocks.length === 0 ? "Select stocks to update" : "Update selected stocks"}
             >
-              💾 UPDATE DATABASE
+              💾 UPDATE DATABASE ({targetUpdateStocks.length})
             </button>
           </div>
         </div>
@@ -822,7 +832,7 @@ export default function StockWatchlist() {
                 const isEven = index % 2 === 0;
                 const rowBg = isEven ? theme.rowYellow : theme.rowSky;
                 const isSelected = selectedStockNames.has(stockName);
-                const isEditable = isModify || activeTab === "WATCHLIST";
+                const isEditable = isModify;
                 const isAlreadyInWatchlist = activeTab === "FILTER2" && watchlistNames.includes(stockName);
 
                 return (
@@ -834,7 +844,7 @@ export default function StockWatchlist() {
                         disabled={isAlreadyInWatchlist}
                         onChange={() => handleToggleSelectStock(stockName)} 
                         style={{ width: "18px", height: "18px", cursor: isAlreadyInWatchlist ? "not-allowed" : "pointer", accentColor: theme.accentAmber, opacity: isAlreadyInWatchlist ? 0.75 : 1 }} 
-                        title={isAlreadyInWatchlist ? "Already in Watchlist" : "Select to Add"}
+                        title={isAlreadyInWatchlist ? "Already in Watchlist" : "Select stock"}
                       />
                     </td>
 
@@ -922,7 +932,7 @@ export default function StockWatchlist() {
                           if (!isEditable) return;
                           setNotepadModal({ isOpen: true, stockName: stockName, text: stockData["REMARK"] || "", error: "" });
                         }}
-                        style={{ backgroundColor: stockData["REMARK"] ? theme.accentGreen : theme.accentAmber, color: "#000000", border: "none", padding: "6px 12px", borderRadius: "4px", fontWeight: "900", cursor: "pointer", display: "inline-flex", alignItems: "center", gap: "4px", fontSize: "12px" }}
+                        style={{ backgroundColor: stockData["REMARK"] ? theme.accentGreen : theme.accentAmber, color: "#000000", border: "none", padding: "6px 12px", borderRadius: "4px", fontWeight: "900", cursor: isEditable ? "pointer" : "not-allowed", display: "inline-flex", alignItems: "center", gap: "4px", fontSize: "12px" }}
                       >
                         ✏️ {stockData["REMARK"] ? "EDIT" : "ADD"}
                       </button>
@@ -1106,7 +1116,7 @@ export default function StockWatchlist() {
         </div>
       )}
 
-      {/* 3. UPDATE MODAL */}
+      {/* 3. UPDATE MODAL (ONLY FOR SELECTED STOCKS) */}
       {updateQueue.length > 0 && (
         <div style={{ position: "fixed", top: 0, left: 0, width: "100vw", height: "100vh", backgroundColor: "rgba(0,0,0,0.85)", display: "flex", justifyContent: "center", alignItems: "center", zIndex: 9999, padding: "20px" }}>
           <div style={{ backgroundColor: "#0f172a", border: `2px solid ${theme.accentCyan}`, borderRadius: "12px", padding: "24px", width: "480px", color: "#f8fafc", boxShadow: "0 10px 40px rgba(0,0,0,0.8)" }}>
