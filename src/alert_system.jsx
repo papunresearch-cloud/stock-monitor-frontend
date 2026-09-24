@@ -36,7 +36,6 @@ export default function AlertSystemModal({ isOpen, onClose }) {
     const loadAlertConfiguration = async () => {
       setLoading(true);
       try {
-        // Fetch watchlist stocks
         const wlSnap = await get(ref(database, "watchlist/watchlist"));
         let fetchedStocks = [];
         if (wlSnap.exists()) {
@@ -47,7 +46,6 @@ export default function AlertSystemModal({ isOpen, onClose }) {
         }
         setStocksList(fetchedStocks);
 
-        // Fetch /alerts configuration node
         const alertsSnap = await get(ref(database, "alerts"));
         const alertsData = alertsSnap.exists() ? alertsSnap.val() : {};
 
@@ -91,7 +89,7 @@ export default function AlertSystemModal({ isOpen, onClose }) {
   // --------------------------------------------------------------------------
   const cleanAndValidateIndianMobile = (rawInput) => {
     if (!rawInput) return { valid: false, cleaned: "" };
-    
+
     let digits = rawInput.trim().replace(/[\s\-\(\)]/g, "");
 
     if (digits.startsWith("+91") && digits.length === 13) {
@@ -102,10 +100,10 @@ export default function AlertSystemModal({ isOpen, onClose }) {
       digits = digits.substring(1);
     }
 
-    const isTenDigitPureNumber = /^\d{10}$/.test(digits);
+    const isTenDigitPureNumber = /^[6-9]\d{9}$/.test(digits) || /^\d{10}$/.test(digits);
     return {
       valid: isTenDigitPureNumber,
-      cleaned: digits
+      cleaned: digits,
     };
   };
 
@@ -133,7 +131,9 @@ export default function AlertSystemModal({ isOpen, onClose }) {
   const handleAddEmail = () => {
     const email = newEmail.trim();
     if (!email || !email.includes("@") || !email.includes(".")) {
-      setBanner({ text: "Please enter a valid email address.", type: "error" });
+      const errMsg = "❌ Please enter a valid email address (e.g. trader@gmail.com)!";
+      alert(errMsg);
+      setBanner({ text: errMsg, type: "error" });
       return;
     }
     const newEntry = {
@@ -143,7 +143,8 @@ export default function AlertSystemModal({ isOpen, onClose }) {
     };
     setEmailList((prev) => [...prev, newEntry]);
     setNewEmail("");
-    setBanner({ text: "", type: "info" });
+    setBanner({ text: `✅ Added email: ${email}`, type: "success" });
+    setTimeout(() => setBanner({ text: "", type: "info" }), 3000);
   };
 
   const handleDeleteEmail = (id) => {
@@ -159,7 +160,9 @@ export default function AlertSystemModal({ isOpen, onClose }) {
   const handleSaveEditEmail = (id) => {
     const text = editingEmailText.trim();
     if (!text || !text.includes("@") || !text.includes(".")) {
-      setBanner({ text: "Invalid email format.", type: "error" });
+      const errMsg = "❌ Invalid email format!";
+      alert(errMsg);
+      setBanner({ text: errMsg, type: "error" });
       return;
     }
     setEmailList((prev) =>
@@ -173,9 +176,28 @@ export default function AlertSystemModal({ isOpen, onClose }) {
   // 5. HANDLERS: WHATSAPP
   // --------------------------------------------------------------------------
   const handleAddWhatsapp = () => {
-    const { valid, cleaned } = cleanAndValidateIndianMobile(newWhatsapp);
+    const rawNumber = newWhatsapp.trim();
+
+    if (!rawNumber) {
+      const errMsg = "❌ Please enter a mobile number!";
+      alert(errMsg);
+      setBanner({ text: errMsg, type: "error" });
+      return;
+    }
+
+    const { valid, cleaned } = cleanAndValidateIndianMobile(rawNumber);
     if (!valid) {
-      setBanner({ text: "Invalid mobile number! In India, it must be a pure 10-digit number.", type: "error" });
+      const errMsg = `❌ Invalid mobile number: "${rawNumber}"\nIn India, it must be exactly a pure 10-digit number (e.g., 9876543210).`;
+      alert(errMsg);
+      setBanner({ text: errMsg, type: "error" });
+      return;
+    }
+
+    const isDuplicate = whatsappList.some((item) => item.phone === cleaned);
+    if (isDuplicate) {
+      const errMsg = `⚠️ Mobile number ${cleaned} is already in the list!`;
+      alert(errMsg);
+      setBanner({ text: errMsg, type: "error" });
       return;
     }
 
@@ -186,7 +208,8 @@ export default function AlertSystemModal({ isOpen, onClose }) {
     };
     setWhatsappList((prev) => [...prev, newEntry]);
     setNewWhatsapp("");
-    setBanner({ text: "", type: "info" });
+    setBanner({ text: `✅ Added WhatsApp number: ${cleaned}`, type: "success" });
+    setTimeout(() => setBanner({ text: "", type: "info" }), 3000);
   };
 
   const handleDeleteWhatsapp = (id) => {
@@ -200,9 +223,12 @@ export default function AlertSystemModal({ isOpen, onClose }) {
   };
 
   const handleSaveEditWhatsapp = (id) => {
-    const { valid, cleaned } = cleanAndValidateIndianMobile(editingWaText);
+    const rawNumber = editingWaText.trim();
+    const { valid, cleaned } = cleanAndValidateIndianMobile(rawNumber);
     if (!valid) {
-      setBanner({ text: "Invalid mobile number! Must be a 10-digit pure number.", type: "error" });
+      const errMsg = `❌ Invalid mobile number: "${rawNumber}"\nMust be a 10-digit pure number.`;
+      alert(errMsg);
+      setBanner({ text: errMsg, type: "error" });
       return;
     }
     setWhatsappList((prev) =>
@@ -210,6 +236,8 @@ export default function AlertSystemModal({ isOpen, onClose }) {
     );
     setEditingWaId(null);
     setEditingWaText("");
+    setBanner({ text: `✅ Updated WhatsApp number to: ${cleaned}`, type: "success" });
+    setTimeout(() => setBanner({ text: "", type: "info" }), 3000);
   };
 
   // --------------------------------------------------------------------------
@@ -341,11 +369,12 @@ export default function AlertSystemModal({ isOpen, onClose }) {
           <div
             style={{
               padding: "10px 16px",
-              backgroundColor: banner.type === "error" ? "rgba(239, 68, 68, 0.25)" : "rgba(16, 185, 129, 0.25)",
-              borderBottom: `1px solid ${banner.type === "error" ? "#ef4444" : "#10b981"}`,
+              backgroundColor: banner.type === "error" ? "rgba(239, 68, 68, 0.3)" : "rgba(16, 185, 129, 0.3)",
+              borderBottom: `2px solid ${banner.type === "error" ? "#ef4444" : "#10b981"}`,
               color: banner.type === "error" ? "#fca5a5" : "#6ee7b7",
-              fontSize: "12px",
-              fontWeight: "bold",
+              fontSize: "13px",
+              fontWeight: "900",
+              letterSpacing: "0.3px",
             }}
           >
             {banner.text}
@@ -354,7 +383,7 @@ export default function AlertSystemModal({ isOpen, onClose }) {
 
         {/* MODAL BODY (SCROLLABLE) */}
         <div style={{ overflowY: "auto", padding: "18px 20px", display: "flex", flexDirection: "column", gap: "18px" }}>
-          
+
           {/* SECTION 1: MASTER KILL SWITCH */}
           <div
             style={{
@@ -771,7 +800,6 @@ export default function AlertSystemModal({ isOpen, onClose }) {
             </p>
 
             <div style={{ display: "flex", flexDirection: "column", gap: "12px", fontSize: "13px", marginBottom: "22px" }}>
-              
               <div
                 style={{
                   display: "flex",
@@ -876,7 +904,6 @@ export default function AlertSystemModal({ isOpen, onClose }) {
                   ))}
                 </div>
               </div>
-
             </div>
 
             <div style={{ display: "flex", justifyContent: "flex-end", gap: "12px", borderTop: "1px solid #334155", paddingTop: "14px" }}>
@@ -919,7 +946,6 @@ export default function AlertSystemModal({ isOpen, onClose }) {
                 </button>
               )}
             </div>
-
           </div>
         </div>
       )}
