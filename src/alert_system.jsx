@@ -11,15 +11,11 @@ export default function AlertSystemModal({ isOpen, onClose }) {
   const [stocksList, setStocksList] = useState([]);
   const [stockControls, setStockControls] = useState({});
 
-  const [emailList, setEmailList] = useState([]);
-  const [newEmail, setNewEmail] = useState("");
-  const [editingEmailId, setEditingEmailId] = useState(null);
-  const [editingEmailText, setEditingEmailText] = useState("");
-
-  const [whatsappList, setWhatsappList] = useState([]);
-  const [newWhatsapp, setNewWhatsapp] = useState("");
-  const [editingWaId, setEditingWaId] = useState(null);
-  const [editingWaText, setEditingWaText] = useState("");
+  // Telegram Contact IDs State
+  const [telegramList, setTelegramList] = useState([]);
+  const [newTelegramId, setNewTelegramId] = useState("");
+  const [editingTgId, setEditingTgId] = useState(null);
+  const [editingTgText, setEditingTgText] = useState("");
 
   // Confirmation Audit Modal State (N - Y - N)
   const [showConfirmModal, setShowConfirmModal] = useState(false);
@@ -56,21 +52,14 @@ export default function AlertSystemModal({ isOpen, onClose }) {
         });
         setStockControls(mergedControls);
 
-        const rawEmails = alertsData.emails || {};
-        const parsedEmails = Object.entries(rawEmails).map(([id, val]) => ({
-          id,
-          email: typeof val === "string" ? val : val.email,
-          enabled: val.enabled !== undefined ? val.enabled : true,
-        }));
-        setEmailList(parsedEmails);
-
-        const rawWa = alertsData.whatsapp || {};
-        const parsedWa = Object.entries(rawWa).map(([id, val]) => ({
+        // Read contacts under alerts/whatsapp (used for Telegram chat IDs)
+        const rawContacts = alertsData.whatsapp || {};
+        const parsedTg = Object.entries(rawContacts).map(([id, val]) => ({
           id,
           phone: typeof val === "string" ? val : val.phone,
           enabled: val.enabled !== undefined ? val.enabled : true,
         }));
-        setWhatsappList(parsedWa);
+        setTelegramList(parsedTg);
       } catch (err) {
         console.error("Alert config load error:", err);
         alert(`Failed to load alert configuration: ${err.message}`);
@@ -83,30 +72,7 @@ export default function AlertSystemModal({ isOpen, onClose }) {
   }, [isOpen]);
 
   // --------------------------------------------------------------------------
-  // 2. VALIDATION HELPERS
-  // --------------------------------------------------------------------------
-  const cleanAndValidateIndianMobile = (rawInput) => {
-    if (!rawInput) return { valid: false, cleaned: "" };
-
-    let digits = rawInput.trim().replace(/[\s\-\(\)]/g, "");
-
-    if (digits.startsWith("+91") && digits.length === 13) {
-      digits = digits.substring(3);
-    } else if (digits.startsWith("91") && digits.length === 12) {
-      digits = digits.substring(2);
-    } else if (digits.startsWith("0") && digits.length === 11) {
-      digits = digits.substring(1);
-    }
-
-    const isTenDigitPureNumber = /^[6-9]\d{9}$/.test(digits) || /^\d{10}$/.test(digits);
-    return {
-      valid: isTenDigitPureNumber,
-      cleaned: digits,
-    };
-  };
-
-  // --------------------------------------------------------------------------
-  // 3. HANDLERS: STOCKS
+  // 2. HANDLERS: STOCKS
   // --------------------------------------------------------------------------
   const handleSetAllStocks = (enableStatus) => {
     const updated = {};
@@ -124,104 +90,61 @@ export default function AlertSystemModal({ isOpen, onClose }) {
   };
 
   // --------------------------------------------------------------------------
-  // 4. HANDLERS: EMAIL
+  // 3. HANDLERS: TELEGRAM CONTACTS
   // --------------------------------------------------------------------------
-  const handleAddEmail = () => {
-    const email = newEmail.trim();
-    if (!email || !email.includes("@") || !email.includes(".")) {
-      alert("❌ Please enter a valid email address!");
-      return;
-    }
-    const newEntry = {
-      id: `em_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
-      email,
-      enabled: true,
-    };
-    setEmailList((prev) => [...prev, newEntry]);
-    setNewEmail("");
-  };
+  const handleAddTelegram = () => {
+    const rawId = newTelegramId.trim();
 
-  const handleDeleteEmail = (id) => {
-    setEmailList((prev) => prev.filter((item) => item.id !== id));
-  };
-
-  const handleToggleEmail = (id) => {
-    setEmailList((prev) =>
-      prev.map((item) => (item.id === id ? { ...item, enabled: !item.enabled } : item))
-    );
-  };
-
-  const handleSaveEditEmail = (id) => {
-    const text = editingEmailText.trim();
-    if (!text || !text.includes("@") || !text.includes(".")) {
-      alert("❌ Invalid email format!");
-      return;
-    }
-    setEmailList((prev) =>
-      prev.map((item) => (item.id === id ? { ...item, email: text } : item))
-    );
-    setEditingEmailId(null);
-    setEditingEmailText("");
-  };
-
-  // --------------------------------------------------------------------------
-  // 5. HANDLERS: WHATSAPP
-  // --------------------------------------------------------------------------
-  const handleAddWhatsapp = () => {
-    const rawNumber = newWhatsapp.trim();
-
-    if (!rawNumber) {
-      alert("❌ Please enter a mobile number!");
+    if (!rawId) {
+      alert("❌ Please enter a Telegram Chat ID!");
       return;
     }
 
-    const { valid, cleaned } = cleanAndValidateIndianMobile(rawNumber);
-    if (!valid) {
-      alert("❌ Invalid mobile number! Must be a 10-digit number.");
+    if (!/^\d+$/.test(rawId)) {
+      alert("❌ Invalid Telegram Chat ID! It must contain only numeric digits (e.g. 8852677941).");
       return;
     }
 
-    const isDuplicate = whatsappList.some((item) => item.phone === cleaned);
+    const isDuplicate = telegramList.some((item) => item.phone === rawId);
     if (isDuplicate) {
-      alert(`⚠️ Mobile number ${cleaned} is already in the list!`);
+      alert(`⚠️ Telegram Chat ID ${rawId} is already in the list!`);
       return;
     }
 
     const newEntry = {
-      id: `wa_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
-      phone: cleaned,
+      id: `tg_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+      phone: rawId,
       enabled: true,
     };
-    setWhatsappList((prev) => [...prev, newEntry]);
-    setNewWhatsapp("");
+    setTelegramList((prev) => [...prev, newEntry]);
+    setNewTelegramId("");
   };
 
-  const handleDeleteWhatsapp = (id) => {
-    setWhatsappList((prev) => prev.filter((item) => item.id !== id));
+  const handleDeleteTelegram = (id) => {
+    setTelegramList((prev) => prev.filter((item) => item.id !== id));
   };
 
-  const handleToggleWhatsapp = (id) => {
-    setWhatsappList((prev) =>
+  const handleToggleTelegram = (id) => {
+    setTelegramList((prev) =>
       prev.map((item) => (item.id === id ? { ...item, enabled: !item.enabled } : item))
     );
   };
 
-  const handleSaveEditWhatsapp = (id) => {
-    const rawNumber = editingWaText.trim();
-    const { valid, cleaned } = cleanAndValidateIndianMobile(rawNumber);
-    if (!valid) {
-      alert("❌ Invalid mobile number! Must be a 10-digit number.");
+  const handleSaveEditTelegram = (id) => {
+    const rawId = editingTgText.trim();
+    if (!rawId || !/^\d+$/.test(rawId)) {
+      alert("❌ Invalid Telegram Chat ID! It must contain only numeric digits.");
       return;
     }
-    setWhatsappList((prev) =>
-      prev.map((item) => (item.id === id ? { ...item, phone: cleaned } : item))
+    setTelegramList((prev) =>
+      prev.map((item) => (item.id === id ? { ...item, phone: rawId } : item))
     );
-    setEditingWaId(null);
-    setEditingWaText("");
+    setEditingTgId(null);
+    setEditingTgText("");
   };
 
   // --------------------------------------------------------------------------
-  // 6. SAVE TRIGGER & AUDIT CONFIRMATION MODAL (N - Y - N)
+  // 4. SAVE & PRE-COMMIT AUDIT (N - Y - N)
   // --------------------------------------------------------------------------
   const handleInitiateSave = () => {
     setConfirmAnswers({ q1: "", q2: "", q3: "" });
@@ -237,21 +160,16 @@ export default function AlertSystemModal({ isOpen, onClose }) {
         formattedStockControls[stk] = { enabled: Boolean(isEnabled) };
       });
 
-      const formattedEmails = {};
-      emailList.forEach((item) => {
-        formattedEmails[item.id] = { email: item.email, enabled: Boolean(item.enabled) };
-      });
-
-      const formattedWhatsapp = {};
-      whatsappList.forEach((item) => {
-        formattedWhatsapp[item.id] = { phone: item.phone, enabled: Boolean(item.enabled) };
+      const formattedContacts = {};
+      telegramList.forEach((item) => {
+        formattedContacts[item.id] = { phone: item.phone, enabled: Boolean(item.enabled) };
       });
 
       const updates = {};
       updates["alerts/master_disable"] = Boolean(masterDisable);
       updates["alerts/stock_controls"] = formattedStockControls;
-      updates["alerts/emails"] = formattedEmails;
-      updates["alerts/whatsapp"] = formattedWhatsapp;
+      updates["alerts/whatsapp"] = formattedContacts;
+      updates["alerts/emails"] = null; // Cleanly purges deprecated emails node
       updates["alerts/last_settings_update"] = new Date().toISOString();
 
       await update(ref(database), updates);
@@ -277,7 +195,7 @@ export default function AlertSystemModal({ isOpen, onClose }) {
         width: "100vw",
         height: "100vh",
         backgroundColor: "rgba(2, 6, 23, 0.88)",
-        backdropFilter: "blur(6px)",
+        backdropFilter: "blur(8px)",
         display: "flex",
         justifyContent: "center",
         alignItems: "center",
@@ -289,11 +207,11 @@ export default function AlertSystemModal({ isOpen, onClose }) {
     >
       <div
         style={{
-          backgroundColor: "#0b1329",
-          border: "2px solid #06b6d4",
-          boxShadow: "0 0 35px rgba(6, 182, 212, 0.35), 0 20px 50px rgba(0,0,0,0.9)",
-          borderRadius: "14px",
-          width: "820px",
+          backgroundColor: "#070d18",
+          border: "2px solid #0284c7",
+          boxShadow: "0 0 45px rgba(2, 132, 199, 0.35), 0 25px 60px rgba(0,0,0,0.95)",
+          borderRadius: "16px",
+          width: "840px",
           maxWidth: "100%",
           maxHeight: "92vh",
           display: "flex",
@@ -305,16 +223,16 @@ export default function AlertSystemModal({ isOpen, onClose }) {
         {/* MODAL HEADER */}
         <div
           style={{
-            padding: "16px 20px",
-            background: "linear-gradient(90deg, #1e1b4b, #0f172a)",
-            borderBottom: "2px solid #334155",
+            padding: "16px 22px",
+            background: "linear-gradient(135deg, #1e1b4b 0%, #0c1527 100%)",
+            borderBottom: "2px solid #1e293b",
             display: "flex",
             justifyContent: "space-between",
             alignItems: "center",
           }}
         >
-          <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-            <span style={{ fontSize: "24px" }}>🔔</span>
+          <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+            <span style={{ fontSize: "26px", filter: "drop-shadow(0 0 8px #38bdf8)" }}>✈️</span>
             <div>
               <h2 style={{ margin: 0, fontSize: "16px", fontWeight: "900", color: "#38bdf8", letterSpacing: "1px", textTransform: "uppercase" }}>
                 STOCK MONITOR ALERT CONTROL CENTER
@@ -342,50 +260,53 @@ export default function AlertSystemModal({ isOpen, onClose }) {
         </div>
 
         {/* MODAL BODY (SCROLLABLE) */}
-        <div style={{ overflowY: "auto", padding: "18px 20px", display: "flex", flexDirection: "column", gap: "18px" }}>
+        <div style={{ overflowY: "auto", padding: "20px 22px", display: "flex", flexDirection: "column", gap: "18px" }}>
 
           {/* SECTION 1: MASTER KILL SWITCH */}
           <div
             style={{
-              backgroundColor: masterDisable ? "rgba(239, 68, 68, 0.15)" : "rgba(16, 185, 129, 0.15)",
-              border: `2px solid ${masterDisable ? "#ef4444" : "#10b981"}`,
-              borderRadius: "10px",
-              padding: "14px 18px",
+              background: masterDisable
+                ? "linear-gradient(135deg, rgba(136, 19, 55, 0.35) 0%, rgba(15, 23, 42, 0.6) 100%)"
+                : "linear-gradient(135deg, rgba(6, 78, 59, 0.45) 0%, rgba(15, 23, 42, 0.6) 100%)",
+              border: `2px solid ${masterDisable ? "#f43f5e" : "#10b981"}`,
+              borderRadius: "12px",
+              padding: "16px 20px",
               display: "flex",
               justifyContent: "space-between",
               alignItems: "center",
               flexWrap: "wrap",
-              gap: "10px",
+              gap: "12px",
+              boxShadow: masterDisable ? "0 0 15px rgba(244, 63, 94, 0.2)" : "0 0 15px rgba(16, 185, 129, 0.2)",
             }}
           >
             <div>
-              <div style={{ fontWeight: "900", fontSize: "14px", color: masterDisable ? "#fca5a5" : "#6ee7b7" }}>
-                MASTER ALERT SWITCH: {masterDisable ? "ALL ALERTS DISABLED ⛔" : "ALL ALERTS ACTIVE & ARMED 🟢"}
+              <div style={{ fontWeight: "900", fontSize: "14px", color: masterDisable ? "#fecdd3" : "#a7f3d0", letterSpacing: "0.5px" }}>
+                MASTER DISPATCH SWITCH: {masterDisable ? "ALL ALERTS DISABLED ⛔" : "ALL ALERTS ARMED & ACTIVE 🟢"}
               </div>
-              <div style={{ fontSize: "11px", color: "#cbd5e1" }}>
-                Overrides all individual stock, email, and WhatsApp settings without erasing them.
+              <div style={{ fontSize: "11px", color: "#cbd5e1", marginTop: "3px" }}>
+                Global circuit breaker. Overrides all stock triggers and Telegram alerts without altering settings.
               </div>
             </div>
 
-            <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
+            <div style={{ display: "flex", gap: "14px", alignItems: "center" }}>
               <label style={{ display: "flex", alignItems: "center", gap: "6px", cursor: "pointer", fontWeight: "900", fontSize: "12px", color: "#10b981" }}>
                 <input
                   type="radio"
                   name="master_switch"
                   checked={!masterDisable}
                   onChange={() => setMasterDisable(false)}
-                  style={{ accentColor: "#10b981", transform: "scale(1.2)" }}
+                  style={{ accentColor: "#10b981", transform: "scale(1.25)", cursor: "pointer" }}
                 />
                 ENABLE ALL
               </label>
 
-              <label style={{ display: "flex", alignItems: "center", gap: "6px", cursor: "pointer", fontWeight: "900", fontSize: "12px", color: "#ef4444" }}>
+              <label style={{ display: "flex", alignItems: "center", gap: "6px", cursor: "pointer", fontWeight: "900", fontSize: "12px", color: "#f43f5e" }}>
                 <input
                   type="radio"
                   name="master_switch"
                   checked={masterDisable}
                   onChange={() => setMasterDisable(true)}
-                  style={{ accentColor: "#ef4444", transform: "scale(1.2)" }}
+                  style={{ accentColor: "#f43f5e", transform: "scale(1.25)", cursor: "pointer" }}
                 />
                 DISABLE ALL
               </label>
@@ -393,28 +314,36 @@ export default function AlertSystemModal({ isOpen, onClose }) {
           </div>
 
           {/* SECTION 2: WATCHLIST STOCK DISPATCH CONTROLS */}
-          <div style={{ backgroundColor: "#111c38", border: "1px solid #1e3a8a", borderRadius: "10px", padding: "14px 16px" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px", flexWrap: "wrap", gap: "8px" }}>
+          <div
+            style={{
+              background: "linear-gradient(180deg, #0e172a 0%, #070e1c 100%)",
+              border: "1px solid #1d4ed8",
+              borderRadius: "12px",
+              padding: "16px 18px",
+              boxShadow: "inset 0 1px 1px rgba(255,255,255,0.05)",
+            }}
+          >
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "14px", flexWrap: "wrap", gap: "8px" }}>
               <div>
-                <span style={{ color: "#38bdf8", fontWeight: "900", fontSize: "13px", textTransform: "uppercase" }}>
+                <span style={{ color: "#38bdf8", fontWeight: "900", fontSize: "13px", textTransform: "uppercase", letterSpacing: "0.5px" }}>
                   WATCHLIST STOCKS ({stocksList.length} TOTAL from /watchlist/watchlist)
                 </span>
-                <span style={{ fontSize: "11px", color: "#94a3b8", display: "block" }}>
-                  Toggle to silence specific stocks from generating Hi/Lo alerts
+                <span style={{ fontSize: "11px", color: "#94a3b8", display: "block", marginTop: "2px" }}>
+                  Toggle individual stock triggers to silence specific symbols from notifying
                 </span>
               </div>
               <div style={{ display: "flex", gap: "8px" }}>
                 <button
                   type="button"
                   onClick={() => handleSetAllStocks(true)}
-                  style={{ backgroundColor: "#065f46", color: "#a7f3d0", border: "1px solid #10b981", padding: "4px 10px", borderRadius: "5px", fontSize: "11px", fontWeight: "bold", cursor: "pointer" }}
+                  style={{ backgroundColor: "#065f46", color: "#a7f3d0", border: "1px solid #10b981", padding: "5px 12px", borderRadius: "6px", fontSize: "11px", fontWeight: "900", cursor: "pointer" }}
                 >
                   ENABLE ALL
                 </button>
                 <button
                   type="button"
                   onClick={() => handleSetAllStocks(false)}
-                  style={{ backgroundColor: "#7f1d1d", color: "#fecaca", border: "1px solid #ef4444", padding: "4px 10px", borderRadius: "5px", fontSize: "11px", fontWeight: "bold", cursor: "pointer" }}
+                  style={{ backgroundColor: "#881337", color: "#fecdd3", border: "1px solid #f43f5e", padding: "5px 12px", borderRadius: "6px", fontSize: "11px", fontWeight: "900", cursor: "pointer" }}
                 >
                   DISABLE ALL
                 </button>
@@ -422,11 +351,11 @@ export default function AlertSystemModal({ isOpen, onClose }) {
             </div>
 
             {loading ? (
-              <div style={{ color: "#38bdf8", fontSize: "12px", padding: "10px", textAlign: "center" }}>⏳ Loading Watchlist stocks...</div>
+              <div style={{ color: "#38bdf8", fontSize: "12px", padding: "14px", textAlign: "center" }}>⏳ Loading Watchlist stocks...</div>
             ) : stocksList.length === 0 ? (
-              <div style={{ color: "#94a3b8", fontSize: "12px", padding: "10px", textAlign: "center" }}>No stocks found under /watchlist/watchlist.</div>
+              <div style={{ color: "#94a3b8", fontSize: "12px", padding: "14px", textAlign: "center" }}>No stocks found under /watchlist/watchlist.</div>
             ) : (
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: "8px", maxHeight: "160px", overflowY: "auto", paddingRight: "4px" }}>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(185px, 1fr))", gap: "8px", maxHeight: "175px", overflowY: "auto", paddingRight: "4px" }}>
                 {stocksList.map((stk) => {
                   const isEnabled = stockControls[stk] !== false;
                   return (
@@ -434,14 +363,15 @@ export default function AlertSystemModal({ isOpen, onClose }) {
                       key={stk}
                       onClick={() => handleToggleStock(stk)}
                       style={{
-                        backgroundColor: isEnabled ? "#1e293b" : "#1e1e24",
-                        border: `1px solid ${isEnabled ? "#06b6d4" : "#475569"}`,
-                        padding: "6px 10px",
+                        backgroundColor: isEnabled ? "#172554" : "#0f172a",
+                        border: `1px solid ${isEnabled ? "#0284c7" : "#334155"}`,
+                        padding: "7px 12px",
                         borderRadius: "6px",
                         display: "flex",
                         justifyContent: "space-between",
                         alignItems: "center",
                         cursor: "pointer",
+                        transition: "all 0.15s ease",
                       }}
                     >
                       <span style={{ fontSize: "12px", fontWeight: "bold", color: isEnabled ? "#ffffff" : "#64748b" }}>
@@ -451,9 +381,9 @@ export default function AlertSystemModal({ isOpen, onClose }) {
                         style={{
                           fontSize: "10px",
                           fontWeight: "900",
-                          padding: "2px 6px",
+                          padding: "2px 7px",
                           borderRadius: "4px",
-                          backgroundColor: isEnabled ? "#059669" : "#475569",
+                          backgroundColor: isEnabled ? "#059669" : "#334155",
                           color: "#ffffff",
                         }}
                       >
@@ -466,114 +396,38 @@ export default function AlertSystemModal({ isOpen, onClose }) {
             )}
           </div>
 
-          {/* SECTION 3: EMAIL RECIPIENTS */}
-          <div style={{ backgroundColor: "#111c38", border: "1px solid #7c3aed", borderRadius: "10px", padding: "14px 16px" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px" }}>
-              <span style={{ color: "#c084fc", fontWeight: "900", fontSize: "13px", textTransform: "uppercase" }}>
-                EMAIL NOTIFICATION RECIPIENTS ({emailList.length})
-              </span>
+          {/* SECTION 3: TELEGRAM CONTACTS */}
+          <div
+            style={{
+              background: "linear-gradient(180deg, #071727 0%, #030d17 100%)",
+              border: "1px solid #0284c7",
+              borderRadius: "12px",
+              padding: "16px 18px",
+              boxShadow: "0 0 20px rgba(2, 132, 199, 0.15)",
+            }}
+          >
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                <span style={{ color: "#38bdf8", fontWeight: "900", fontSize: "13px", textTransform: "uppercase", letterSpacing: "0.5px" }}>
+                  TELEGRAM CONTACTS ({telegramList.length})
+                </span>
+                <span style={{ fontSize: "11px", backgroundColor: "#0c2844", color: "#38bdf8", padding: "2px 8px", borderRadius: "10px", border: "1px solid #0369a1" }}>
+                  Official Telegram Bot
+                </span>
+              </div>
             </div>
 
-            <div style={{ display: "flex", gap: "8px", marginBottom: "12px" }}>
-              <input
-                type="email"
-                placeholder="Enter alert email (e.g. trader@gmail.com)..."
-                value={newEmail}
-                onChange={(e) => setNewEmail(e.target.value)}
-                style={{
-                  flex: 1,
-                  backgroundColor: "#0f172a",
-                  border: "1px solid #475569",
-                  borderRadius: "6px",
-                  padding: "8px 12px",
-                  color: "#ffffff",
-                  fontSize: "12px",
-                  outline: "none",
-                }}
-              />
-              <button
-                type="button"
-                onClick={handleAddEmail}
-                style={{ backgroundColor: "#a855f7", color: "#000000", border: "none", padding: "8px 16px", borderRadius: "6px", fontWeight: "900", fontSize: "12px", cursor: "pointer" }}
-              >
-                ➕ ADD EMAIL
-              </button>
-            </div>
-
-            <div style={{ display: "flex", flexDirection: "column", gap: "6px", maxHeight: "120px", overflowY: "auto" }}>
-              {emailList.length === 0 ? (
-                <span style={{ fontSize: "11px", color: "#94a3b8" }}>No email addresses added yet.</span>
-              ) : (
-                emailList.map((item) => (
-                  <div
-                    key={item.id}
-                    style={{
-                      backgroundColor: "#0f172a",
-                      border: "1px solid #334155",
-                      padding: "6px 12px",
-                      borderRadius: "6px",
-                      display: "flex",
-                      justifyContent: "space-between",
-                      alignItems: "center",
-                    }}
-                  >
-                    {editingEmailId === item.id ? (
-                      <input
-                        type="email"
-                        value={editingEmailText}
-                        onChange={(e) => setEditingEmailText(e.target.value)}
-                        style={{ backgroundColor: "#1e293b", color: "#38bdf8", border: "1px solid #06b6d4", padding: "4px 8px", borderRadius: "4px", fontSize: "12px", outline: "none", width: "240px" }}
-                      />
-                    ) : (
-                      <span style={{ fontSize: "12px", color: item.enabled ? "#ffffff" : "#64748b", textDecoration: item.enabled ? "none" : "line-through" }}>
-                        ✉️ {item.email}
-                      </span>
-                    )}
-
-                    <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
-                      <label style={{ display: "flex", alignItems: "center", gap: "4px", fontSize: "11px", color: item.enabled ? "#10b981" : "#f87171", cursor: "pointer", fontWeight: "bold" }}>
-                        <input
-                          type="checkbox"
-                          checked={item.enabled}
-                          onChange={() => handleToggleEmail(item.id)}
-                          style={{ accentColor: "#10b981" }}
-                        />
-                        {item.enabled ? "ON" : "OFF"}
-                      </label>
-
-                      {editingEmailId === item.id ? (
-                        <button type="button" onClick={() => handleSaveEditEmail(item.id)} style={{ backgroundColor: "#10b981", color: "#000", border: "none", padding: "3px 8px", borderRadius: "4px", fontSize: "11px", fontWeight: "bold", cursor: "pointer" }}>OK</button>
-                      ) : (
-                        <button type="button" onClick={() => { setEditingEmailId(item.id); setEditingEmailText(item.email); }} style={{ backgroundColor: "#334155", color: "#f59e0b", border: "none", padding: "3px 8px", borderRadius: "4px", fontSize: "11px", fontWeight: "bold", cursor: "pointer" }}>✏️</button>
-                      )}
-
-                      <button type="button" onClick={() => handleDeleteEmail(item.id)} style={{ backgroundColor: "#334155", color: "#ef4444", border: "none", padding: "3px 8px", borderRadius: "4px", fontSize: "11px", fontWeight: "bold", cursor: "pointer" }}>🗑️</button>
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
-
-          {/* SECTION 4: WHATSAPP RECIPIENTS */}
-          <div style={{ backgroundColor: "#111c38", border: "1px solid #10b981", borderRadius: "10px", padding: "14px 16px" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px" }}>
-              <span style={{ color: "#34d399", fontWeight: "900", fontSize: "13px", textTransform: "uppercase" }}>
-                WHATSAPP PHONE NUMBERS (10-DIGIT NUMBER ONLY) ({whatsappList.length})
-              </span>
-            </div>
-
-            <div style={{ display: "flex", gap: "8px", marginBottom: "12px" }}>
+            <div style={{ display: "flex", gap: "10px", marginBottom: "14px" }}>
               <input
                 type="text"
-                placeholder="Enter 10-digit mobile number (e.g. 9876543210)..."
-                maxLength={13}
-                value={newWhatsapp}
-                onChange={(e) => setNewWhatsapp(e.target.value)}
+                placeholder="Enter Telegram Chat ID (e.g. 8852677941)..."
+                maxLength={20}
+                value={newTelegramId}
+                onChange={(e) => setNewTelegramId(e.target.value)}
                 style={{
                   flex: 1,
-                  backgroundColor: "#0f172a",
-                  border: "1px solid #475569",
+                  backgroundColor: "#07111e",
+                  border: "1px solid #0369a1",
                   borderRadius: "6px",
                   padding: "8px 12px",
                   color: "#ffffff",
@@ -583,41 +437,51 @@ export default function AlertSystemModal({ isOpen, onClose }) {
               />
               <button
                 type="button"
-                onClick={handleAddWhatsapp}
-                style={{ backgroundColor: "#10b981", color: "#000000", border: "none", padding: "8px 16px", borderRadius: "6px", fontWeight: "900", fontSize: "12px", cursor: "pointer" }}
+                onClick={handleAddTelegram}
+                style={{
+                  backgroundColor: "#0284c7",
+                  color: "#ffffff",
+                  border: "none",
+                  padding: "8px 18px",
+                  borderRadius: "6px",
+                  fontWeight: "900",
+                  fontSize: "12px",
+                  cursor: "pointer",
+                  boxShadow: "0 0 10px rgba(2, 132, 199, 0.4)",
+                }}
               >
-                ➕ ADD WHATSAPP
+                ➕ ADD CONTACT
               </button>
             </div>
 
-            <div style={{ display: "flex", flexDirection: "column", gap: "6px", maxHeight: "120px", overflowY: "auto" }}>
-              {whatsappList.length === 0 ? (
-                <span style={{ fontSize: "11px", color: "#94a3b8" }}>No WhatsApp numbers added yet.</span>
+            <div style={{ display: "flex", flexDirection: "column", gap: "7px", maxHeight: "140px", overflowY: "auto", paddingRight: "4px" }}>
+              {telegramList.length === 0 ? (
+                <span style={{ fontSize: "11px", color: "#94a3b8" }}>No Telegram Chat IDs configured yet.</span>
               ) : (
-                whatsappList.map((item) => (
+                telegramList.map((item) => (
                   <div
                     key={item.id}
                     style={{
-                      backgroundColor: "#0f172a",
-                      border: "1px solid #334155",
-                      padding: "6px 12px",
+                      backgroundColor: "#071220",
+                      border: "1px solid #1e3a5f",
+                      padding: "7px 12px",
                       borderRadius: "6px",
                       display: "flex",
                       justifyContent: "space-between",
                       alignItems: "center",
                     }}
                   >
-                    {editingWaId === item.id ? (
+                    {editingTgId === item.id ? (
                       <input
                         type="text"
-                        value={editingWaText}
-                        maxLength={13}
-                        onChange={(e) => setEditingWaText(e.target.value)}
-                        style={{ backgroundColor: "#1e293b", color: "#34d399", border: "1px solid #10b981", padding: "4px 8px", borderRadius: "4px", fontSize: "12px", outline: "none", width: "200px" }}
+                        value={editingTgText}
+                        maxLength={20}
+                        onChange={(e) => setEditingTgText(e.target.value)}
+                        style={{ backgroundColor: "#0c1f36", color: "#38bdf8", border: "1px solid #0284c7", padding: "4px 8px", borderRadius: "4px", fontSize: "12px", outline: "none", width: "200px" }}
                       />
                     ) : (
                       <span style={{ fontSize: "12px", color: item.enabled ? "#ffffff" : "#64748b", textDecoration: item.enabled ? "none" : "line-through" }}>
-                        💬 {item.phone}
+                        ✈️ Chat ID: <b style={{ color: item.enabled ? "#38bdf8" : "#64748b" }}>{item.phone}</b>
                       </span>
                     )}
 
@@ -626,19 +490,19 @@ export default function AlertSystemModal({ isOpen, onClose }) {
                         <input
                           type="checkbox"
                           checked={item.enabled}
-                          onChange={() => handleToggleWhatsapp(item.id)}
-                          style={{ accentColor: "#10b981" }}
+                          onChange={() => handleToggleTelegram(item.id)}
+                          style={{ accentColor: "#10b981", cursor: "pointer" }}
                         />
                         {item.enabled ? "ON" : "OFF"}
                       </label>
 
-                      {editingWaId === item.id ? (
-                        <button type="button" onClick={() => handleSaveEditWhatsapp(item.id)} style={{ backgroundColor: "#10b981", color: "#000", border: "none", padding: "3px 8px", borderRadius: "4px", fontSize: "11px", fontWeight: "bold", cursor: "pointer" }}>OK</button>
+                      {editingTgId === item.id ? (
+                        <button type="button" onClick={() => handleSaveEditTelegram(item.id)} style={{ backgroundColor: "#10b981", color: "#000", border: "none", padding: "3px 8px", borderRadius: "4px", fontSize: "11px", fontWeight: "bold", cursor: "pointer" }}>OK</button>
                       ) : (
-                        <button type="button" onClick={() => { setEditingWaId(item.id); setEditingWaText(item.phone); }} style={{ backgroundColor: "#334155", color: "#f59e0b", border: "none", padding: "3px 8px", borderRadius: "4px", fontSize: "11px", fontWeight: "bold", cursor: "pointer" }}>✏️</button>
+                        <button type="button" onClick={() => { setEditingTgId(item.id); setEditingTgText(item.phone); }} style={{ backgroundColor: "#1e293b", color: "#f59e0b", border: "1px solid #334155", padding: "3px 8px", borderRadius: "4px", fontSize: "11px", fontWeight: "bold", cursor: "pointer" }}>✏️</button>
                       )}
 
-                      <button type="button" onClick={() => handleDeleteWhatsapp(item.id)} style={{ backgroundColor: "#334155", color: "#ef4444", border: "none", padding: "3px 8px", borderRadius: "4px", fontSize: "11px", fontWeight: "bold", cursor: "pointer" }}>🗑️</button>
+                      <button type="button" onClick={() => handleDeleteTelegram(item.id)} style={{ backgroundColor: "#1e293b", color: "#ef4444", border: "1px solid #334155", padding: "3px 8px", borderRadius: "4px", fontSize: "11px", fontWeight: "bold", cursor: "pointer" }}>🗑️</button>
                     </div>
                   </div>
                 ))
@@ -651,8 +515,8 @@ export default function AlertSystemModal({ isOpen, onClose }) {
         {/* MODAL FOOTER */}
         <div
           style={{
-            padding: "14px 20px",
-            backgroundColor: "#070c18",
+            padding: "14px 22px",
+            backgroundColor: "#050912",
             borderTop: "2px solid #1e293b",
             display: "flex",
             justifyContent: "flex-end",
@@ -681,15 +545,15 @@ export default function AlertSystemModal({ isOpen, onClose }) {
             onClick={handleInitiateSave}
             disabled={saving}
             style={{
-              backgroundColor: "#06b6d4",
-              color: "#000000",
+              backgroundColor: "#0284c7",
+              color: "#ffffff",
               border: "none",
               padding: "9px 26px",
               borderRadius: "6px",
               fontWeight: "900",
               fontSize: "12px",
               cursor: saving ? "not-allowed" : "pointer",
-              boxShadow: "0 0 15px rgba(6, 182, 212, 0.4)",
+              boxShadow: "0 0 15px rgba(2, 132, 199, 0.4)",
             }}
           >
             {saving ? "SAVING..." : "💾 SAVE ALERT CONFIGURATION"}
@@ -697,7 +561,7 @@ export default function AlertSystemModal({ isOpen, onClose }) {
         </div>
       </div>
 
-      {/* 3-QUESTION VERIFICATION MODAL (N - Y - N) */}
+      {/* 3-QUESTION AUDIT VERIFICATION MODAL (N - Y - N) */}
       {showConfirmModal && (
         <div
           style={{
