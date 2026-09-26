@@ -100,7 +100,7 @@ export default function App() {
     } finally {
       setTimeout(() => {
         setIsScreenerSyncing(false);
-      }, 300000);
+      }, 120000);
     }
   };
 
@@ -197,7 +197,7 @@ export default function App() {
                 gap: "6px",
               }}
             >
-              {isScreenerSyncing ? "⏳ RUNNING ETL (5 MIN COOLDOWN)..." : "🔄 SYNC SCREENER (DRIVE ➔ FB)"}
+              {isScreenerSyncing ? "⏳ RUNNING ETL (2 MIN COOLDOWN)..." : "🔄 SYNC SCREENER (DRIVE ➔ FB)"}
             </button>
           </div>
         </header>
