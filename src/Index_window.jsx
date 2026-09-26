@@ -125,11 +125,13 @@ export default function Index_window({
     if (isFrozen || !safeTarget) return;
 
     try {
-      // Direct queries to /param and live candles
+      const cacheBust = `_t=${Date.now()}`;
+
+      // Direct queries to /param and live candles with cache-busting
       const [paramRes, liveRes0, liveRes1] = await Promise.all([
-        fetch(`${FIREBASE_DB_URL}/param/${encodeURIComponent(safeTarget)}.json`),
-        fetch(`${FIREBASE_DB_URL}/stocks/${encodeURIComponent(safeTarget)}/0.json`),
-        fetch(`${FIREBASE_DB_URL}/stocks/${encodeURIComponent(safeTarget)}/1.json`)
+        fetch(`${FIREBASE_DB_URL}/param/${encodeURIComponent(safeTarget)}.json?${cacheBust}`),
+        fetch(`${FIREBASE_DB_URL}/stocks/${encodeURIComponent(safeTarget)}/0.json?${cacheBust}`),
+        fetch(`${FIREBASE_DB_URL}/stocks/${encodeURIComponent(safeTarget)}/1.json?${cacheBust}`)
       ]);
 
       const data = paramRes.ok ? await paramRes.json() : null;
@@ -149,7 +151,6 @@ export default function Index_window({
         ma25: Number(data?.['25ma'] ?? data?.['25MA'] ?? 0),
         ma50: Number(data?.['50ma'] ?? data?.['50MA'] ?? 0),
         ma200: Number(data?.['200ma'] ?? data?.['200MA'] ?? 0),
-        // Exact keys from /param/<script>
         high52: Number(data?.['52WH'] ?? data?.['52wh'] ?? 0),
         low52: Number(data?.['52WL'] ?? data?.['52wl'] ?? 0),
         h100: Number(data?.['100H'] ?? data?.['100h'] ?? 0),
@@ -186,7 +187,9 @@ export default function Index_window({
   useEffect(() => {
     let intervalId;
     if (isAutoMode && !isFrozen) {
-      intervalId = setInterval(fetchIndexData, (refreshRate || 10) * 1000);
+      intervalId = setInterval(() => {
+        fetchIndexData();
+      }, (refreshRate || 10) * 1000);
     }
     return () => {
       if (intervalId) clearInterval(intervalId);
@@ -200,7 +203,6 @@ export default function Index_window({
     return Math.max(0, Math.min(100, rawPercentage));
   }, [slowData]);
 
-  // Scaled sub-range bar positions (100L/100H, 50L/50H, 25L/25H mapped to 52W range)
   const getSubRangeSpan = (low, high) => {
     if (!low || !high || !slowData.low52 || !slowData.high52) return null;
     const left = scaleTo100(low);
@@ -221,7 +223,6 @@ export default function Index_window({
     ? (((slowData.high52 - slowData.low52) / slowData.low52) * 100).toFixed(2)
     : "0.00";
 
-  // Legend size variable
   const Legend_Size = "9px";
 
   const COLOR_GREEN = "#00E676";
@@ -269,7 +270,7 @@ export default function Index_window({
         </div>
       </div>
 
-      {/* 3. LEGEND STRIP (Left-aligned, below data table, above scale visualizer) */}
+      {/* 3. LEGEND STRIP */}
       <div style={{ 
         display: 'flex', 
         alignItems: 'center', 
@@ -314,7 +315,7 @@ export default function Index_window({
               left: '55px', 
               right: '55px', 
               height: '18px', 
-              background: 'linear-gradient(180deg, #D8D8D8 0%, #808080 100%)', /* 52WR: Cyan Base */
+              background: 'linear-gradient(180deg, #D8D8D8 0%, #808080 100%)',
               transform: 'translateY(-50%)', 
               borderRadius: '6px',
               border: '1px solid rgba(255, 255, 255, 0.4)',

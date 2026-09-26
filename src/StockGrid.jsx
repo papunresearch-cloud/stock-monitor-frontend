@@ -23,7 +23,7 @@ export default function StockGrid({
   const fetchDatabase = useCallback(async () => {
     try {
       const timestamp = new Date().getTime();
-      const firebaseUrl = `${FIREBASE_DB_URL}/watchlist.json?_=${timestamp}`;
+      const firebaseUrl = `${FIREBASE_DB_URL}/watchlist.json?_t=${timestamp}`;
       const response = await fetch(firebaseUrl, { cache: 'no-store' });
       
       if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
@@ -39,13 +39,30 @@ export default function StockGrid({
     }
   }, []);
 
+  // Initial load
   useEffect(() => {
     fetchDatabase();
   }, [fetchDatabase]);
 
+  // Listen to both updateTrigger AND manual refreshTrigger
   useEffect(() => {
-    if (updateTrigger > 0) fetchDatabase();
-  }, [updateTrigger, fetchDatabase]);
+    if (updateTrigger > 0 || refreshTrigger > 0) {
+      fetchDatabase();
+    }
+  }, [updateTrigger, refreshTrigger, fetchDatabase]);
+
+  // Auto Mode Periodic Polling for detailedDb (Extended Panel parameters)
+  useEffect(() => {
+    let intervalId;
+    if (isAutoMode && !isFrozen && refreshRate > 0) {
+      intervalId = setInterval(() => {
+        fetchDatabase();
+      }, (refreshRate || 10) * 1000);
+    }
+    return () => {
+      if (intervalId) clearInterval(intervalId);
+    };
+  }, [isAutoMode, isFrozen, refreshRate, fetchDatabase]);
 
   useEffect(() => {
     if (!detailedDb || !activeStocks || activeStocks.length === 0) {
