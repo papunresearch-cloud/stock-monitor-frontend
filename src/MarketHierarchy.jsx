@@ -125,7 +125,7 @@ export default function MarketHierarchyTable() {
       if (snap.exists()) {
         const val = snap.val();
         const list = Array.isArray(val) ? val : Object.values(val);
-        const cleanList = list.filter(Boolean);
+        const cleanList = list.filter(Boolean).map((item) => String(item).trim());
         setFilter0List(cleanList);
         return cleanList;
       } else {
@@ -147,7 +147,12 @@ export default function MarketHierarchyTable() {
     if (!data.length) return null;
 
     const filter0Set = isFilter0Active ? new Set(filter0List) : null;
-    const workingData = filter0Set ? data.filter((row) => filter0Set.has(row.Name || row.STOCK)) : data;
+    const workingData = filter0Set 
+      ? data.filter((row) => {
+          const code = (row.CODE || row.NSE || row.BSE || row.Name || '').toString().trim();
+          return filter0Set.has(code) || (row.Name && filter0Set.has(row.Name.trim()));
+        }) 
+      : data;
 
     if (workingData.length === 0) return null;
 
@@ -171,13 +176,17 @@ export default function MarketHierarchyTable() {
           type: 'industry',
           count: stocks.length,
           averages: calculateAverages(stocks),
-          children: stocks.map((s, idx) => ({
-            id: s.Name || `stock_${s.NSE || idx}`,
-            name: s.Name,
-            type: 'stock',
-            cmp: s.cmp,
-            data: s,
-          })),
+          children: stocks.map((s, idx) => {
+            const stockCode = (s.CODE || s.NSE || s.BSE || s.Name || `stock_${idx}`).toString().trim();
+            return {
+              id: `stock_${stockCode}_${idx}`,
+              code: stockCode,
+              name: s.Name || stockCode,
+              type: 'stock',
+              cmp: s.cmp,
+              data: s,
+            };
+          }),
         };
       });
 
@@ -263,8 +272,8 @@ export default function MarketHierarchyTable() {
     setExpandedNodes((prev) => ({ ...prev, [nodeId]: !prev[nodeId] }));
   };
 
-  const toggleStockSelect = (stockName) => {
-    setSelectedStocks((prev) => ({ ...prev, [stockName]: !prev[stockName] }));
+  const toggleStockSelect = (stockCode) => {
+    setSelectedStocks((prev) => ({ ...prev, [stockCode]: !prev[stockCode] }));
   };
 
   const handleReset = () => {
@@ -274,22 +283,22 @@ export default function MarketHierarchyTable() {
     setIsFilter0Active(false);
   };
 
-  // FILTER0 CLOUD ACTIONS
+  // FILTER0 CLOUD ACTIONS (Stores CODE)
   const handleAddSelectedToFilter0 = async () => {
-    const checkedStockNames = Object.keys(selectedStocks).filter((k) => selectedStocks[k]);
-    if (checkedStockNames.length === 0) {
+    const checkedStockCodes = Object.keys(selectedStocks).filter((k) => selectedStocks[k]);
+    if (checkedStockCodes.length === 0) {
       alert("No stocks checked in the table to add!");
       return;
     }
 
     try {
       const f0Ref = ref(database, 'filters/filter0');
-      const updatedList = Array.from(new Set([...filter0List, ...checkedStockNames]));
+      const updatedList = Array.from(new Set([...filter0List, ...checkedStockCodes]));
       await set(f0Ref, updatedList);
 
       setFilter0List(updatedList);
       setSelectedStocks({});
-      alert(`Added ${checkedStockNames.length} stock(s) to Firebase Filter0!`);
+      alert(`Added ${checkedStockCodes.length} stock code(s) to Firebase Filter0!`);
     } catch (err) {
       console.error(err);
       alert("Failed to update Firebase Filter0.");
@@ -303,7 +312,7 @@ export default function MarketHierarchyTable() {
     }
 
     try {
-      const updatedList = filter0List.filter((s) => !filter0Selected.has(s));
+      const updatedList = filter0List.filter((code) => !filter0Selected.has(code));
       const f0Ref = ref(database, 'filters/filter0');
 
       if (updatedList.length === 0) {
@@ -420,15 +429,15 @@ export default function MarketHierarchyTable() {
             </div>
           ) : (
             <div style={styles.stockGrid}>
-              {filter0List.map((stockName) => {
-                const isChecked = filter0Selected.has(stockName);
+              {filter0List.map((stockCode) => {
+                const isChecked = filter0Selected.has(stockCode);
                 return (
                   <div
-                    key={stockName}
+                    key={stockCode}
                     onClick={() => {
                       const next = new Set(filter0Selected);
-                      if (next.has(stockName)) next.delete(stockName);
-                      else next.add(stockName);
+                      if (next.has(stockCode)) next.delete(stockCode);
+                      else next.add(stockCode);
                       setFilter0Selected(next);
                     }}
                     style={styles.stockChip}
@@ -439,7 +448,7 @@ export default function MarketHierarchyTable() {
                       onChange={() => {}}
                       style={{ cursor: 'pointer', accentColor: THEME_CONFIG.accentAmber }}
                     />
-                    <span style={{ fontSize: '13px', fontWeight: 'bold', color: '#f8fafc' }}>{stockName}</span>
+                    <span style={{ fontSize: '13px', fontWeight: 'bold', color: '#f8fafc' }}>{stockCode}</span>
                   </div>
                 );
               })}
@@ -533,8 +542,8 @@ export default function MarketHierarchyTable() {
                       {isStock ? (
                         <input
                           type="checkbox"
-                          checked={!!selectedStocks[node.name]}
-                          onChange={() => toggleStockSelect(node.name)}
+                          checked={!!selectedStocks[node.code]}
+                          onChange={() => toggleStockSelect(node.code)}
                           style={{ cursor: 'pointer', width: '16px', height: '16px', accentColor: '#000000' }}
                         />
                       ) : (
