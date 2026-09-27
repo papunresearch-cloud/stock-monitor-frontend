@@ -79,6 +79,34 @@ const extractScreenerFields = (screenerRecord) => {
   return result;
 };
 
+// Safe display_list pruner handling both Arrays and Key-Value Maps
+const purgeFromDisplayList = async (stockToDelete) => {
+  try {
+    const displayStocksRef = ref(database, "display_list/stocks");
+    const snapshot = await get(displayStocksRef);
+
+    if (snapshot.exists()) {
+      const data = snapshot.val();
+      const safeKey = sanitizeKey(stockToDelete);
+
+      if (Array.isArray(data)) {
+        const updatedArray = data.filter((item) => {
+          const itemKey = sanitizeKey(extractStockName(item));
+          return itemKey !== safeKey && item !== stockToDelete;
+        });
+        await set(displayStocksRef, updatedArray.length > 0 ? updatedArray : null);
+      } else if (typeof data === "object" && data !== null) {
+        await remove(ref(database, `display_list/stocks/${safeKey}`));
+        if (data[stockToDelete] !== undefined) {
+          await remove(ref(database, `display_list/stocks/${stockToDelete}`));
+        }
+      }
+    }
+  } catch (err) {
+    console.error("[DISPLAY_LIST PURGE ERROR]:", err);
+  }
+};
+
 // ============================================================================
 // 2. MAIN COMPONENT
 // ============================================================================
@@ -296,7 +324,7 @@ export default function StockWatchlist() {
     else setSelectedStockNames(new Set());
   };
 
-  // Resolved list of selected stocks for updating (respects table selection or expansion checkboxes)
+  // Resolved list of selected stocks for updating
   const targetUpdateStocks = useMemo(() => {
     if (activeTab === "WATCHLIST" && selectedStockNames.size > 0) {
       return Array.from(selectedStockNames).filter((name) => watchlistNames.includes(name));
@@ -420,7 +448,7 @@ export default function StockWatchlist() {
   };
 
   // ============================================================================
-  // 2. DELETE HANDLER
+  // 2. DELETE HANDLER (Full Cascade: Watchlist, Stocklist, OHLC, Param, Alerts, Display List)
   // ============================================================================
   const startDeleteProcess = () => {
     const list = Array.from(watchlistEditSelected);
@@ -453,15 +481,24 @@ export default function StockWatchlist() {
     });
 
     try {
+      // 1. Direct targeted purges across core nodes
       await set(ref(database, 'watchlist/watchlist'), nextWatchlist);
       await remove(ref(database, `stocklist/${safeStockKey}`));
       await remove(ref(database, `watchlist/detailedDb/${safeStockKey}`));
       await remove(ref(database, `stocks/${safeStockKey}`));
       await remove(ref(database, `param/${safeStockKey}`));
 
+      // 2. Instant purges across alerts and stock controls
+      await remove(ref(database, `alerts/${safeStockKey}`));
+      await remove(ref(database, `alerts/stock_controls/${safeStockKey}`));
+
+      // 3. Purge stock entry from display_list/stocks
+      await purgeFromDisplayList(stockToDelete);
+
+      // 4. Dispatch backend deletion command for elevated daemon cleanup
       await dispatchStockEvent("DELETE", stockToDelete);
 
-      setBannerMsg({ text: `Purged ${stockToDelete} cleanly. 🗑️`, type: "success" });
+      setBannerMsg({ text: `Purged ${stockToDelete} cleanly from all folders. 🗑️`, type: "success" });
       setTimeout(() => setBannerMsg({ text: "", type: "info" }), 3500);
     } catch (err) {
       console.error("Purge error:", err);
@@ -494,7 +531,7 @@ export default function StockWatchlist() {
   // 3. UPDATE HANDLER (SELECTION-AWARE)
   // ============================================================================
   const startUpdateProcess = () => {
-    if (!isModify) return; // Gate by Modify Mode
+    if (!isModify) return;
     if (targetUpdateStocks.length === 0) return;
     setUpdateQueue([...targetUpdateStocks]);
     setCurrentUpdateIndex(0);
@@ -774,7 +811,6 @@ export default function StockWatchlist() {
               ✔️ APPLY ({watchlistEditSelected.size})
             </button>
 
-            {/* SELECTION-AWARE UPDATE DATABASE BUTTON */}
             <button 
               onClick={startUpdateProcess} 
               disabled={!isModify || targetUpdateStocks.length === 0}
@@ -1116,7 +1152,7 @@ export default function StockWatchlist() {
         </div>
       )}
 
-      {/* 3. UPDATE MODAL (ONLY FOR SELECTED STOCKS) */}
+      {/* 3. UPDATE MODAL */}
       {updateQueue.length > 0 && (
         <div style={{ position: "fixed", top: 0, left: 0, width: "100vw", height: "100vh", backgroundColor: "rgba(0,0,0,0.85)", display: "flex", justifyContent: "center", alignItems: "center", zIndex: 9999, padding: "20px" }}>
           <div style={{ backgroundColor: "#0f172a", border: `2px solid ${theme.accentCyan}`, borderRadius: "12px", padding: "24px", width: "480px", color: "#f8fafc", boxShadow: "0 10px 40px rgba(0,0,0,0.8)" }}>
