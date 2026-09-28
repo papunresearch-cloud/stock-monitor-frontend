@@ -79,7 +79,7 @@ const extractScreenerFields = (screenerRecord) => {
   return result;
 };
 
-// Safe display_list pruner handling both Arrays and Key-Value Maps
+// Permanent pruner for display_list/stocks: handles Arrays, Map objects, and key mismatches
 const purgeFromDisplayList = async (stockToDelete) => {
   try {
     const displayStocksRef = ref(database, "display_list/stocks");
@@ -90,15 +90,29 @@ const purgeFromDisplayList = async (stockToDelete) => {
       const safeKey = sanitizeKey(stockToDelete);
 
       if (Array.isArray(data)) {
-        const updatedArray = data.filter((item) => {
-          const itemKey = sanitizeKey(extractStockName(item));
-          return itemKey !== safeKey && item !== stockToDelete;
-        });
+        // Filter out target symbol and normalize the remaining elements
+        const updatedArray = data
+          .map((item) => extractStockName(item))
+          .filter((item) => Boolean(item) && item !== stockToDelete && sanitizeKey(item) !== safeKey);
+
         await set(displayStocksRef, updatedArray.length > 0 ? updatedArray : null);
       } else if (typeof data === "object" && data !== null) {
-        await remove(ref(database, `display_list/stocks/${safeKey}`));
-        if (data[stockToDelete] !== undefined) {
-          await remove(ref(database, `display_list/stocks/${stockToDelete}`));
+        // If stored as index-keyed map or named dictionary, prune both forms
+        const entries = Object.entries(data);
+        const filteredValues = entries
+          .map(([k, val]) => extractStockName(val))
+          .filter((val) => Boolean(val) && val !== stockToDelete && sanitizeKey(val) !== safeKey);
+
+        // Check if map keys were numeric indices (0, 1, 2)
+        const isNumericIndexMap = entries.every(([k]) => !isNaN(Number(k)));
+
+        if (isNumericIndexMap) {
+          await set(displayStocksRef, filteredValues.length > 0 ? filteredValues : null);
+        } else {
+          await remove(ref(database, `display_list/stocks/${safeKey}`));
+          if (data[stockToDelete] !== undefined) {
+            await remove(ref(database, `display_list/stocks/${stockToDelete}`));
+          }
         }
       }
     }
@@ -324,7 +338,7 @@ export default function StockWatchlist() {
     else setSelectedStockNames(new Set());
   };
 
-  // Resolved list of selected stocks for updating
+  // Target stocks for update
   const targetUpdateStocks = useMemo(() => {
     if (activeTab === "WATCHLIST" && selectedStockNames.size > 0) {
       return Array.from(selectedStockNames).filter((name) => watchlistNames.includes(name));
@@ -492,7 +506,7 @@ export default function StockWatchlist() {
       await remove(ref(database, `alerts/${safeStockKey}`));
       await remove(ref(database, `alerts/stock_controls/${safeStockKey}`));
 
-      // 3. Purge stock entry from display_list/stocks
+      // 3. Permanent purge from display_list/stocks
       await purgeFromDisplayList(stockToDelete);
 
       // 4. Dispatch backend deletion command for elevated daemon cleanup
