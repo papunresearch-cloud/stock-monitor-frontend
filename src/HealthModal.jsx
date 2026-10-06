@@ -33,6 +33,7 @@ export default function HealthModal({
   const [currentIstTime, setCurrentIstTime] = useState('');
   const [calendarHolidays, setCalendarHolidays] = useState(NSE_HOLIDAYS_2026);
   const [stocksData, setStocksData] = useState(null);
+  const [nseiParamTime, setNseiParamTime] = useState('Fetching...');
   const [loadingDetails, setLoadingDetails] = useState(false);
   const [searchFilter, setSearchFilter] = useState('');
 
@@ -66,7 +67,7 @@ export default function HealthModal({
     return () => clearInterval(interval);
   }, []);
 
-  // 2. Fetch Detailed Data on Open
+  // 2. Fetch Detailed Data on Open (Holidays, Stocks, and ^NSEI Param via Option 2)
   useEffect(() => {
     if (!isOpen) return;
 
@@ -75,9 +76,10 @@ export default function HealthModal({
       setLoadingDetails(true);
       try {
         const timestamp = Date.now();
-        const [calRes, stocksRes] = await Promise.all([
+        const [calRes, stocksRes, nseiParamRes] = await Promise.all([
           fetch(`${FIREBASE_DB_URL}/config/nse_calendar/holidays.json?_=${timestamp}`).catch(() => null),
-          fetch(`${FIREBASE_DB_URL}/stocks.json?_=${timestamp}`).catch(() => null)
+          fetch(`${FIREBASE_DB_URL}/stocks.json?_=${timestamp}`).catch(() => null),
+          fetch(`${FIREBASE_DB_URL}/param/%5ENSEI.json?_=${timestamp}`).catch(() => null)
         ]);
 
         if (calRes && calRes.ok) {
@@ -91,8 +93,31 @@ export default function HealthModal({
           const sData = await stocksRes.json();
           if (isMounted) setStocksData(sData);
         }
+
+        // Option 2: Extract last update timestamp from ^NSEI parameter node
+        if (nseiParamRes && nseiParamRes.ok) {
+          const pData = await nseiParamRes.json();
+          if (pData && typeof pData === 'object') {
+            let stamp = 'N/A';
+            if (pData.updated_at) {
+              stamp = pData.updated_at;
+            } else if (pData.DATE && pData.TIME) {
+              stamp = `${pData.DATE} || ${pData.TIME}`;
+            } else if (pData.DATE) {
+              stamp = pData.DATE;
+            } else if (pData.last_calc_time) {
+              stamp = pData.last_calc_time;
+            }
+            if (isMounted) setNseiParamTime(stamp);
+          } else {
+            if (isMounted) setNseiParamTime('No record');
+          }
+        } else {
+          if (isMounted) setNseiParamTime('No record');
+        }
       } catch (err) {
         console.error("Error fetching telemetry details:", err);
+        if (isMounted) setNseiParamTime('Error');
       } finally {
         if (isMounted) setLoadingDetails(false);
       }
@@ -105,6 +130,7 @@ export default function HealthModal({
   // 3. Heartbeat Pulse & Lag Calculations
   const sys = healthData || {};
   const sync = sys.sync_data || {};
+  const screenerSync = sys.screener_sync || {};
 
   let lagSeconds = null;
   let isBackendAlive = false;
@@ -114,6 +140,10 @@ export default function HealthModal({
     // Allows up to 6 minutes for a 5-minute heartbeat cycle
     isBackendAlive = lagSeconds <= 360;
   }
+
+  // Screener Database details resolution
+  const screenerDbDate = screenerSync['Date of database data'] || 'N/A';
+  const screenerRunTime = screenerSync.last_updated || screenerSync.sync_triggered_at || 'Never';
 
   // 4. Market Live, Today's Status & Next Day Evaluation
   const marketAnalysis = useMemo(() => {
@@ -275,7 +305,7 @@ export default function HealthModal({
         border: '2px solid #00BCD4',
         borderRadius: '12px',
         width: '98%',
-        maxWidth: '1250px',
+        maxWidth: '1280px',
         maxHeight: '92vh',
         display: 'flex',
         flexDirection: 'column',
@@ -286,10 +316,10 @@ export default function HealthModal({
       }}>
 
         {/* ========================================================================= */}
-        {/* HEADER & CLOCK */}
+        {/* HEADER & CLOCK & SQUARE CLOSE BUTTON */}
         {/* ========================================================================= */}
         <div style={{
-          padding: '14px 20px',
+          padding: '12px 20px',
           borderBottom: '1px solid #1a2332',
           display: 'flex',
           justifyContent: 'space-between',
@@ -306,18 +336,33 @@ export default function HealthModal({
           </div>
           <button 
             onClick={onClose}
+            title="Close [ESC]"
             style={{
-              background: 'transparent',
+              background: 'rgba(239, 68, 68, 0.08)',
               border: '1px solid #ef4444',
               color: '#ef4444',
               borderRadius: '6px',
-              padding: '6px 14px',
+              width: '32px',
+              height: '32px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
               cursor: 'pointer',
-              fontWeight: 'bold',
-              fontSize: '13px'
+              fontWeight: '900',
+              fontSize: '16px',
+              lineHeight: 1,
+              transition: 'all 0.2s ease-in-out'
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.backgroundColor = '#ef4444';
+              e.currentTarget.style.color = '#ffffff';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.backgroundColor = 'rgba(239, 68, 68, 0.08)';
+              e.currentTarget.style.color = '#ef4444';
             }}
           >
-            CLOSE [ESC]
+            ✕
           </button>
         </div>
 
@@ -326,13 +371,13 @@ export default function HealthModal({
         {/* ========================================================================= */}
         <div style={{ padding: '16px 20px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '16px' }}>
 
-          {/* TOP SECTION: SYSTEM STATUS & HEARTBEAT PULSE */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '12px' }}>
+          {/* TOP SECTION: SYSTEM STATUS & REAL-TIME TELEMETRY CARDS */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(230px, 1fr))', gap: '12px' }}>
             
             {/* Backend State */}
             <div style={{ backgroundColor: '#111827', padding: '12px', borderRadius: '8px', border: '1px solid #1f2937' }}>
               <div style={{ color: '#9ca3af', fontSize: '11px', textTransform: 'uppercase' }}>Render Backend Server</div>
-              <div style={{ fontSize: '16px', fontWeight: 'bold', marginTop: '4px', color: sys.backend_power === 'RUNNING' ? '#22c55e' : '#ef4444' }}>
+              <div style={{ fontSize: '15px', fontWeight: 'bold', marginTop: '4px', color: sys.backend_power === 'RUNNING' ? '#22c55e' : '#ef4444' }}>
                 {sys.backend_power || 'OFFLINE'}
               </div>
               <div style={{ fontSize: '11px', color: '#6b7280', marginTop: '4px' }}>
@@ -343,7 +388,7 @@ export default function HealthModal({
             {/* Restored Heartbeat Pulse */}
             <div style={{ backgroundColor: '#111827', padding: '12px', borderRadius: '8px', border: '1px solid #1f2937' }}>
               <div style={{ color: '#9ca3af', fontSize: '11px', textTransform: 'uppercase' }}>Last Heartbeat Pulse</div>
-              <div style={{ fontSize: '14px', fontWeight: 'bold', marginTop: '4px', color: '#00BCD4', fontFamily: 'monospace' }}>
+              <div style={{ fontSize: '13px', fontWeight: 'bold', marginTop: '4px', color: '#00BCD4', fontFamily: 'monospace' }}>
                 {sys.last_heartbeat || 'No record'}
               </div>
               <div style={{ fontSize: '11px', color: '#6b7280', marginTop: '4px' }}>
@@ -351,10 +396,32 @@ export default function HealthModal({
               </div>
             </div>
 
-            {/* Added: Last Sync Date & Time */}
+            {/* PARAMETER CALCULATION TELEMETRY (Sampled via Option 2 Benchmark ^NSEI) */}
+            <div style={{ backgroundColor: '#111827', padding: '12px', borderRadius: '8px', border: '1px solid #1f2937' }}>
+              <div style={{ color: '#9ca3af', fontSize: '11px', textTransform: 'uppercase' }}>Last Param Calc Date & Time</div>
+              <div style={{ fontSize: '13px', fontWeight: 'bold', marginTop: '4px', color: '#38bdf8', fontFamily: 'monospace' }}>
+                {nseiParamTime}
+              </div>
+              <div style={{ fontSize: '11px', color: '#6b7280', marginTop: '4px' }}>
+                Benchmark Ref: <span style={{ color: '#38bdf8', fontWeight: 'bold' }}>^NSEI (param)</span>
+              </div>
+            </div>
+
+            {/* SCREENER DATABASE UPDATE TELEMETRY */}
+            <div style={{ backgroundColor: '#111827', padding: '12px', borderRadius: '8px', border: '1px solid #1f2937' }}>
+              <div style={{ color: '#9ca3af', fontSize: '11px', textTransform: 'uppercase' }}>Last Screener DB Update</div>
+              <div style={{ fontSize: '13px', fontWeight: 'bold', marginTop: '4px', color: '#a855f7', fontFamily: 'monospace' }}>
+                {screenerRunTime}
+              </div>
+              <div style={{ fontSize: '11px', color: '#6b7280', marginTop: '4px' }}>
+                DB Data Date: <span style={{ color: '#c084fc', fontWeight: 'bold' }}>{screenerDbDate}</span>
+              </div>
+            </div>
+
+            {/* Market History Sync Date & Time */}
             <div style={{ backgroundColor: '#111827', padding: '12px', borderRadius: '8px', border: '1px solid #1f2937' }}>
               <div style={{ color: '#9ca3af', fontSize: '11px', textTransform: 'uppercase' }}>Last Sync Date & Time</div>
-              <div style={{ fontSize: '14px', fontWeight: 'bold', marginTop: '4px', color: '#facc15', fontFamily: 'monospace' }}>
+              <div style={{ fontSize: '13px', fontWeight: 'bold', marginTop: '4px', color: '#facc15', fontFamily: 'monospace' }}>
                 {sync.last_sync_time || 'Never'}
               </div>
               <div style={{ fontSize: '11px', color: '#6b7280', marginTop: '4px' }}>
@@ -362,10 +429,10 @@ export default function HealthModal({
               </div>
             </div>
 
-            {/* Firebase Pipe */}
+            {/* Firebase Realtime Pipe */}
             <div style={{ backgroundColor: '#111827', padding: '12px', borderRadius: '8px', border: '1px solid #1f2937' }}>
               <div style={{ color: '#9ca3af', fontSize: '11px', textTransform: 'uppercase' }}>Firebase Realtime Pipe</div>
-              <div style={{ fontSize: '16px', fontWeight: 'bold', marginTop: '4px', color: firebasePing ? '#22c55e' : '#ef4444' }}>
+              <div style={{ fontSize: '15px', fontWeight: 'bold', marginTop: '4px', color: firebasePing ? '#22c55e' : '#ef4444' }}>
                 {firebasePing ? 'CONNECTED' : 'DISCONNECTED'}
               </div>
               <div style={{ fontSize: '11px', color: '#6b7280', marginTop: '4px' }}>
@@ -390,7 +457,7 @@ export default function HealthModal({
 
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '12px' }}>
               
-              {/* Added: Today Status */}
+              {/* Today Status */}
               <div style={{ backgroundColor: '#1e293b', padding: '10px 14px', borderRadius: '6px' }}>
                 <div style={{ fontSize: '11px', color: '#94a3b8', textTransform: 'uppercase' }}>Today Status</div>
                 <div style={{
