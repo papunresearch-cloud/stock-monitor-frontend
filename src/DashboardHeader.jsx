@@ -181,7 +181,7 @@ export default function DashboardHeader({
             onClick={onAutoToggle} 
             disabled={isFrozen}
           >
-            {isAutoMode ? 'Auto - ON' : 'Auto - OFF'}
+            {isAutoMode ? 'Auto - OFF' : 'Auto - ON'}
           </button>
           <input 
             type="number" 

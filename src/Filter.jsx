@@ -54,7 +54,7 @@ export const APP_CONFIG = {
   ],
 
   numericFilters: [
-    { key: "P-MCAP", label: "P-MCAP", color: "#06b6d4" },
+    { key: "MCAP", label: "MCAP", color: "#06b6d4" },
     { key: "TSCORE", label: "TSCORE", color: "#10b981" },
     { key: "FSCORE", label: "FSCORE", color: "#ec4899" },
     { key: "GSCORE", label: "GSCORE", color: "#f59e0b" },
