@@ -9,7 +9,7 @@ export default function StockMonitorView() {
   // ==========================================
   // 1. MASTER STATES (The Brain)
   // ==========================================
-  const [isAutoMode, setIsAutoMode] = useState(false);
+  const [isAutoMode, setIsAutoMode] = useState(true);
   const [isFrozen, setIsFrozen] = useState(false);
   const [refreshRate, setRefreshRate] = useState(10);
 
