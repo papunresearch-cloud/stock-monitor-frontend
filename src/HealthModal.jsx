@@ -67,7 +67,7 @@ export default function HealthModal({
     return () => clearInterval(interval);
   }, []);
 
-  // 2. Fetch Detailed Data on Open (Holidays, Stocks, and ^NSEI Param via Option 2)
+  // 2. Fetch Detailed Data on Open (Holidays, Stocks, and Robust ^NSEI Param Fetch)
   useEffect(() => {
     if (!isOpen) return;
 
@@ -76,16 +76,19 @@ export default function HealthModal({
       setLoadingDetails(true);
       try {
         const timestamp = Date.now();
-        const [calRes, stocksRes, nseiParamRes] = await Promise.all([
+
+        // Query Holidays, Stocks, and Param node with fallback
+        const [calRes, stocksRes, nseiDirectRes, paramRootRes] = await Promise.all([
           fetch(`${FIREBASE_DB_URL}/config/nse_calendar/holidays.json?_=${timestamp}`).catch(() => null),
           fetch(`${FIREBASE_DB_URL}/stocks.json?_=${timestamp}`).catch(() => null),
-          fetch(`${FIREBASE_DB_URL}/param/%5ENSEI.json?_=${timestamp}`).catch(() => null)
+          fetch(`${FIREBASE_DB_URL}/param/%5ENSEI.json?_=${timestamp}`).catch(() => null),
+          fetch(`${FIREBASE_DB_URL}/param.json?shallow=false&_=${timestamp}`).catch(() => null)
         ]);
 
         if (calRes && calRes.ok) {
           const calData = await calRes.json();
-          if (calData && typeof calData === 'object') {
-            if (isMounted) setCalendarHolidays(prev => ({ ...prev, ...calData }));
+          if (calData && typeof calData === 'object' && isMounted) {
+            setCalendarHolidays(prev => ({ ...prev, ...calData }));
           }
         }
 
@@ -94,26 +97,39 @@ export default function HealthModal({
           if (isMounted) setStocksData(sData);
         }
 
-        // Option 2: Extract last update timestamp from ^NSEI parameter node
-        if (nseiParamRes && nseiParamRes.ok) {
-          const pData = await nseiParamRes.json();
-          if (pData && typeof pData === 'object') {
-            let stamp = 'N/A';
-            if (pData.updated_at) {
-              stamp = pData.updated_at;
-            } else if (pData.DATE && pData.TIME) {
-              stamp = `${pData.DATE} || ${pData.TIME}`;
-            } else if (pData.DATE) {
-              stamp = pData.DATE;
-            } else if (pData.last_calc_time) {
-              stamp = pData.last_calc_time;
-            }
-            if (isMounted) setNseiParamTime(stamp);
-          } else {
-            if (isMounted) setNseiParamTime('No record');
+        // Resolve ^NSEI parameter timestamp reliably
+        let resolvedNseiData = null;
+
+        if (nseiDirectRes && nseiDirectRes.ok) {
+          const p = await nseiDirectRes.json();
+          if (p && typeof p === 'object') resolvedNseiData = p;
+        }
+
+        if (!resolvedNseiData && paramRootRes && paramRootRes.ok) {
+          const allParams = await paramRootRes.json();
+          if (allParams && typeof allParams === 'object') {
+            resolvedNseiData = allParams['^NSEI'] || allParams['%5ENSEI'] || allParams['NIFTY50'] || allParams['NIFTY_50'] || Object.values(allParams)[0];
           }
-        } else {
-          if (isMounted) setNseiParamTime('No record');
+        }
+
+        if (isMounted) {
+          if (resolvedNseiData) {
+            const dateStr = resolvedNseiData.DATE || resolvedNseiData.date || '';
+            const timeStr = resolvedNseiData.TIME || resolvedNseiData.time || '';
+            const updated = resolvedNseiData.updated_at || resolvedNseiData.timestamp || resolvedNseiData.last_calc_time || '';
+
+            if (dateStr && timeStr) {
+              setNseiParamTime(`${dateStr} || ${timeStr}`);
+            } else if (updated) {
+              setNseiParamTime(updated);
+            } else if (dateStr) {
+              setNseiParamTime(dateStr);
+            } else {
+              setNseiParamTime('Updated (No time key)');
+            }
+          } else {
+            setNseiParamTime('No record');
+          }
         }
       } catch (err) {
         console.error("Error fetching telemetry details:", err);
@@ -137,7 +153,6 @@ export default function HealthModal({
   if (sys.heartbeat_epoch) {
     const nowEpoch = Date.now() / 1000;
     lagSeconds = Math.max(0, Math.round(nowEpoch - parseFloat(sys.heartbeat_epoch)));
-    // Allows up to 6 minutes for a 5-minute heartbeat cycle
     isBackendAlive = lagSeconds <= 360;
   }
 
@@ -165,9 +180,8 @@ export default function HealthModal({
     const minute = parseInt(istParts.find(p => p.type === 'minute')?.value || '0', 10);
 
     const todayDateStr = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-    const todayDayOfWeek = new Date(Date.UTC(year, month - 1, day)).getUTCDay(); // 0: Sun, 6: Sat
+    const todayDayOfWeek = new Date(Date.UTC(year, month - 1, day)).getUTCDay();
 
-    // Evaluate Today's Status
     const isWeekend = (todayDayOfWeek === 0 || todayDayOfWeek === 6);
     const isTodayHoliday = Boolean(calendarHolidays[todayDateStr]);
     
@@ -182,7 +196,6 @@ export default function HealthModal({
       todayDetail = calendarHolidays[todayDateStr];
     }
 
-    // Evaluate Live Market State
     const isMarketHours = (hour > 9 || (hour === 9 && minute >= 15)) && (hour < 15 || (hour === 15 && minute <= 30));
     let isLive = false;
     let liveReason = 'Outside Market Hours';
@@ -194,7 +207,6 @@ export default function HealthModal({
       liveReason = 'Regular Trading Hours (09:15 - 15:30 IST)';
     }
 
-    // Evaluate Next Day Status
     const nextDateObj = new Date(Date.UTC(year, month - 1, day + 1));
     const nextY = nextDateObj.getUTCFullYear();
     const nextM = String(nextDateObj.getUTCMonth() + 1).padStart(2, '0');
@@ -241,21 +253,18 @@ export default function HealthModal({
 
       if (keys.length === 0) continue;
 
-      // Index 0 formatting (Date and Time)
       const c0 = candles['0'] || candles[0];
       let index0Display = 'None / Cleared';
       if (c0 && c0.date) {
         index0Display = c0.time ? `${c0.date} || ${c0.time}` : c0.date;
       }
 
-      // Index 1 formatting (Date and Time)
       const c1 = candles['1'] || candles[1];
       let index1Display = 'N/A';
       if (c1 && c1.date) {
         index1Display = c1.time ? `${c1.date} || ${c1.time}` : `${c1.date} || 15:30:00`;
       }
 
-      // Oldest Historical Index Date
       const maxKey = keys[keys.length - 1];
       const lastIndexDate = candles[String(maxKey)]?.date || 'N/A';
       const totalBars = keys.length;
@@ -279,7 +288,6 @@ export default function HealthModal({
     return rows;
   }, [stocksData]);
 
-  // Filtered rows for the continuity ledger
   const filteredLedger = useMemo(() => {
     if (!searchFilter.trim()) return parsedLedger;
     const term = searchFilter.toUpperCase().trim();
@@ -336,9 +344,9 @@ export default function HealthModal({
           </div>
           <button 
             onClick={onClose}
-            title="Close [ESC]"
+            title="Close"
             style={{
-              background: 'rgba(239, 68, 68, 0.08)',
+              background: 'rgba(239, 68, 68, 0.1)',
               border: '1px solid #ef4444',
               color: '#ef4444',
               borderRadius: '6px',
@@ -358,7 +366,7 @@ export default function HealthModal({
               e.currentTarget.style.color = '#ffffff';
             }}
             onMouseLeave={(e) => {
-              e.currentTarget.style.backgroundColor = 'rgba(239, 68, 68, 0.08)';
+              e.currentTarget.style.backgroundColor = 'rgba(239, 68, 68, 0.1)';
               e.currentTarget.style.color = '#ef4444';
             }}
           >
@@ -371,73 +379,85 @@ export default function HealthModal({
         {/* ========================================================================= */}
         <div style={{ padding: '16px 20px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '16px' }}>
 
-          {/* TOP SECTION: SYSTEM STATUS & REAL-TIME TELEMETRY CARDS */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(230px, 1fr))', gap: '12px' }}>
+          {/* ========================================================================= */}
+          {/* SECTION 1: TWO EXACT ROWS (3 ITEMS PER ROW, ZERO DEAD SPACE) */}
+          {/* ========================================================================= */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
             
-            {/* Backend State */}
-            <div style={{ backgroundColor: '#111827', padding: '12px', borderRadius: '8px', border: '1px solid #1f2937' }}>
-              <div style={{ color: '#9ca3af', fontSize: '11px', textTransform: 'uppercase' }}>Render Backend Server</div>
-              <div style={{ fontSize: '15px', fontWeight: 'bold', marginTop: '4px', color: sys.backend_power === 'RUNNING' ? '#22c55e' : '#ef4444' }}>
-                {sys.backend_power || 'OFFLINE'}
+            {/* ROW 1: BACKEND, FIREBASE PIPE, HEARTBEAT */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px' }}>
+              
+              {/* 1. Render Backend Server */}
+              <div style={{ backgroundColor: '#111827', padding: '14px 16px', borderRadius: '8px', border: '1px solid #1f2937' }}>
+                <div style={{ color: '#9ca3af', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>1. Render Backend Server</div>
+                <div style={{ fontSize: '16px', fontWeight: 'bold', marginTop: '4px', color: sys.backend_power === 'RUNNING' ? '#22c55e' : '#ef4444' }}>
+                  {sys.backend_power || 'OFFLINE'}
+                </div>
+                <div style={{ fontSize: '11px', color: '#6b7280', marginTop: '4px' }}>
+                  Container: <span style={{ color: isBackendAlive ? '#00E676' : '#f59e0b', fontWeight: 'bold' }}>{isBackendAlive ? 'ONLINE / AWAKE' : 'SLEEPING / INACTIVE'}</span>
+                </div>
               </div>
-              <div style={{ fontSize: '11px', color: '#6b7280', marginTop: '4px' }}>
-                Container: <span style={{ color: isBackendAlive ? '#00E676' : '#f59e0b', fontWeight: 'bold' }}>{isBackendAlive ? 'ONLINE / AWAKE' : 'SLEEPING / INACTIVE'}</span>
+
+              {/* 2. Firebase Realtime Pipe */}
+              <div style={{ backgroundColor: '#111827', padding: '14px 16px', borderRadius: '8px', border: '1px solid #1f2937' }}>
+                <div style={{ color: '#9ca3af', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>2. Firebase Realtime Pipe</div>
+                <div style={{ fontSize: '16px', fontWeight: 'bold', marginTop: '4px', color: firebasePing ? '#22c55e' : '#ef4444' }}>
+                  {firebasePing ? 'CONNECTED' : 'DISCONNECTED'}
+                </div>
+                <div style={{ fontSize: '11px', color: '#6b7280', marginTop: '4px' }}>
+                  Frontend View: <span style={{ color: '#38bdf8' }}>{frontendStatus}</span>
+                </div>
               </div>
+
+              {/* 3. Last Heartbeat Pulse */}
+              <div style={{ backgroundColor: '#111827', padding: '14px 16px', borderRadius: '8px', border: '1px solid #1f2937' }}>
+                <div style={{ color: '#9ca3af', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>3. Last Heartbeat Pulse</div>
+                <div style={{ fontSize: '14px', fontWeight: 'bold', marginTop: '4px', color: '#00BCD4', fontFamily: 'monospace' }}>
+                  {sys.last_heartbeat || 'No record'}
+                </div>
+                <div style={{ fontSize: '11px', color: '#6b7280', marginTop: '4px' }}>
+                  Pulse Lag: <span style={{ color: isBackendAlive ? '#22c55e' : '#f97316', fontWeight: 'bold' }}>{lagSeconds !== null ? `${lagSeconds}s ago` : 'N/A'}</span>
+                </div>
+              </div>
+
             </div>
 
-            {/* Restored Heartbeat Pulse */}
-            <div style={{ backgroundColor: '#111827', padding: '12px', borderRadius: '8px', border: '1px solid #1f2937' }}>
-              <div style={{ color: '#9ca3af', fontSize: '11px', textTransform: 'uppercase' }}>Last Heartbeat Pulse</div>
-              <div style={{ fontSize: '13px', fontWeight: 'bold', marginTop: '4px', color: '#00BCD4', fontFamily: 'monospace' }}>
-                {sys.last_heartbeat || 'No record'}
+            {/* ROW 2: PARAM CALC, SYNC TIME, SCREENER DB */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px' }}>
+              
+              {/* 1. Last Param Calc Date & Time */}
+              <div style={{ backgroundColor: '#111827', padding: '14px 16px', borderRadius: '8px', border: '1px solid #1f2937' }}>
+                <div style={{ color: '#9ca3af', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>1. Last Param Calc Date & Time</div>
+                <div style={{ fontSize: '14px', fontWeight: 'bold', marginTop: '4px', color: '#38bdf8', fontFamily: 'monospace' }}>
+                  {nseiParamTime}
+                </div>
+                <div style={{ fontSize: '11px', color: '#6b7280', marginTop: '4px' }}>
+                  Benchmark Ref: <span style={{ color: '#38bdf8', fontWeight: 'bold' }}>^NSEI (param)</span>
+                </div>
               </div>
-              <div style={{ fontSize: '11px', color: '#6b7280', marginTop: '4px' }}>
-                Pulse Lag: <span style={{ color: isBackendAlive ? '#22c55e' : '#f97316', fontWeight: 'bold' }}>{lagSeconds !== null ? `${lagSeconds}s ago` : 'N/A'}</span>
-              </div>
-            </div>
 
-            {/* PARAMETER CALCULATION TELEMETRY (Sampled via Option 2 Benchmark ^NSEI) */}
-            <div style={{ backgroundColor: '#111827', padding: '12px', borderRadius: '8px', border: '1px solid #1f2937' }}>
-              <div style={{ color: '#9ca3af', fontSize: '11px', textTransform: 'uppercase' }}>Last Param Calc Date & Time</div>
-              <div style={{ fontSize: '13px', fontWeight: 'bold', marginTop: '4px', color: '#38bdf8', fontFamily: 'monospace' }}>
-                {nseiParamTime}
+              {/* 2. Last Sync Date & Time */}
+              <div style={{ backgroundColor: '#111827', padding: '14px 16px', borderRadius: '8px', border: '1px solid #1f2937' }}>
+                <div style={{ color: '#9ca3af', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>2. Last Sync Date & Time</div>
+                <div style={{ fontSize: '14px', fontWeight: 'bold', marginTop: '4px', color: '#facc15', fontFamily: 'monospace' }}>
+                  {sync.last_sync_time || 'Never'}
+                </div>
+                <div style={{ fontSize: '11px', color: '#6b7280', marginTop: '4px' }}>
+                  Sync Engine: <span style={{ color: sync.status === 'VERIFIED' ? '#22c55e' : '#38bdf8' }}>{sync.status || 'IDLE'}</span>
+                </div>
               </div>
-              <div style={{ fontSize: '11px', color: '#6b7280', marginTop: '4px' }}>
-                Benchmark Ref: <span style={{ color: '#38bdf8', fontWeight: 'bold' }}>^NSEI (param)</span>
-              </div>
-            </div>
 
-            {/* SCREENER DATABASE UPDATE TELEMETRY */}
-            <div style={{ backgroundColor: '#111827', padding: '12px', borderRadius: '8px', border: '1px solid #1f2937' }}>
-              <div style={{ color: '#9ca3af', fontSize: '11px', textTransform: 'uppercase' }}>Last Screener DB Update</div>
-              <div style={{ fontSize: '13px', fontWeight: 'bold', marginTop: '4px', color: '#a855f7', fontFamily: 'monospace' }}>
-                {screenerRunTime}
+              {/* 3. Last Screener DB Update */}
+              <div style={{ backgroundColor: '#111827', padding: '14px 16px', borderRadius: '8px', border: '1px solid #1f2937' }}>
+                <div style={{ color: '#9ca3af', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>3. Last Screener DB Update</div>
+                <div style={{ fontSize: '14px', fontWeight: 'bold', marginTop: '4px', color: '#a855f7', fontFamily: 'monospace' }}>
+                  {screenerRunTime}
+                </div>
+                <div style={{ fontSize: '11px', color: '#6b7280', marginTop: '4px' }}>
+                  DB Data Date: <span style={{ color: '#c084fc', fontWeight: 'bold' }}>{screenerDbDate}</span>
+                </div>
               </div>
-              <div style={{ fontSize: '11px', color: '#6b7280', marginTop: '4px' }}>
-                DB Data Date: <span style={{ color: '#c084fc', fontWeight: 'bold' }}>{screenerDbDate}</span>
-              </div>
-            </div>
 
-            {/* Market History Sync Date & Time */}
-            <div style={{ backgroundColor: '#111827', padding: '12px', borderRadius: '8px', border: '1px solid #1f2937' }}>
-              <div style={{ color: '#9ca3af', fontSize: '11px', textTransform: 'uppercase' }}>Last Sync Date & Time</div>
-              <div style={{ fontSize: '13px', fontWeight: 'bold', marginTop: '4px', color: '#facc15', fontFamily: 'monospace' }}>
-                {sync.last_sync_time || 'Never'}
-              </div>
-              <div style={{ fontSize: '11px', color: '#6b7280', marginTop: '4px' }}>
-                Sync Engine: <span style={{ color: sync.status === 'VERIFIED' ? '#22c55e' : '#38bdf8' }}>{sync.status || 'IDLE'}</span>
-              </div>
-            </div>
-
-            {/* Firebase Realtime Pipe */}
-            <div style={{ backgroundColor: '#111827', padding: '12px', borderRadius: '8px', border: '1px solid #1f2937' }}>
-              <div style={{ color: '#9ca3af', fontSize: '11px', textTransform: 'uppercase' }}>Firebase Realtime Pipe</div>
-              <div style={{ fontSize: '15px', fontWeight: 'bold', marginTop: '4px', color: firebasePing ? '#22c55e' : '#ef4444' }}>
-                {firebasePing ? 'CONNECTED' : 'DISCONNECTED'}
-              </div>
-              <div style={{ fontSize: '11px', color: '#6b7280', marginTop: '4px' }}>
-                Frontend View: <span style={{ color: '#38bdf8' }}>{frontendStatus}</span>
-              </div>
             </div>
 
           </div>
@@ -455,7 +475,7 @@ export default function HealthModal({
               Exchange Schedule Telemetry
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '12px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px' }}>
               
               {/* Today Status */}
               <div style={{ backgroundColor: '#1e293b', padding: '10px 14px', borderRadius: '6px' }}>
