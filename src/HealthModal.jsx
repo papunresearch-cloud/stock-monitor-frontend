@@ -387,9 +387,9 @@ export default function HealthModal({
             {/* ROW 1: BACKEND, FIREBASE PIPE, HEARTBEAT */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px' }}>
               
-              {/* 1. Render Backend Server */}
+              {/*  Render Backend Server */}
               <div style={{ backgroundColor: '#111827', padding: '14px 16px', borderRadius: '8px', border: '1px solid #1f2937' }}>
-                <div style={{ color: '#9ca3af', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>1. Render Backend Server</div>
+                <div style={{ color: '#9ca3af', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Render Backend Server</div>
                 <div style={{ fontSize: '16px', fontWeight: 'bold', marginTop: '4px', color: sys.backend_power === 'RUNNING' ? '#22c55e' : '#ef4444' }}>
                   {sys.backend_power || 'OFFLINE'}
                 </div>
@@ -398,9 +398,9 @@ export default function HealthModal({
                 </div>
               </div>
 
-              {/* 2. Firebase Realtime Pipe */}
+              {/*  Firebase Realtime Pipe */}
               <div style={{ backgroundColor: '#111827', padding: '14px 16px', borderRadius: '8px', border: '1px solid #1f2937' }}>
-                <div style={{ color: '#9ca3af', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>2. Firebase Realtime Pipe</div>
+                <div style={{ color: '#9ca3af', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Firebase Realtime Pipe</div>
                 <div style={{ fontSize: '16px', fontWeight: 'bold', marginTop: '4px', color: firebasePing ? '#22c55e' : '#ef4444' }}>
                   {firebasePing ? 'CONNECTED' : 'DISCONNECTED'}
                 </div>
@@ -409,9 +409,9 @@ export default function HealthModal({
                 </div>
               </div>
 
-              {/* 3. Last Heartbeat Pulse */}
+              {/*  Last Heartbeat Pulse */}
               <div style={{ backgroundColor: '#111827', padding: '14px 16px', borderRadius: '8px', border: '1px solid #1f2937' }}>
-                <div style={{ color: '#9ca3af', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>3. Last Heartbeat Pulse</div>
+                <div style={{ color: '#9ca3af', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Last Heartbeat Pulse</div>
                 <div style={{ fontSize: '14px', fontWeight: 'bold', marginTop: '4px', color: '#00BCD4', fontFamily: 'monospace' }}>
                   {sys.last_heartbeat || 'No record'}
                 </div>
@@ -425,9 +425,9 @@ export default function HealthModal({
             {/* ROW 2: PARAM CALC, SYNC TIME, SCREENER DB */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px' }}>
               
-              {/* 1. Last Param Calc Date & Time */}
+              {/*  Last Param Calc Date & Time */}
               <div style={{ backgroundColor: '#111827', padding: '14px 16px', borderRadius: '8px', border: '1px solid #1f2937' }}>
-                <div style={{ color: '#9ca3af', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>1. Last Param Calc Date & Time</div>
+                <div style={{ color: '#9ca3af', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Last Param Calc Date & Time</div>
                 <div style={{ fontSize: '14px', fontWeight: 'bold', marginTop: '4px', color: '#38bdf8', fontFamily: 'monospace' }}>
                   {nseiParamTime}
                 </div>
@@ -436,9 +436,9 @@ export default function HealthModal({
                 </div>
               </div>
 
-              {/* 2. Last Sync Date & Time */}
+              {/*  Last Sync Date & Time */}
               <div style={{ backgroundColor: '#111827', padding: '14px 16px', borderRadius: '8px', border: '1px solid #1f2937' }}>
-                <div style={{ color: '#9ca3af', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>2. Last Sync Date & Time</div>
+                <div style={{ color: '#9ca3af', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Last Sync Date & Time</div>
                 <div style={{ fontSize: '14px', fontWeight: 'bold', marginTop: '4px', color: '#facc15', fontFamily: 'monospace' }}>
                   {sync.last_sync_time || 'Never'}
                 </div>
@@ -447,9 +447,9 @@ export default function HealthModal({
                 </div>
               </div>
 
-              {/* 3. Last Screener DB Update */}
+              {/*  Last Screener DB Update */}
               <div style={{ backgroundColor: '#111827', padding: '14px 16px', borderRadius: '8px', border: '1px solid #1f2937' }}>
-                <div style={{ color: '#9ca3af', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>3. Last Screener DB Update</div>
+                <div style={{ color: '#9ca3af', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Last Screener DB Update</div>
                 <div style={{ fontSize: '14px', fontWeight: 'bold', marginTop: '4px', color: '#a855f7', fontFamily: 'monospace' }}>
                   {screenerRunTime}
                 </div>
