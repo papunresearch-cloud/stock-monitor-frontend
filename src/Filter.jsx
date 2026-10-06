@@ -244,8 +244,8 @@ const DualRangeSlider = ({ min = 0, max = 100, valueMin, valueMax, onChange, col
   const clampedMin = Math.max(min, Math.min(max, valueMin));
   const clampedMax = Math.max(min, Math.min(max, valueMax));
 
-  const minPercent = ((clampedMin - min) / (max - min)) * 100;
-  const maxPercent = ((clampedMax - min) / (max - min)) * 100;
+  const minPercent = max > min ? ((clampedMin - min) / (max - min)) * 100 : 0;
+  const maxPercent = max > min ? ((clampedMax - min) / (max - min)) * 100 : 100;
 
   return (
     <div style={{ position: "relative", width: "100%", height: "20px", display: "flex", alignItems: "center" }}>
@@ -277,7 +277,7 @@ const DualRangeSlider = ({ min = 0, max = 100, valueMin, valueMax, onChange, col
           WebkitAppearance: "none",
           background: "transparent",
           pointerEvents: "none",
-          zIndex: clampedMin > 90 ? 5 : 3,
+          zIndex: clampedMin > (max - (max - min) * 0.1) ? 5 : 3,
         }}
       />
       <input
@@ -320,9 +320,8 @@ export default function StockDashboard() {
   const [ranges, setRanges] = useState({});
   const [defaultRanges, setDefaultRanges] = useState({});
   const [sortConfig, setSortConfig] = useState({ key: null, direction: "asc" });
-  const [selectedCodes, setSelectedCodes] = useState(new Set()); // Set of CODE strings
+  const [selectedCodes, setSelectedCodes] = useState(new Set());
 
-  // FILTER LIST STATES (Store arrays of CODEs)
   const [filter0List, setFilter0List] = useState([]);
   const [isFilter0View, setIsFilter0View] = useState(false);
 
@@ -331,7 +330,6 @@ export default function StockDashboard() {
   const [copiedListSelected, setCopiedListSelected] = useState(new Set());
   const [isFilter1View, setIsFilter1View] = useState(false);
 
-  // VIRTUAL SCROLLING
   const TABLE_ROW_HEIGHT = 37;
   const [scrollStartIndex, setScrollStartIndex] = useState(0); 
   const tableContainerRef = useRef(null);
@@ -380,8 +378,13 @@ export default function StockDashboard() {
             .map((r) => r[f.key])
             .filter((v) => typeof v === "number" && !isNaN(v));
 
-          const minVal = values.length > 0 ? Math.floor(Math.min(0, ...values)) : 0;
-          const maxVal = values.length > 0 ? Math.ceil(Math.max(100, ...values)) : 100;
+          const isPercentile = f.key !== "MCAP";
+          const minVal = values.length > 0 
+            ? (isPercentile ? Math.floor(Math.min(0, ...values)) : Math.floor(Math.min(...values))) 
+            : 0;
+          const maxVal = values.length > 0 
+            ? (isPercentile ? Math.ceil(Math.max(100, ...values)) : Math.ceil(Math.max(...values))) 
+            : 100;
 
           computedRanges[f.key] = { min: minVal, max: maxVal };
         });
@@ -396,7 +399,6 @@ export default function StockDashboard() {
       });
   }, []);
 
-  // Quick lookup dictionary from CODE -> Stock Details
   const codeToStockMap = useMemo(() => {
     const map = {};
     data.forEach(r => {
@@ -406,7 +408,6 @@ export default function StockDashboard() {
     return map;
   }, [data]);
 
-  // FETCH FILTER0 & FILTER1 FROM FIREBASE
   const fetchCloudFilters = useCallback(async () => {
     try {
       const f0Snap = await get(ref(database, 'filters/filter0'));
@@ -613,7 +614,6 @@ export default function StockDashboard() {
     }
   };
 
-  // VIRTUAL SCROLLING
   const startIndex = scrollStartIndex;
   const visibleItemCount = 35;
   const endIndex = Math.min(filteredAndSortedData.length, startIndex + visibleItemCount);
@@ -630,7 +630,6 @@ export default function StockDashboard() {
     }
   };
 
-  // FILTER1 CLOUD ACTIONS (Pushes array of CODEs)
   const handleAddSelectedToFilter1 = async () => {
     const selectedCodeList = Array.from(selectedCodes);
 
@@ -722,7 +721,6 @@ export default function StockDashboard() {
         </div>
 
         <div style={{ display: "flex", gap: "10px", alignItems: "center", flexWrap: "wrap" }}>
-          {/* FILTER0 TOGGLE BUTTON */}
           <button
             onClick={() => {
               setIsFilter0View(!isFilter0View);
@@ -742,7 +740,6 @@ export default function StockDashboard() {
             📌 Filter0 ({filter0List.length}) {isFilter0View ? "(ACTIVE)" : ""}
           </button>
 
-          {/* FILTER1 TOGGLE BUTTON */}
           <button
             onClick={handleToggleListPanel}
             style={{
@@ -926,13 +923,16 @@ export default function StockDashboard() {
             {/* SLIDERS GRID */}
             <div style={{ flex: 1, backgroundColor: theme.ribbonCardBg, padding: "14px", borderRadius: "8px", border: "1px solid #1e293b", display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gridTemplateRows: "repeat(2, 1fr)", gap: "12px 14px", maxHeight: "340px", boxSizing: "border-box" }}>
               {APP_CONFIG.numericFilters.map((f) => {
-                const currentRange = ranges[f.key] || { min: 0, max: 100 };
+                const filterDefault = defaultRanges[f.key] || { min: 0, max: 100 };
+                const currentRange = ranges[f.key] || filterDefault;
 
                 return (
                   <div key={f.key} style={{ backgroundColor: "#081021", padding: "10px 12px", borderRadius: "6px", borderLeft: `4px solid ${f.color}`, display: "flex", flexDirection: "column", justifyContent: "space-between", boxSizing: "border-box" }}>
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "4px" }}>
                       <span style={{ fontWeight: "bold", fontSize: "13px", color: f.color }}>{f.label}</span>
-                      <span style={{ fontSize: "11px", color: "#64748b" }}>0 - 100 Scale</span>
+                      <span style={{ fontSize: "11px", color: "#64748b" }}>
+                        {filterDefault.min.toLocaleString()} - {filterDefault.max.toLocaleString()}
+                      </span>
                     </div>
 
                     <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "6px" }}>
@@ -940,7 +940,7 @@ export default function StockDashboard() {
                         type="number"
                         value={currentRange.min}
                         onChange={(e) => {
-                          const val = e.target.value === "" ? 0 : Number(e.target.value);
+                          const val = e.target.value === "" ? filterDefault.min : Number(e.target.value);
                           setRanges({ ...ranges, [f.key]: { ...currentRange, min: val } });
                         }}
                         style={{ width: "100%", backgroundColor: "#0f172a", color: "#ffffff", border: "1px solid #334155", borderRadius: "4px", padding: "4px 6px", fontSize: "12px", fontWeight: "bold" }}
@@ -950,7 +950,7 @@ export default function StockDashboard() {
                         type="number"
                         value={currentRange.max}
                         onChange={(e) => {
-                          const val = e.target.value === "" ? 100 : Number(e.target.value);
+                          const val = e.target.value === "" ? filterDefault.max : Number(e.target.value);
                           setRanges({ ...ranges, [f.key]: { ...currentRange, max: val } });
                         }}
                         style={{ width: "100%", backgroundColor: "#0f172a", color: "#ffffff", border: "1px solid #334155", borderRadius: "4px", padding: "4px 6px", fontSize: "12px", fontWeight: "bold" }}
@@ -958,8 +958,8 @@ export default function StockDashboard() {
                     </div>
 
                     <DualRangeSlider
-                      min={0}
-                      max={100}
+                      min={filterDefault.min}
+                      max={filterDefault.max}
                       valueMin={currentRange.min}
                       valueMax={currentRange.max}
                       color={f.color}
