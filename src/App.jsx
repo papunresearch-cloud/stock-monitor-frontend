@@ -20,7 +20,6 @@ export default function App() {
   // Modal State for Screener Sync
   const [isSyncModalOpen, setIsSyncModalOpen] = useState(false);
   const [updateChoice, setUpdateChoice] = useState(""); // "Y" or "N"
-  const [syncSource, setSyncSource] = useState("DRIVE"); // "DRIVE" or "BROWSE"
   const [selectedFile, setSelectedFile] = useState(null);
   const fileInputRef = useRef(null);
 
@@ -53,20 +52,13 @@ export default function App() {
     return checkDate >= fiveDaysAgo && checkDate <= today;
   };
 
-  // Form validity:
-  // - updateChoice must be "Y"
-  // - date must be valid
-  // - if BROWSE mode is chosen, a .csv file must be selected
-  const isFormValid =
-    updateChoice === "Y" &&
-    isDateValid(databaseDate) &&
-    (syncSource === "DRIVE" || (syncSource === "BROWSE" && selectedFile !== null));
+  // Valid when choice is "Y", a CSV file is picked, and date is within 5 days
+  const isFormValid = updateChoice === "Y" && isDateValid(databaseDate) && selectedFile !== null;
 
   // Open modal handler
   const handleOpenSyncModal = () => {
     if (isScreenerSyncing) return;
     setUpdateChoice("");
-    setSyncSource("DRIVE");
     setSelectedFile(null);
     setDatabaseDate(getTodayISO());
     setIsSyncModalOpen(true);
@@ -86,46 +78,30 @@ export default function App() {
     setIsScreenerSyncing(true);
 
     try {
-      // 1. Log chosen date and timestamp directly in Firebase telemetry
+      // 1. Telemetry log in Firebase
       try {
         await update(ref(database, "system_status/screener_sync"), {
           "Date of database data": databaseDate,
           "sync_triggered_at": new Date().toISOString(),
-          "sync_source": syncSource
+          "sync_source": "BROWSE_FILE"
         });
       } catch (fbErr) {
         console.error("Firebase sync telemetry update error:", fbErr);
       }
 
-      let response;
+      // 2. Upload file directly to backend
+      const formData = new FormData();
+      formData.append("file", selectedFile);
+      formData.append("database_date", databaseDate);
 
-      if (syncSource === "BROWSE" && selectedFile) {
-        // Path B: Local file multipart upload
-        const formData = new FormData();
-        formData.append("file", selectedFile);
-        formData.append("database_date", databaseDate);
-
-        response = await fetch(`${BACKEND_URL}/sync-screener-upload`, {
-          method: "POST",
-          mode: "cors",
-          body: formData
-        });
-      } else {
-        // Path A: Google Drive existing flow
-        response = await fetch(`${BACKEND_URL}/sync-screener`, {
-          method: "POST",
-          mode: "cors",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ database_date: databaseDate })
-        });
-      }
+      const response = await fetch(`${BACKEND_URL}/sync-screener-upload`, {
+        method: "POST",
+        mode: "cors",
+        body: formData
+      });
 
       if (response && response.ok) {
-        alert(
-          `🚀 Screener pipeline triggered successfully!\nMode: ${
-            syncSource === "BROWSE" ? "Browsed Local File" : "Google Drive"
-          }\nDatabase date recorded: ${databaseDate}`
-        );
+        alert(`🚀 Screener file uploaded successfully!\nDatabase date recorded: ${databaseDate}`);
       } else {
         alert(`⚠️ Backend responded with status: ${response ? response.status : "unknown"}`);
       }
@@ -136,7 +112,7 @@ export default function App() {
       setTimeout(() => {
         setIsScreenerSyncing(false);
         setSelectedFile(null);
-      }, 120000);
+      }, 120000); // 2-minute cooldown
     }
   };
 
@@ -188,7 +164,6 @@ export default function App() {
 
           {/* TOP RIGHT ACTION BUTTONS */}
           <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-            {/* 1. ALERT SETTING BUTTON */}
             <button
               onClick={() => setIsAlertModalOpen(true)}
               style={{
@@ -212,7 +187,6 @@ export default function App() {
               🔔 ALERT SETTING
             </button>
 
-            {/* 2. CLOUD SCREENER SYNC BUTTON */}
             <button
               onClick={handleOpenSyncModal}
               disabled={isScreenerSyncing}
@@ -277,7 +251,7 @@ export default function App() {
                 gap: "18px",
               }}
             >
-              {/* Modal Header */}
+              {/* Header */}
               <div
                 style={{
                   display: "flex",
@@ -347,7 +321,7 @@ export default function App() {
                 </div>
               </div>
 
-              {/* Step 2: Data Source Mode Selection */}
+              {/* Step 2: Choose File Directly */}
               <div
                 style={{
                   backgroundColor: "#1e293b",
@@ -360,94 +334,55 @@ export default function App() {
                 }}
               >
                 <span style={{ fontSize: "13px", fontWeight: "700", color: "#e2e8f0" }}>
-                  2. Select data source option:
+                  2. Choose Screener .csv file:
                 </span>
-                <div style={{ display: "flex", gap: "10px" }}>
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  accept=".csv,text/csv"
+                  onChange={(e) => {
+                    if (e.target.files && e.target.files[0]) {
+                      setSelectedFile(e.target.files[0]);
+                    }
+                  }}
+                  style={{ display: "none" }}
+                />
+                <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
                   <button
                     type="button"
-                    onClick={() => setSyncSource("DRIVE")}
+                    onClick={() => fileInputRef.current && fileInputRef.current.click()}
                     style={{
-                      flex: 1,
-                      padding: "8px 12px",
+                      backgroundColor: "#f59e0b",
+                      color: "#000000",
+                      border: "none",
+                      padding: "8px 16px",
                       borderRadius: "6px",
-                      border: syncSource === "DRIVE" ? "2px solid #06b6d4" : "1px solid #475569",
-                      backgroundColor: syncSource === "DRIVE" ? "#0369a1" : "#0f172a",
-                      color: "#ffffff",
                       fontWeight: "900",
                       fontSize: "12px",
                       cursor: "pointer",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      gap: "6px"
+                      textTransform: "uppercase",
+                      boxShadow: "0 0 10px rgba(245, 158, 11, 0.3)"
                     }}
                   >
-                    ☁️ Google Drive
+                    📂 Browse .CSV
                   </button>
-                  <button
-                    type="button"
-                    onClick={() => setSyncSource("BROWSE")}
+                  <span
                     style={{
-                      flex: 1,
-                      padding: "8px 12px",
-                      borderRadius: "6px",
-                      border: syncSource === "BROWSE" ? "2px solid #06b6d4" : "1px solid #475569",
-                      backgroundColor: syncSource === "BROWSE" ? "#0369a1" : "#0f172a",
-                      color: "#ffffff",
-                      fontWeight: "900",
                       fontSize: "12px",
-                      cursor: "pointer",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      gap: "6px"
+                      color: selectedFile ? "#10b981" : "#94a3b8",
+                      fontWeight: "bold",
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                      whiteSpace: "nowrap",
+                      maxWidth: "250px"
                     }}
                   >
-                    📁 Browse File
-                  </button>
+                    {selectedFile ? `✓ ${selectedFile.name}` : "No file chosen"}
+                  </span>
                 </div>
-
-                {/* Sub-panel when BROWSE is selected */}
-                {syncSource === "BROWSE" && (
-                  <div style={{ marginTop: "6px" }}>
-                    <input
-                      type="file"
-                      ref={fileInputRef}
-                      accept=".csv,text/csv"
-                      onChange={(e) => {
-                        if (e.target.files && e.target.files[0]) {
-                          setSelectedFile(e.target.files[0]);
-                        }
-                      }}
-                      style={{ display: "none" }}
-                    />
-                    <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
-                      <button
-                        type="button"
-                        onClick={() => fileInputRef.current && fileInputRef.current.click()}
-                        style={{
-                          backgroundColor: "#f59e0b",
-                          color: "#000000",
-                          border: "none",
-                          padding: "7px 14px",
-                          borderRadius: "4px",
-                          fontWeight: "900",
-                          fontSize: "11px",
-                          cursor: "pointer",
-                          textTransform: "uppercase"
-                        }}
-                      >
-                        📂 Choose .CSV File
-                      </button>
-                      <span style={{ fontSize: "12px", color: selectedFile ? "#10b981" : "#94a3b8", fontWeight: "bold", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                        {selectedFile ? `✓ ${selectedFile.name}` : "No file chosen"}
-                      </span>
-                    </div>
-                  </div>
-                )}
               </div>
 
-              {/* Step 3: Database Date */}
+              {/* Step 3: Date Picker */}
               <div
                 style={{
                   backgroundColor: "#1e293b",
@@ -487,7 +422,7 @@ export default function App() {
                 />
               </div>
 
-              {/* Action Buttons */}
+              {/* Footer Buttons */}
               <div
                 style={{
                   display: "flex",
