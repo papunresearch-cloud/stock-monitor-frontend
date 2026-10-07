@@ -9,7 +9,8 @@ export default function StockMonitorView() {
   // ==========================================
   // 1. MASTER STATES (The Brain)
   // ==========================================
-  const [isAutoMode, setIsAutoMode] = useState(false);
+  // Problem 1 Fixed: Default state is now AUTO-ON (true)
+  const [isAutoMode, setIsAutoMode] = useState(true);
   const [isFrozen, setIsFrozen] = useState(false);
   const [refreshRate, setRefreshRate] = useState(10);
 
@@ -218,29 +219,31 @@ export default function StockMonitorView() {
     setUpdateTrigger(prev => prev + 1);
   };
 
-  // Triggers the confirmation modal when Header "SYNC" is clicked
+  // Triggers the confirmation modal when Header "SYNC" button is clicked
   const handleSyncClick = () => {
     if (isSyncLocked || isFrozen) return;
     setShowSyncConfirm(true);
   };
 
-  // Executes OHLC Database Synchronization only when confirmed "YES"
+  // Problem 2 Fixed: Executes OHLC Database Synchronization when confirmed "YES"
   const handleConfirmSync = async () => {
     setShowSyncConfirm(false);
-    if (isSyncLocked || isFrozen) return;
-    
     setIsSyncPulsing(true);
+
+    // 60-second abort window to allow waking up sleeping Render instances
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 10000);
+    const timeoutId = setTimeout(() => controller.abort(), 60000);
 
     try {
-      await fetch(`${BACKEND_URL}/sync`, { 
+      console.log("Triggering OHLC database sync to Render backend...");
+      const response = await fetch(`${BACKEND_URL}/sync`, { 
         method: 'GET',
         mode: 'cors',
         signal: controller.signal 
       });
+      console.log("Sync response status:", response.status);
     } catch (err) {
-      // Backend acknowledges or runs async
+      console.error("Sync network trigger error:", err);
     } finally {
       clearTimeout(timeoutId);
       setIsSyncPulsing(false);
