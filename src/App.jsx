@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
 import { BrowserRouter as Router, Routes, Route, NavLink, Navigate } from "react-router-dom";
 import { ref, update } from "firebase/database";
 import { database } from "./firebase";
@@ -20,7 +20,10 @@ export default function App() {
   // Modal State for Screener Sync
   const [isSyncModalOpen, setIsSyncModalOpen] = useState(false);
   const [updateChoice, setUpdateChoice] = useState(""); // "Y" or "N"
-  
+  const [syncSource, setSyncSource] = useState("DRIVE"); // "DRIVE" or "BROWSE"
+  const [selectedFile, setSelectedFile] = useState(null);
+  const fileInputRef = useRef(null);
+
   // Format local date YYYY-MM-DD
   const getTodayISO = () => {
     const now = new Date();
@@ -50,12 +53,21 @@ export default function App() {
     return checkDate >= fiveDaysAgo && checkDate <= today;
   };
 
-  const isFormValid = updateChoice === "Y" && isDateValid(databaseDate);
+  // Form validity:
+  // - updateChoice must be "Y"
+  // - date must be valid
+  // - if BROWSE mode is chosen, a .csv file must be selected
+  const isFormValid =
+    updateChoice === "Y" &&
+    isDateValid(databaseDate) &&
+    (syncSource === "DRIVE" || (syncSource === "BROWSE" && selectedFile !== null));
 
   // Open modal handler
   const handleOpenSyncModal = () => {
     if (isScreenerSyncing) return;
     setUpdateChoice("");
+    setSyncSource("DRIVE");
+    setSelectedFile(null);
     setDatabaseDate(getTodayISO());
     setIsSyncModalOpen(true);
   };
@@ -63,6 +75,7 @@ export default function App() {
   const handleAbortSync = () => {
     setIsSyncModalOpen(false);
     setUpdateChoice("");
+    setSelectedFile(null);
   };
 
   // Submit and Trigger Sync
@@ -73,26 +86,48 @@ export default function App() {
     setIsScreenerSyncing(true);
 
     try {
+      // 1. Log chosen date and timestamp directly in Firebase telemetry
       try {
         await update(ref(database, "system_status/screener_sync"), {
           "Date of database data": databaseDate,
-          "sync_triggered_at": new Date().toISOString()
+          "sync_triggered_at": new Date().toISOString(),
+          "sync_source": syncSource
         });
       } catch (fbErr) {
         console.error("Firebase sync telemetry update error:", fbErr);
       }
 
-      const response = await fetch(`${BACKEND_URL}/sync-screener`, {
-        method: "POST",
-        mode: "cors",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ database_date: databaseDate })
-      });
+      let response;
 
-      if (response.ok) {
-        alert("🚀 Screener pipeline triggered on backend!\nDatabase date recorded: " + databaseDate);
+      if (syncSource === "BROWSE" && selectedFile) {
+        // Path B: Local file multipart upload
+        const formData = new FormData();
+        formData.append("file", selectedFile);
+        formData.append("database_date", databaseDate);
+
+        response = await fetch(`${BACKEND_URL}/sync-screener-upload`, {
+          method: "POST",
+          mode: "cors",
+          body: formData
+        });
       } else {
-        alert(`⚠️ Backend responded with status: ${response.status}`);
+        // Path A: Google Drive existing flow
+        response = await fetch(`${BACKEND_URL}/sync-screener`, {
+          method: "POST",
+          mode: "cors",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ database_date: databaseDate })
+        });
+      }
+
+      if (response && response.ok) {
+        alert(
+          `🚀 Screener pipeline triggered successfully!\nMode: ${
+            syncSource === "BROWSE" ? "Browsed Local File" : "Google Drive"
+          }\nDatabase date recorded: ${databaseDate}`
+        );
+      } else {
+        alert(`⚠️ Backend responded with status: ${response ? response.status : "unknown"}`);
       }
     } catch (err) {
       console.error("Failed to trigger screener pipeline:", err);
@@ -100,6 +135,7 @@ export default function App() {
     } finally {
       setTimeout(() => {
         setIsScreenerSyncing(false);
+        setSelectedFile(null);
       }, 120000);
     }
   };
@@ -152,7 +188,7 @@ export default function App() {
 
           {/* TOP RIGHT ACTION BUTTONS */}
           <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-            {/* 1. ALERT SETTING BUTTON (Positioned right before SYNC SCREENER) */}
+            {/* 1. ALERT SETTING BUTTON */}
             <button
               onClick={() => setIsAlertModalOpen(true)}
               style={{
@@ -197,7 +233,7 @@ export default function App() {
                 gap: "6px",
               }}
             >
-              {isScreenerSyncing ? "⏳ RUNNING ETL (2 MIN COOLDOWN)..." : "🔄 SYNC SCREENER (DRIVE ➔ FB)"}
+              {isScreenerSyncing ? "⏳ RUNNING ETL (2 MIN COOLDOWN)..." : "🔄 SYNC SCREENER"}
             </button>
           </div>
         </header>
@@ -238,9 +274,10 @@ export default function App() {
                 color: "#f8fafc",
                 display: "flex",
                 flexDirection: "column",
-                gap: "20px",
+                gap: "18px",
               }}
             >
+              {/* Modal Header */}
               <div
                 style={{
                   display: "flex",
@@ -271,6 +308,7 @@ export default function App() {
                 </span>
               </div>
 
+              {/* Step 1: Confirmation */}
               <div
                 style={{
                   backgroundColor: "#1e293b",
@@ -309,6 +347,107 @@ export default function App() {
                 </div>
               </div>
 
+              {/* Step 2: Data Source Mode Selection */}
+              <div
+                style={{
+                  backgroundColor: "#1e293b",
+                  padding: "14px",
+                  borderRadius: "8px",
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "10px",
+                  border: "1px solid #334155",
+                }}
+              >
+                <span style={{ fontSize: "13px", fontWeight: "700", color: "#e2e8f0" }}>
+                  2. Select data source option:
+                </span>
+                <div style={{ display: "flex", gap: "10px" }}>
+                  <button
+                    type="button"
+                    onClick={() => setSyncSource("DRIVE")}
+                    style={{
+                      flex: 1,
+                      padding: "8px 12px",
+                      borderRadius: "6px",
+                      border: syncSource === "DRIVE" ? "2px solid #06b6d4" : "1px solid #475569",
+                      backgroundColor: syncSource === "DRIVE" ? "#0369a1" : "#0f172a",
+                      color: "#ffffff",
+                      fontWeight: "900",
+                      fontSize: "12px",
+                      cursor: "pointer",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      gap: "6px"
+                    }}
+                  >
+                    ☁️ Google Drive
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSyncSource("BROWSE")}
+                    style={{
+                      flex: 1,
+                      padding: "8px 12px",
+                      borderRadius: "6px",
+                      border: syncSource === "BROWSE" ? "2px solid #06b6d4" : "1px solid #475569",
+                      backgroundColor: syncSource === "BROWSE" ? "#0369a1" : "#0f172a",
+                      color: "#ffffff",
+                      fontWeight: "900",
+                      fontSize: "12px",
+                      cursor: "pointer",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      gap: "6px"
+                    }}
+                  >
+                    📁 Browse File
+                  </button>
+                </div>
+
+                {/* Sub-panel when BROWSE is selected */}
+                {syncSource === "BROWSE" && (
+                  <div style={{ marginTop: "6px" }}>
+                    <input
+                      type="file"
+                      ref={fileInputRef}
+                      accept=".csv,text/csv"
+                      onChange={(e) => {
+                        if (e.target.files && e.target.files[0]) {
+                          setSelectedFile(e.target.files[0]);
+                        }
+                      }}
+                      style={{ display: "none" }}
+                    />
+                    <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+                      <button
+                        type="button"
+                        onClick={() => fileInputRef.current && fileInputRef.current.click()}
+                        style={{
+                          backgroundColor: "#f59e0b",
+                          color: "#000000",
+                          border: "none",
+                          padding: "7px 14px",
+                          borderRadius: "4px",
+                          fontWeight: "900",
+                          fontSize: "11px",
+                          cursor: "pointer",
+                          textTransform: "uppercase"
+                        }}
+                      >
+                        📂 Choose .CSV File
+                      </button>
+                      <span style={{ fontSize: "12px", color: selectedFile ? "#10b981" : "#94a3b8", fontWeight: "bold", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        {selectedFile ? `✓ ${selectedFile.name}` : "No file chosen"}
+                      </span>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Step 3: Database Date */}
               <div
                 style={{
                   backgroundColor: "#1e293b",
@@ -322,7 +461,7 @@ export default function App() {
               >
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                   <span style={{ fontSize: "13px", fontWeight: "700", color: "#e2e8f0" }}>
-                    2. Date of Data of your new database:
+                    3. Date of Data of your new database:
                   </span>
                   <span style={{ fontSize: "11px", color: isDateValid(databaseDate) ? "#10b981" : "#f87171", fontWeight: "bold" }}>
                     {isDateValid(databaseDate) ? "✓ Valid (≤ 5 days)" : "✗ Must be ≤ 5 days old"}
@@ -348,6 +487,7 @@ export default function App() {
                 />
               </div>
 
+              {/* Action Buttons */}
               <div
                 style={{
                   display: "flex",
