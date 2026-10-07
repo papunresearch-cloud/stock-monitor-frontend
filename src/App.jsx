@@ -243,7 +243,7 @@ export default function App() {
                 boxShadow: "0 0 30px rgba(6, 182, 212, 0.3), 0 20px 40px rgba(0,0,0,0.8)",
                 borderRadius: "14px",
                 padding: "26px",
-                width: "480px",
+                width: "500px",
                 maxWidth: "100%",
                 color: "#f8fafc",
                 display: "flex",
@@ -321,7 +321,7 @@ export default function App() {
                 </div>
               </div>
 
-              {/* Step 2: Choose File Directly */}
+              {/* Step 2: Choose File Directly (Enhanced Font Size & File Status) */}
               <div
                 style={{
                   backgroundColor: "#1e293b",
@@ -347,7 +347,7 @@ export default function App() {
                   }}
                   style={{ display: "none" }}
                 />
-                <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
+                <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
                   <button
                     type="button"
                     onClick={() => fileInputRef.current && fileInputRef.current.click()}
@@ -355,34 +355,47 @@ export default function App() {
                       backgroundColor: "#f59e0b",
                       color: "#000000",
                       border: "none",
-                      padding: "8px 16px",
+                      padding: "9px 18px",
                       borderRadius: "6px",
                       fontWeight: "900",
-                      fontSize: "12px",
+                      fontSize: "13px",
                       cursor: "pointer",
                       textTransform: "uppercase",
-                      boxShadow: "0 0 10px rgba(245, 158, 11, 0.3)"
+                      boxShadow: "0 0 12px rgba(245, 158, 11, 0.4)",
+                      whiteSpace: "nowrap"
                     }}
                   >
                     📂 Browse .CSV
                   </button>
-                  <span
+                  <div
                     style={{
-                      fontSize: "12px",
-                      color: selectedFile ? "#10b981" : "#94a3b8",
-                      fontWeight: "bold",
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                      whiteSpace: "nowrap",
-                      maxWidth: "250px"
+                      flex: 1,
+                      backgroundColor: "#0f172a",
+                      padding: "8px 12px",
+                      borderRadius: "6px",
+                      border: `1px solid ${selectedFile ? "#10b981" : "#334155"}`,
+                      display: "flex",
+                      alignItems: "center",
+                      minWidth: 0
                     }}
                   >
-                    {selectedFile ? `✓ ${selectedFile.name}` : "No file chosen"}
-                  </span>
+                    <span
+                      style={{
+                        fontSize: "14px",
+                        color: selectedFile ? "#10b981" : "#94a3b8",
+                        fontWeight: "800",
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        whiteSpace: "nowrap"
+                      }}
+                    >
+                      {selectedFile ? `✓ ${selectedFile.name}` : "No file chosen"}
+                    </span>
+                  </div>
                 </div>
               </div>
 
-              {/* Step 3: Date Picker */}
+              {/* Step 3: Date Picker (High Visibility Date & Calendar Icon) */}
               <div
                 style={{
                   backgroundColor: "#1e293b",
@@ -413,11 +426,14 @@ export default function App() {
                     color: "#38bdf8",
                     padding: "10px 14px",
                     borderRadius: "6px",
-                    fontSize: "14px",
+                    fontSize: "15px",
                     fontWeight: "900",
                     outline: "none",
                     cursor: "pointer",
-                    boxShadow: isDateValid(databaseDate) ? "0 0 10px rgba(6, 182, 212, 0.2)" : "none",
+                    colorScheme: "dark", // Ensures native browser calendar button renders bright and clearly visible
+                    boxShadow: isDateValid(databaseDate) ? "0 0 12px rgba(6, 182, 212, 0.25)" : "none",
+                    width: "100%",
+                    boxSizing: "border-box"
                   }}
                 />
               </div>
