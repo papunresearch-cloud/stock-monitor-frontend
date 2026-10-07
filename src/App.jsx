@@ -352,13 +352,13 @@ export default function App() {
                     type="button"
                     onClick={() => fileInputRef.current && fileInputRef.current.click()}
                     style={{
-                      backgroundColor: "#f59e0b",
+                      backgroundColor: "#F08080",
                       color: "#000000",
                       border: "none",
                       padding: "9px 18px",
                       borderRadius: "6px",
-                      fontWeight: "900",
-                      fontSize: "13px",
+                      fontWeight: "850",
+                      fontSize: "12px",
                       cursor: "pointer",
                       textTransform: "uppercase",
                       boxShadow: "0 0 12px rgba(245, 158, 11, 0.4)",
@@ -381,7 +381,7 @@ export default function App() {
                   >
                     <span
                       style={{
-                        fontSize: "14px",
+                        fontSize: "12px",
                         color: selectedFile ? "#10b981" : "#94a3b8",
                         fontWeight: "800",
                         overflow: "hidden",
