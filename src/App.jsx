@@ -352,10 +352,10 @@ export default function App() {
                     type="button"
                     onClick={() => fileInputRef.current && fileInputRef.current.click()}
                     style={{
-                      backgroundColor: "#F08080",
+                      backgroundColor: "#CD5C5C",
                       color: "#000000",
                       border: "none",
-                      padding: "9px 18px",
+                      padding: "8px 15px",
                       borderRadius: "6px",
                       fontWeight: "850",
                       fontSize: "12px",
