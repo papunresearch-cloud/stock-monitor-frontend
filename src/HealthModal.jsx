@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 
 const FIREBASE_DB_URL = 'https://stock-dashboard-5c25c-default-rtdb.asia-southeast1.firebasedatabase.app';
 
@@ -296,17 +297,24 @@ export default function HealthModal({
 
   if (!isOpen) return null;
 
-  return (
+  const modalNode = (
     <div style={{
       position: 'fixed',
-      top: 0, left: 0, right: 0, bottom: 0,
+      top: 0, 
+      left: 0, 
+      right: 0, 
+      bottom: 0,
+      width: '100vw',
+      height: '100vh',
       backgroundColor: 'rgba(0, 0, 0, 0.85)',
       backdropFilter: 'blur(5px)',
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
-      zIndex: 2000,
-      padding: '10px'
+      zIndex: 99999,
+      padding: '10px',
+      pointerEvents: 'auto',
+      boxSizing: 'border-box'
     }}>
       <div style={{
         backgroundColor: '#0a0d14',
@@ -343,6 +351,7 @@ export default function HealthModal({
             </div>
           </div>
           <button 
+            type="button"
             onClick={onClose}
             title="Close"
             style={{
@@ -387,7 +396,7 @@ export default function HealthModal({
             {/* ROW 1: BACKEND, FIREBASE PIPE, HEARTBEAT */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px' }}>
               
-              {/*  Render Backend Server */}
+              {/* Render Backend Server */}
               <div style={{ backgroundColor: '#111827', padding: '14px 16px', borderRadius: '8px', border: '1px solid #1f2937' }}>
                 <div style={{ color: '#9ca3af', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Render Backend Server</div>
                 <div style={{ fontSize: '16px', fontWeight: 'bold', marginTop: '4px', color: sys.backend_power === 'RUNNING' ? '#22c55e' : '#ef4444' }}>
@@ -398,7 +407,7 @@ export default function HealthModal({
                 </div>
               </div>
 
-              {/*  Firebase Realtime Pipe */}
+              {/* Firebase Realtime Pipe */}
               <div style={{ backgroundColor: '#111827', padding: '14px 16px', borderRadius: '8px', border: '1px solid #1f2937' }}>
                 <div style={{ color: '#9ca3af', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Firebase Realtime Pipe</div>
                 <div style={{ fontSize: '16px', fontWeight: 'bold', marginTop: '4px', color: firebasePing ? '#22c55e' : '#ef4444' }}>
@@ -409,7 +418,7 @@ export default function HealthModal({
                 </div>
               </div>
 
-              {/*  Last Heartbeat Pulse */}
+              {/* Last Heartbeat Pulse */}
               <div style={{ backgroundColor: '#111827', padding: '14px 16px', borderRadius: '8px', border: '1px solid #1f2937' }}>
                 <div style={{ color: '#9ca3af', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Last Heartbeat Pulse</div>
                 <div style={{ fontSize: '14px', fontWeight: 'bold', marginTop: '4px', color: '#00BCD4', fontFamily: 'monospace' }}>
@@ -425,7 +434,7 @@ export default function HealthModal({
             {/* ROW 2: PARAM CALC, SYNC TIME, SCREENER DB */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px' }}>
               
-              {/*  Last Param Calc Date & Time */}
+              {/* Last Param Calc Date & Time */}
               <div style={{ backgroundColor: '#111827', padding: '14px 16px', borderRadius: '8px', border: '1px solid #1f2937' }}>
                 <div style={{ color: '#9ca3af', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Last Param Calc Date & Time</div>
                 <div style={{ fontSize: '14px', fontWeight: 'bold', marginTop: '4px', color: '#38bdf8', fontFamily: 'monospace' }}>
@@ -436,7 +445,7 @@ export default function HealthModal({
                 </div>
               </div>
 
-              {/*  Last Sync Date & Time */}
+              {/* Last Sync Date & Time */}
               <div style={{ backgroundColor: '#111827', padding: '14px 16px', borderRadius: '8px', border: '1px solid #1f2937' }}>
                 <div style={{ color: '#9ca3af', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Last Sync Date & Time</div>
                 <div style={{ fontSize: '14px', fontWeight: 'bold', marginTop: '4px', color: '#facc15', fontFamily: 'monospace' }}>
@@ -447,7 +456,7 @@ export default function HealthModal({
                 </div>
               </div>
 
-              {/*  Last Screener DB Update */}
+              {/* Last Screener DB Update */}
               <div style={{ backgroundColor: '#111827', padding: '14px 16px', borderRadius: '8px', border: '1px solid #1f2937' }}>
                 <div style={{ color: '#9ca3af', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Last Screener DB Update</div>
                 <div style={{ fontSize: '14px', fontWeight: 'bold', marginTop: '4px', color: '#a855f7', fontFamily: 'monospace' }}>
@@ -658,4 +667,11 @@ export default function HealthModal({
       </div>
     </div>
   );
+
+  // Mount via portal to escape parent stacking context
+  if (typeof document !== 'undefined') {
+    return createPortal(modalNode, document.body);
+  }
+
+  return modalNode;
 }
