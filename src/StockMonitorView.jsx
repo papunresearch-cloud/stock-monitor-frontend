@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import Index_window from './Index_window';
 import DashboardHeader from './DashboardHeader'; 
 import StockGrid from './StockGrid';
@@ -9,7 +10,7 @@ export default function StockMonitorView() {
   // ==========================================
   // 1. MASTER STATES (The Brain)
   // ==========================================
-  // Problem 1 Fixed: Default state is now AUTO-ON (true)
+  // Default mode set to AUTO-ON
   const [isAutoMode, setIsAutoMode] = useState(true);
   const [isFrozen, setIsFrozen] = useState(false);
   const [refreshRate, setRefreshRate] = useState(10);
@@ -56,7 +57,7 @@ export default function StockMonitorView() {
   });
 
   const FIREBASE_DB_URL = 'https://stock-dashboard-5c25c-default-rtdb.asia-southeast1.firebasedatabase.app';
-  const BACKEND_URL = 'https://nse-ohlc-system.onrender.com';
+  const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'https://nse-ohlc-system.onrender.com';
 
   // ==========================================
   // 3. INITIALIZATION & DATA BOOT
@@ -219,31 +220,30 @@ export default function StockMonitorView() {
     setUpdateTrigger(prev => prev + 1);
   };
 
-  // Triggers the confirmation modal when Header "SYNC" button is clicked
+  // Click handler for Header "SYNC" button -> Opens Confirmation Popup
   const handleSyncClick = () => {
     if (isSyncLocked || isFrozen) return;
     setShowSyncConfirm(true);
   };
 
-  // Problem 2 Fixed: Executes OHLC Database Synchronization when confirmed "YES"
+  // Executes OHLC Database Synchronization on confirmed "YES"
   const handleConfirmSync = async () => {
     setShowSyncConfirm(false);
     setIsSyncPulsing(true);
 
-    // 60-second abort window to allow waking up sleeping Render instances
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 60000);
+    const timeoutId = setTimeout(() => controller.abort(), 60000); // 60s timeout for wakeups
 
     try {
-      console.log("Triggering OHLC database sync to Render backend...");
+      console.log("[SYNC] Dispatching GET /sync to Render backend...");
       const response = await fetch(`${BACKEND_URL}/sync`, { 
         method: 'GET',
         mode: 'cors',
         signal: controller.signal 
       });
-      console.log("Sync response status:", response.status);
+      console.log("[SYNC] Response status:", response.status);
     } catch (err) {
-      console.error("Sync network trigger error:", err);
+      console.error("[SYNC] Network request error:", err);
     } finally {
       clearTimeout(timeoutId);
       setIsSyncPulsing(false);
@@ -273,8 +273,8 @@ export default function StockMonitorView() {
         frontendStatus={isFrozen ? "FROZEN" : "ACTIVE"}
       />
 
-      {/* SYNC CONFIRMATION POPUP MODAL */}
-      {showSyncConfirm && (
+      {/* SYNC CONFIRMATION POPUP MODAL (Portal escapes header stacking context) */}
+      {showSyncConfirm && typeof document !== 'undefined' && createPortal(
         <div
           style={{
             position: 'fixed',
@@ -287,8 +287,9 @@ export default function StockMonitorView() {
             display: 'flex',
             justifyContent: 'center',
             alignItems: 'center',
-            zIndex: 9999,
-            padding: '20px'
+            zIndex: 99999,
+            padding: '20px',
+            pointerEvents: 'auto'
           }}
         >
           <div
@@ -296,16 +297,17 @@ export default function StockMonitorView() {
               backgroundColor: '#0f172a',
               border: '2px solid #06b6d4',
               borderRadius: '12px',
-              padding: '22px 28px',
-              width: '360px',
+              padding: '24px 30px',
+              width: '380px',
               maxWidth: '92%',
               textAlign: 'center',
-              boxShadow: '0 0 25px rgba(6, 182, 212, 0.35), 0 20px 40px rgba(0, 0, 0, 0.8)',
-              color: '#f8fafc'
+              boxShadow: '0 0 30px rgba(6, 182, 212, 0.4), 0 20px 40px rgba(0, 0, 0, 0.85)',
+              color: '#f8fafc',
+              pointerEvents: 'auto'
             }}
           >
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', marginBottom: '10px' }}>
-              <span style={{ fontSize: '18px' }}>⚡</span>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', marginBottom: '12px' }}>
+              <span style={{ fontSize: '20px' }}>⚡</span>
               <h3
                 style={{
                   color: '#38bdf8',
@@ -325,7 +327,7 @@ export default function StockMonitorView() {
                 color: '#cbd5e1',
                 fontSize: '13px',
                 fontWeight: '600',
-                margin: '12px 0 22px 0',
+                margin: '12px 0 24px 0',
                 lineHeight: '1.4'
               }}
             >
@@ -340,7 +342,7 @@ export default function StockMonitorView() {
                   backgroundColor: '#10b981',
                   color: '#000000',
                   border: 'none',
-                  padding: '8px 24px',
+                  padding: '9px 26px',
                   borderRadius: '6px',
                   fontWeight: '900',
                   fontSize: '12px',
@@ -359,7 +361,7 @@ export default function StockMonitorView() {
                   backgroundColor: '#334155',
                   color: '#f87171',
                   border: '1px solid #ef4444',
-                  padding: '8px 24px',
+                  padding: '9px 26px',
                   borderRadius: '6px',
                   fontWeight: '900',
                   fontSize: '12px',
@@ -371,7 +373,8 @@ export default function StockMonitorView() {
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* DASHBOARD HEADER CONTAINER */}
