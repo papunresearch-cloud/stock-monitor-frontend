@@ -9,13 +9,16 @@ export default function StockMonitorView() {
   // ==========================================
   // 1. MASTER STATES (The Brain)
   // ==========================================
-  const [isAutoMode, setIsAutoMode] = useState(true);
+  const [isAutoMode, setIsAutoMode] = useState(false);
   const [isFrozen, setIsFrozen] = useState(false);
   const [refreshRate, setRefreshRate] = useState(10);
 
   const [isRefreshLocked, setIsRefreshLocked] = useState(false);
   const [isSyncLocked, setIsSyncLocked] = useState(false);
   const [isSyncPulsing, setIsSyncPulsing] = useState(false);
+
+  // Sync Confirmation Modal State
+  const [showSyncConfirm, setShowSyncConfirm] = useState(false);
 
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [updateTrigger, setUpdateTrigger] = useState(0);
@@ -215,10 +218,18 @@ export default function StockMonitorView() {
     setUpdateTrigger(prev => prev + 1);
   };
 
-  const handleSync = async () => {
+  // Triggers the confirmation modal when Header "SYNC" is clicked
+  const handleSyncClick = () => {
     if (isSyncLocked || isFrozen) return;
-    setIsSyncPulsing(true);
+    setShowSyncConfirm(true);
+  };
 
+  // Executes OHLC Database Synchronization only when confirmed "YES"
+  const handleConfirmSync = async () => {
+    setShowSyncConfirm(false);
+    if (isSyncLocked || isFrozen) return;
+    
+    setIsSyncPulsing(true);
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 10000);
 
@@ -234,7 +245,7 @@ export default function StockMonitorView() {
       clearTimeout(timeoutId);
       setIsSyncPulsing(false);
       setIsSyncLocked(true);
-      setTimeout(() => setIsSyncLocked(false), 900000);
+      setTimeout(() => setIsSyncLocked(false), 900000); // 15-minute lock
     }
   };
 
@@ -259,6 +270,108 @@ export default function StockMonitorView() {
         frontendStatus={isFrozen ? "FROZEN" : "ACTIVE"}
       />
 
+      {/* SYNC CONFIRMATION POPUP MODAL */}
+      {showSyncConfirm && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            width: '100vw',
+            height: '100vh',
+            backgroundColor: 'rgba(3, 7, 18, 0.85)',
+            backdropFilter: 'blur(4px)',
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center',
+            zIndex: 9999,
+            padding: '20px'
+          }}
+        >
+          <div
+            style={{
+              backgroundColor: '#0f172a',
+              border: '2px solid #06b6d4',
+              borderRadius: '12px',
+              padding: '22px 28px',
+              width: '360px',
+              maxWidth: '92%',
+              textAlign: 'center',
+              boxShadow: '0 0 25px rgba(6, 182, 212, 0.35), 0 20px 40px rgba(0, 0, 0, 0.8)',
+              color: '#f8fafc'
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', marginBottom: '10px' }}>
+              <span style={{ fontSize: '18px' }}>⚡</span>
+              <h3
+                style={{
+                  color: '#38bdf8',
+                  fontSize: '15px',
+                  fontWeight: '900',
+                  letterSpacing: '1px',
+                  textTransform: 'uppercase',
+                  margin: 0
+                }}
+              >
+                CONFIRM OHLC SYNC
+              </h3>
+            </div>
+
+            <p
+              style={{
+                color: '#cbd5e1',
+                fontSize: '13px',
+                fontWeight: '600',
+                margin: '12px 0 22px 0',
+                lineHeight: '1.4'
+              }}
+            >
+              Do you want to initiate historical OHLC database synchronization?
+            </p>
+
+            <div style={{ display: 'flex', justifyContent: 'center', gap: '14px' }}>
+              <button
+                type="button"
+                onClick={handleConfirmSync}
+                style={{
+                  backgroundColor: '#10b981',
+                  color: '#000000',
+                  border: 'none',
+                  padding: '8px 24px',
+                  borderRadius: '6px',
+                  fontWeight: '900',
+                  fontSize: '12px',
+                  cursor: 'pointer',
+                  textTransform: 'uppercase',
+                  boxShadow: '0 0 12px rgba(16, 185, 129, 0.4)'
+                }}
+              >
+                YES
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setShowSyncConfirm(false)}
+                style={{
+                  backgroundColor: '#334155',
+                  color: '#f87171',
+                  border: '1px solid #ef4444',
+                  padding: '8px 24px',
+                  borderRadius: '6px',
+                  fontWeight: '900',
+                  fontSize: '12px',
+                  cursor: 'pointer',
+                  textTransform: 'uppercase'
+                }}
+              >
+                NO
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* DASHBOARD HEADER CONTAINER */}
       <div style={{ position: 'sticky', top: 0, zIndex: 1000, backgroundColor: '#00004d', padding: '0 20px 10px 20px' }}>
         <DashboardHeader 
           onOpenSettings={() => setIsSettingsOpen(true)}
@@ -274,7 +387,7 @@ export default function StockMonitorView() {
           onRateChange={handleRateChange}
           onRefresh={handleRefresh}
           onUpdate={handleUpdate}
-          onSync={handleSync}
+          onSync={handleSyncClick}
           onFreezeToggle={handleFreezeToggle}
         />
       </div>
