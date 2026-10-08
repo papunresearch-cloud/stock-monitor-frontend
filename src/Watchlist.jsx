@@ -186,7 +186,7 @@ export default function StockWatchlist() {
           const details = wlData.detailedDb || {};
           
           setWatchlistNames(wlArr);
-          setWatchlistEditSelected(new Set(wlArr));
+          setWatchlistEditSelected(new Set());
           setStockDatabase(details);
           setOriginalDb(JSON.parse(JSON.stringify(details)));
         } else {
@@ -415,7 +415,7 @@ export default function StockWatchlist() {
     setWatchlistNames(nextWatchlist);
     setStockDatabase((prev) => ({ ...prev, [stockToAdd]: completeStockRecord }));
     setOriginalDb((prev) => ({ ...prev, [stockToAdd]: JSON.parse(JSON.stringify(completeStockRecord)) }));
-    setWatchlistEditSelected(new Set(nextWatchlist));
+    setWatchlistEditSelected(new Set());
 
     setSelectedStockNames((prev) => {
       const next = new Set(prev);
