@@ -1,3 +1,5 @@
+import React from "react";
+import PinModalGuard from "./PinModalGuard";
 import React, { useState, useRef } from "react";
 import { BrowserRouter as Router, Routes, Route, NavLink, Navigate } from "react-router-dom";
 import { ref, update } from "firebase/database";
@@ -524,3 +526,12 @@ const getLinkStyle = ({ isActive }) => ({
   alignItems: "center",
   boxShadow: isActive ? "0 0 10px rgba(6, 182, 212, 0.4)" : "none",
 });
+
+export default function App() {
+  return (
+    <PinModalGuard>
+      {/* Your complete app views and routes stay here */}
+      {/* Nothing inside here will be rendered until the PIN is matched */}
+    </PinModalGuard>
+  );
+}
