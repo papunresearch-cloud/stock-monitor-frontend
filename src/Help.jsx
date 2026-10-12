@@ -3,10 +3,17 @@ import ReactDOM from "react-dom";
 import { ref, onValue } from "firebase/database";
 import { database } from "./firebase";
 
-// Helper: Calculate statistical distribution parameters
+// ============================================================================
+// 1. STATISTICAL UTILITY FUNCTIONS
+// ============================================================================
 function calculateStats(arr) {
-  const valid = arr.filter((v) => typeof v === "number" && !isNaN(v) && isFinite(v)).sort((a, b) => a - b);
-  if (valid.length === 0) return { count: 0, mean: 0, q1: 0, q2: 0, q3: 0, min: 0, max: 0 };
+  const valid = arr
+    .filter((v) => typeof v === "number" && !isNaN(v) && isFinite(v))
+    .sort((a, b) => a - b);
+
+  if (valid.length === 0) {
+    return { count: 0, mean: 0, q1: 0, q2: 0, q3: 0, min: 0, max: 0 };
+  }
 
   const sum = valid.reduce((acc, curr) => acc + curr, 0);
   const mean = sum / valid.length;
@@ -32,8 +39,10 @@ function calculateStats(arr) {
   };
 }
 
-// Subcomponent: Dense Exotic Columnar Plot & Distribution Histogram
-function MetricAnalyticalCard({
+// ============================================================================
+// 2. HORIZONTALLY STRETCHED ANALYTICAL CARD COMPONENT
+// ============================================================================
+function StretchedAnalyticalCard({
   title,
   metricKey,
   scoreKey = "F-score",
@@ -43,19 +52,20 @@ function MetricAnalyticalCard({
   metricDomain = [-25, 50],
 }) {
   const containerRef = useRef(null);
-  const [plotWidth, setPlotWidth] = useState(480);
+  const [plotWidth, setPlotWidth] = useState(1100);
 
+  // Dynamically listen to width changes to stretch plots to maximum container width
   useEffect(() => {
     if (!containerRef.current) return;
-    const obs = new ResizeObserver((entries) => {
+    const observer = new ResizeObserver((entries) => {
       for (let entry of entries) {
         if (entry.contentRect.width > 100) {
           setPlotWidth(entry.contentRect.width);
         }
       }
     });
-    obs.observe(containerRef.current);
-    return () => obs.disconnect();
+    observer.observe(containerRef.current);
+    return () => observer.disconnect();
   }, []);
 
   // Filter valid data points
@@ -83,14 +93,14 @@ function MetricAnalyticalCard({
     return calculateStats(metricVals);
   }, [points]);
 
-  // 1. Columnar plot points (sorted by metric value for dense columnar display)
+  // Points sorted by metric for continuous columnar representation
   const sortedPoints = useMemo(() => {
     return [...points].sort((a, b) => a.metric - b.metric);
   }, [points]);
 
-  // 2. Frequency distribution histogram
+  // Frequency distribution histogram
   const histogramBins = useMemo(() => {
-    const binCount = 30;
+    const binCount = 45; // Enhanced bin resolution for stretched view
     const [minDomain, maxDomain] = metricDomain;
     const step = (maxDomain - minDomain) / binCount;
     const bins = Array.from({ length: binCount }, (_, i) => ({
@@ -111,23 +121,26 @@ function MetricAnalyticalCard({
     return { bins, maxCount };
   }, [points, metricDomain]);
 
-  // SVG Dimension Constants
-  const height = 190;
-  const margin = { top: 14, right: 18, bottom: 28, left: 38 };
-  const innerWidth = Math.max(120, plotWidth - margin.left - margin.right);
-  const innerHeight = height - margin.top - margin.bottom;
+  // Dimensions maintaining balanced panoramic aspect ratio
+  const heightPlot = 260;
+  const heightHist = 190;
+  const margin = { top: 16, right: 30, bottom: 32, left: 45 };
+
+  const innerWidth = Math.max(200, plotWidth - margin.left - margin.right);
+  const innerHeightPlot = heightPlot - margin.top - margin.bottom;
+  const innerHeightHist = heightHist - margin.top - margin.bottom;
 
   // Scales
   const [minD, maxD] = metricDomain;
   const scaleX = (val) => margin.left + ((val - minD) / (maxD - minD)) * innerWidth;
-  const scaleYScore = (val) => margin.top + innerHeight - (val / 100) * innerHeight;
+  const scaleYScore = (val) => margin.top + innerHeightPlot - (val / 100) * innerHeightPlot;
   const scaleYHist = (count) =>
-    margin.top + innerHeight - (count / histogramBins.maxCount) * innerHeight;
+    margin.top + innerHeightHist - (count / histogramBins.maxCount) * innerHeightHist;
 
-  // Generate 15-20% gap non-congested ticks
+  // Ticks at 10% to 20% intervals to avoid congested axis markers
   const xTicks = useMemo(() => {
     const range = maxD - minD;
-    const step = range <= 80 ? 15 : 25; // 15-20% step span
+    const step = range <= 80 ? 10 : 20;
     const ticks = [];
     for (let t = Math.ceil(minD / step) * step; t <= maxD; t += step) {
       ticks.push(t);
@@ -135,58 +148,59 @@ function MetricAnalyticalCard({
     return ticks;
   }, [minD, maxD]);
 
-  const yTicks = [0, 20, 40, 60, 80, 100]; // 20% span to prevent congestion
+  const yScoreTicks = [0, 20, 40, 60, 80, 100]; // 20% increments
 
   return (
     <div
       ref={containerRef}
       style={{
-        backgroundColor: "#09101d",
-        border: `1px solid #1e293b`,
-        borderTop: `3px solid ${themeColor}`,
-        borderRadius: "10px",
-        padding: "16px",
+        width: "100%",
+        backgroundColor: "#070c18",
+        border: "1px solid #1e293b",
+        borderTop: `4px solid ${themeColor}`,
+        borderRadius: "12px",
+        padding: "20px",
         display: "flex",
         flexDirection: "column",
-        gap: "14px",
-        boxShadow: "0 8px 24px rgba(0,0,0,0.6)",
+        gap: "18px",
+        boxShadow: "0 10px 30px rgba(0,0,0,0.6)",
+        boxSizing: "border-box",
       }}
     >
-      {/* Header */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <span style={{ color: themeColor, fontSize: "14px", fontWeight: "900", letterSpacing: "0.5px" }}>
-          {title}
-        </span>
-        <span
-          style={{
-            backgroundColor: "#1e293b",
-            color: accentColor,
-            padding: "2px 8px",
-            borderRadius: "4px",
-            fontSize: "11px",
-            fontWeight: "bold",
-          }}
-        >
-          {points.length} STOCKS
-        </span>
+      {/* Title & Badge */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "10px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+          <span style={{ fontSize: "18px" }}>📊</span>
+          <span style={{ color: themeColor, fontSize: "16px", fontWeight: "900", letterSpacing: "1px", textTransform: "uppercase" }}>
+            {title}
+          </span>
+        </div>
+        <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+          <span style={{ backgroundColor: "#1e293b", color: "#94a3b8", padding: "4px 10px", borderRadius: "5px", fontSize: "11px", fontWeight: "bold" }}>
+            DOMAIN: [{minD}, {maxD}]
+          </span>
+          <span style={{ backgroundColor: "#1e293b", color: accentColor, padding: "4px 12px", borderRadius: "5px", fontSize: "12px", fontWeight: "900" }}>
+            {points.length} ACTIVE STOCKS
+          </span>
+        </div>
       </div>
 
-      {/* CHART 1: Dense Columnar Plot (Metric vs F-score) */}
-      <div style={{ backgroundColor: "#040812", borderRadius: "8px", border: "1px solid #131e33", padding: "6px" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", padding: "0 6px 4px 6px", fontSize: "11px", color: "#94a3b8", fontWeight: "700" }}>
-          <span>📊 COLUMNAR PLOT: {metricKey} VS {scoreKey}</span>
-          <span style={{ color: themeColor }}>Y: 0 - 100 SCALE</span>
+      {/* PLOT 1: Full-Width Columnar Plot */}
+      <div style={{ backgroundColor: "#030712", borderRadius: "8px", border: "1px solid #131e33", padding: "10px" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", padding: "0 10px 6px 10px", fontSize: "11px", color: "#94a3b8", fontWeight: "800" }}>
+          <span>COLUMNAR PLOT: {metricKey} VS {scoreKey}</span>
+          <span style={{ color: themeColor }}>Y-AXIS: 0 TO 100 NORMALIZED SCORE</span>
         </div>
-        <svg width="100%" height={height} viewBox={`0 0 ${plotWidth} ${height}`} style={{ overflow: "visible" }}>
+        <svg width="100%" height={heightPlot} viewBox={`0 0 ${plotWidth} ${heightPlot}`} style={{ overflow: "visible" }}>
           <defs>
             <linearGradient id={`grad-col-${metricKey}`} x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor={themeColor} stopOpacity="0.9" />
-              <stop offset="100%" stopColor={accentColor} stopOpacity="0.25" />
+              <stop offset="0%" stopColor={themeColor} stopOpacity="0.95" />
+              <stop offset="100%" stopColor={accentColor} stopOpacity="0.2" />
             </linearGradient>
           </defs>
 
-          {/* Grid lines */}
-          {yTicks.map((yVal) => (
+          {/* Grid lines & Y-ticks */}
+          {yScoreTicks.map((yVal) => (
             <g key={`y-grid-${yVal}`}>
               <line
                 x1={margin.left}
@@ -194,13 +208,13 @@ function MetricAnalyticalCard({
                 x2={margin.left + innerWidth}
                 y2={scaleYScore(yVal)}
                 stroke="#172439"
-                strokeDasharray="3 3"
+                strokeDasharray="4 4"
               />
               <text
-                x={margin.left - 6}
-                y={scaleYScore(yVal) + 3}
+                x={margin.left - 8}
+                y={scaleYScore(yVal) + 4}
                 fill="#64748b"
-                fontSize="9"
+                fontSize="10"
                 fontWeight="bold"
                 textAnchor="end"
               >
@@ -209,21 +223,21 @@ function MetricAnalyticalCard({
             </g>
           ))}
 
-          {/* X-Axis Ticks */}
+          {/* X-ticks */}
           {xTicks.map((xVal) => (
             <g key={`x-tick-${xVal}`}>
               <line
                 x1={scaleX(xVal)}
-                y1={margin.top + innerHeight}
+                y1={margin.top + innerHeightPlot}
                 x2={scaleX(xVal)}
-                y2={margin.top + innerHeight + 4}
+                y2={margin.top + innerHeightPlot + 6}
                 stroke="#334155"
               />
               <text
                 x={scaleX(xVal)}
-                y={margin.top + innerHeight + 15}
-                fill="#64748b"
-                fontSize="9"
+                y={margin.top + innerHeightPlot + 20}
+                fill="#94a3b8"
+                fontSize="10"
                 fontWeight="bold"
                 textAnchor="middle"
               >
@@ -236,8 +250,8 @@ function MetricAnalyticalCard({
           {sortedPoints.map((p, idx) => {
             const barX = scaleX(p.metric);
             const barY = scaleYScore(p.score);
-            const barH = margin.top + innerHeight - barY;
-            const barW = Math.max(1.5, Math.min(6, innerWidth / (points.length || 1)));
+            const barH = margin.top + innerHeightPlot - barY;
+            const barW = Math.max(2, innerWidth / (points.length || 1) * 0.9);
 
             return (
               <rect
@@ -245,28 +259,28 @@ function MetricAnalyticalCard({
                 x={barX - barW / 2}
                 y={barY}
                 width={barW}
-                height={Math.max(1, barH)}
+                height={Math.max(1.5, barH)}
                 fill={`url(#grad-col-${metricKey})`}
-                opacity={0.8}
+                opacity={0.85}
               >
-                <title>{`${metricKey}: ${p.metric.toFixed(1)} | ${scoreKey}: ${p.score.toFixed(1)}`}</title>
+                <title>{`${metricKey}: ${p.metric.toFixed(2)} | ${scoreKey}: ${p.score.toFixed(2)}`}</title>
               </rect>
             );
           })}
         </svg>
       </div>
 
-      {/* CHART 2: Dense Columnar Frequency Distribution Histogram */}
-      <div style={{ backgroundColor: "#040812", borderRadius: "8px", border: "1px solid #131e33", padding: "6px" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", padding: "0 6px 4px 6px", fontSize: "11px", color: "#94a3b8", fontWeight: "700" }}>
-          <span>📈 DENSITY DISTRIBUTION: {metricKey}</span>
-          <span style={{ color: accentColor }}>MAX FREQ: {histogramBins.maxCount}</span>
+      {/* PLOT 2: Full-Width Distribution Histogram */}
+      <div style={{ backgroundColor: "#030712", borderRadius: "8px", border: "1px solid #131e33", padding: "10px" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", padding: "0 10px 6px 10px", fontSize: "11px", color: "#94a3b8", fontWeight: "800" }}>
+          <span>DENSE FREQUENCY DISTRIBUTION: {metricKey}</span>
+          <span style={{ color: accentColor }}>MAX FREQUENCY IN BIN: {histogramBins.maxCount}</span>
         </div>
-        <svg width="100%" height={height - 30} viewBox={`0 0 ${plotWidth} ${height - 30}`} style={{ overflow: "visible" }}>
+        <svg width="100%" height={heightHist} viewBox={`0 0 ${plotWidth} ${heightHist}`} style={{ overflow: "visible" }}>
           <defs>
             <linearGradient id={`grad-hist-${metricKey}`} x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor={accentColor} stopOpacity="0.9" />
-              <stop offset="100%" stopColor={themeColor} stopOpacity="0.15" />
+              <stop offset="0%" stopColor={accentColor} stopOpacity="0.95" />
+              <stop offset="100%" stopColor={themeColor} stopOpacity="0.25" />
             </linearGradient>
           </defs>
 
@@ -275,9 +289,9 @@ function MetricAnalyticalCard({
             <text
               key={`x-hist-tick-${xVal}`}
               x={scaleX(xVal)}
-              y={margin.top + innerHeight - 30 + 15}
-              fill="#64748b"
-              fontSize="9"
+              y={margin.top + innerHeightHist + 18}
+              fill="#94a3b8"
+              fontSize="10"
               fontWeight="bold"
               textAnchor="middle"
             >
@@ -288,9 +302,9 @@ function MetricAnalyticalCard({
           {/* Histogram Bins */}
           {histogramBins.bins.map((bin, i) => {
             const bx = scaleX(bin.x0);
-            const bw = Math.max(2, scaleX(bin.x1) - bx - 1);
-            const bh = ((bin.count / histogramBins.maxCount) * (innerHeight - 30));
-            const by = margin.top + (innerHeight - 30) - bh;
+            const bw = Math.max(2.5, scaleX(bin.x1) - bx - 1.5);
+            const bh = (bin.count / histogramBins.maxCount) * innerHeightHist;
+            const by = margin.top + innerHeightHist - bh;
 
             return (
               <rect
@@ -300,9 +314,9 @@ function MetricAnalyticalCard({
                 width={bw}
                 height={Math.max(1, bh)}
                 fill={`url(#grad-hist-${metricKey})`}
-                rx={1}
+                rx={2}
               >
-                <title>{`Range: [${bin.x0.toFixed(1)}, ${bin.x1.toFixed(1)}] | Count: ${bin.count}`}</title>
+                <title>{`Bucket Range: [${bin.x0.toFixed(1)}, ${bin.x1.toFixed(1)}] | Stock Count: ${bin.count}`}</title>
               </rect>
             );
           })}
@@ -313,37 +327,39 @@ function MetricAnalyticalCard({
       <div
         style={{
           display: "grid",
-          gridTemplateColumns: "repeat(4, 1fr)",
-          gap: "8px",
-          backgroundColor: "#070c18",
-          padding: "10px",
-          borderRadius: "6px",
+          gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+          gap: "12px",
+          backgroundColor: "#030712",
+          padding: "14px",
+          borderRadius: "8px",
           border: "1px solid #1e293b",
           textAlign: "center",
         }}
       >
         <div>
-          <div style={{ fontSize: "10px", color: "#94a3b8", fontWeight: "bold" }}>MEAN</div>
-          <div style={{ fontSize: "13px", color: "#ffffff", fontWeight: "900" }}>{stats.mean}</div>
+          <div style={{ fontSize: "11px", color: "#94a3b8", fontWeight: "bold" }}>MEAN VALUE</div>
+          <div style={{ fontSize: "16px", color: "#ffffff", fontWeight: "900", marginTop: "2px" }}>{stats.mean}</div>
         </div>
         <div>
-          <div style={{ fontSize: "10px", color: "#38bdf8", fontWeight: "bold" }}>Q1 (25%)</div>
-          <div style={{ fontSize: "13px", color: "#38bdf8", fontWeight: "900" }}>{stats.q1}</div>
+          <div style={{ fontSize: "11px", color: "#38bdf8", fontWeight: "bold" }}>FIRST QUARTILE (Q1 / 25%)</div>
+          <div style={{ fontSize: "16px", color: "#38bdf8", fontWeight: "900", marginTop: "2px" }}>{stats.q1}</div>
         </div>
         <div>
-          <div style={{ fontSize: "10px", color: themeColor, fontWeight: "bold" }}>Q2 (MEDIAN)</div>
-          <div style={{ fontSize: "13px", color: themeColor, fontWeight: "900" }}>{stats.q2}</div>
+          <div style={{ fontSize: "11px", color: themeColor, fontWeight: "bold" }}>SECOND QUARTILE (Q2 / MEDIAN)</div>
+          <div style={{ fontSize: "16px", color: themeColor, fontWeight: "900", marginTop: "2px" }}>{stats.q2}</div>
         </div>
         <div>
-          <div style={{ fontSize: "10px", color: "#f59e0b", fontWeight: "bold" }}>Q3 (75%)</div>
-          <div style={{ fontSize: "13px", color: "#f59e0b", fontWeight: "900" }}>{stats.q3}</div>
+          <div style={{ fontSize: "11px", color: "#f59e0b", fontWeight: "bold" }}>THIRD QUARTILE (Q3 / 75%)</div>
+          <div style={{ fontSize: "16px", color: "#f59e0b", fontWeight: "900", marginTop: "2px" }}>{stats.q3}</div>
         </div>
       </div>
     </div>
   );
 }
 
-// Master Help Modal Component
+// ============================================================================
+// 3. MASTER HELP COMPONENT
+// ============================================================================
 export default function Help({ isOpen, onClose }) {
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -377,12 +393,12 @@ export default function Help({ isOpen, onClose }) {
         left: 0,
         width: "100vw",
         height: "100vh",
-        backgroundColor: "rgba(2, 6, 23, 0.88)",
-        backdropFilter: "blur(8px)",
+        backgroundColor: "rgba(2, 6, 23, 0.92)",
+        backdropFilter: "blur(10px)",
         display: "flex",
         justifyContent: "center",
         alignItems: "center",
-        zIndex: 99999, // Super high z-index to break free from headers
+        zIndex: 99999,
         padding: "16px",
         boxSizing: "border-box",
       }}
@@ -391,11 +407,11 @@ export default function Help({ isOpen, onClose }) {
         style={{
           backgroundColor: "#070c18",
           border: "2px solid #06b6d4",
-          boxShadow: "0 0 40px rgba(6, 182, 212, 0.4), 0 25px 60px rgba(0,0,0,0.9)",
+          boxShadow: "0 0 50px rgba(6, 182, 212, 0.4), 0 25px 60px rgba(0,0,0,0.95)",
           borderRadius: "14px",
-          width: isMaximized ? "98vw" : "94vw",
-          height: isMaximized ? "98vh" : "92vh",
-          maxWidth: "1600px",
+          width: isMaximized ? "99vw" : "95vw",
+          height: isMaximized ? "99vh" : "93vh",
+          maxWidth: "1800px",
           display: "flex",
           flexDirection: "column",
           color: "#f8fafc",
@@ -403,47 +419,47 @@ export default function Help({ isOpen, onClose }) {
           transition: "all 0.2s ease-in-out",
         }}
       >
-        {/* Top Header */}
+        {/* Header Bar */}
         <div
           style={{
-            padding: "14px 20px",
+            padding: "14px 24px",
             borderBottom: "2px solid #1e293b",
             display: "flex",
             justifyContent: "space-between",
             alignItems: "center",
-            backgroundColor: "#0b1329",
+            backgroundColor: "#091224",
           }}
         >
           <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-            <span style={{ fontSize: "20px" }}>⚡</span>
+            <span style={{ fontSize: "22px" }}>⚡</span>
             <span
               style={{
                 color: "#ffcc00",
                 fontSize: "15px",
                 fontWeight: "900",
-                letterSpacing: "1px",
+                letterSpacing: "1.2px",
                 textTransform: "uppercase",
               }}
             >
-              QUANTUM TELEMETRY & METHODOLOGY INTELLIGENCE
+              QUANTUM SYSTEM TELEMETRY & ALGORITHMIC CALCULATION GUIDE
             </span>
           </div>
 
-          <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+          <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
             <button
               onClick={() => setIsMaximized((prev) => !prev)}
               style={{
                 background: "#1e293b",
                 border: "1px solid #475569",
                 color: "#38bdf8",
-                padding: "6px 12px",
+                padding: "7px 14px",
                 borderRadius: "6px",
                 fontWeight: "bold",
                 fontSize: "12px",
                 cursor: "pointer",
               }}
             >
-              {isMaximized ? "🗗 RESTORE" : "🗖 MAXIMIZE"}
+              {isMaximized ? "🗗 RESTORE SIZE" : "🗖 MAXIMIZE WINDOW"}
             </button>
             <button
               onClick={onClose}
@@ -451,7 +467,7 @@ export default function Help({ isOpen, onClose }) {
                 background: "#dc2626",
                 border: "none",
                 color: "#ffffff",
-                padding: "6px 12px",
+                padding: "7px 16px",
                 borderRadius: "6px",
                 fontWeight: "900",
                 fontSize: "13px",
@@ -463,127 +479,202 @@ export default function Help({ isOpen, onClose }) {
           </div>
         </div>
 
-        {/* Scrollable Modal Body */}
-        <div style={{ padding: "20px", overflowY: "auto", flex: 1, display: "flex", flexDirection: "column", gap: "24px" }}>
+        {/* Scrollable Body */}
+        <div style={{ padding: "24px", overflowY: "auto", flex: 1, display: "flex", flexDirection: "column", gap: "28px" }}>
           {loading ? (
-            <div style={{ textAlign: "center", padding: "60px", color: "#38bdf8", fontWeight: "bold" }}>
-              ⏳ Streaming live cross-sectional screener records...
+            <div style={{ textAlign: "center", padding: "80px", color: "#38bdf8", fontWeight: "bold" }}>
+              ⏳ Streaming live records from Firebase Realtime Database...
             </div>
           ) : (
             <>
-              {/* SECTION 1: 4 ANALYTICAL CHARTS GRID */}
-              <div>
-                <div style={{ color: "#38bdf8", fontSize: "14px", fontWeight: "900", marginBottom: "14px", textTransform: "uppercase", letterSpacing: "1px" }}>
-                  📈 Cross-Sectional Score Distributions & Profitability / Growth Columns
+              {/* SECTION 1: 4 FULLY STRETCHED VERTICAL PLOTS */}
+              <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
+                <div style={{ borderBottom: "1px solid #1e293b", paddingBottom: "10px" }}>
+                  <h3 style={{ margin: 0, color: "#38bdf8", fontSize: "16px", fontWeight: "900", letterSpacing: "1px", textTransform: "uppercase" }}>
+                    📈 Cross-Sectional Score Distributions (Single-Column Panoramic View)
+                  </h3>
+                  <p style={{ margin: "4px 0 0 0", color: "#94a3b8", fontSize: "12px" }}>
+                    Plots stretch across the full width to provide maximum resolution. Columns show exact distributions alongside quartile telemetry.
+                  </p>
                 </div>
 
-                <div
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns: "repeat(auto-fit, minmax(420px, 1fr))",
-                    gap: "18px",
-                  }}
-                >
-                  {/* Plot 1: roe-c vs F-score */}
-                  <MetricAnalyticalCard
-                    title="1. ROE-C VS F-SCORE"
-                    metricKey="roe-c"
-                    scoreKey="F-score"
-                    data={data}
-                    themeColor="#10b981"
-                    accentColor="#06b6d4"
-                    metricDomain={[-25, 50]}
-                  />
+                {/* 1. roe-c vs F-score */}
+                <StretchedAnalyticalCard
+                  title="1. ROE-C (Consolidated Return on Equity) vs Fundamental Score (F-Score)"
+                  metricKey="roe-c"
+                  scoreKey="F-score"
+                  data={data}
+                  themeColor="#10b981"
+                  accentColor="#06b6d4"
+                  metricDomain={[-25, 50]}
+                />
 
-                  {/* Plot 2: roa-c vs F-score */}
-                  <MetricAnalyticalCard
-                    title="2. ROA-C VS F-SCORE"
-                    metricKey="roa-c"
-                    scoreKey="F-score"
-                    data={data}
-                    themeColor="#3b82f6"
-                    accentColor="#8b5cf6"
-                    metricDomain={[-25, 50]}
-                  />
+                {/* 2. roa-c vs F-score */}
+                <StretchedAnalyticalCard
+                  title="2. ROA-C (Consolidated Return on Assets) vs Fundamental Score (F-Score)"
+                  metricKey="roa-c"
+                  scoreKey="F-score"
+                  data={data}
+                  themeColor="#3b82f6"
+                  accentColor="#8b5cf6"
+                  metricDomain={[-25, 50]}
+                />
 
-                  {/* Plot 3: sgc vs F-score */}
-                  <MetricAnalyticalCard
-                    title="3. SGC VS F-SCORE"
-                    metricKey="sgc"
-                    scoreKey="F-score"
-                    data={data}
-                    themeColor="#f59e0b"
-                    accentColor="#ef4444"
-                    metricDomain={[-50, 100]}
-                  />
+                {/* 3. sgc vs F-score */}
+                <StretchedAnalyticalCard
+                  title="3. SGC (Clamped Sales Growth) vs Fundamental Score (F-Score)"
+                  metricKey="sgc"
+                  scoreKey="F-score"
+                  data={data}
+                  themeColor="#f59e0b"
+                  accentColor="#ef4444"
+                  metricDomain={[-50, 100]}
+                />
 
-                  {/* Plot 4: pgc vs F-score */}
-                  <MetricAnalyticalCard
-                    title="4. PGC VS F-SCORE"
-                    metricKey="pgc"
-                    scoreKey="F-score"
-                    data={data}
-                    themeColor="#ec4899"
-                    accentColor="#f97316"
-                    metricDomain={[-50, 100]}
-                  />
-                </div>
+                {/* 4. pgc vs F-score */}
+                <StretchedAnalyticalCard
+                  title="4. PGC (Clamped Profit Growth) vs Fundamental Score (F-Score)"
+                  metricKey="pgc"
+                  scoreKey="F-score"
+                  data={data}
+                  themeColor="#ec4899"
+                  accentColor="#f97316"
+                  metricDomain={[-50, 100]}
+                />
               </div>
 
-              {/* SECTION 2: CONCISE METHODOLOGY SUMMARIES */}
+              {/* SECTION 2: DETAILED CALCULATION METHODOLOGY SUMMARY */}
               <div
                 style={{
                   backgroundColor: "#09101d",
-                  borderRadius: "10px",
+                  borderRadius: "12px",
                   border: "1px solid #1e293b",
-                  padding: "20px",
+                  padding: "24px",
                   display: "flex",
                   flexDirection: "column",
-                  gap: "18px",
+                  gap: "24px",
                 }}
               >
-                <div style={{ color: "#ffcc00", fontSize: "15px", fontWeight: "900", letterSpacing: "1px", textTransform: "uppercase", borderBottom: "1px solid #1e293b", paddingBottom: "10px" }}>
-                  📚 Calculation Methodology Summary
+                <div style={{ borderBottom: "2px solid #1e293b", paddingBottom: "12px" }}>
+                  <h2 style={{ color: "#ffcc00", fontSize: "17px", fontWeight: "900", letterSpacing: "1px", textTransform: "uppercase", margin: 0 }}>
+                    📚 Complete Calculation Methodology & Mathematical Formulations
+                  </h2>
+                  <p style={{ margin: "6px 0 0 0", color: "#94a3b8", fontSize: "13px" }}>
+                    Exhaustive documentation explaining how raw market data transforms into cross-sectional scores (0–100 scale).
+                  </p>
                 </div>
 
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", gap: "18px" }}>
-                  {/* F-Score Summary */}
-                  <div style={{ backgroundColor: "#040812", padding: "14px", borderRadius: "8px", borderLeft: "4px solid #10b981" }}>
-                    <h4 style={{ color: "#10b981", margin: "0 0 8px 0", fontSize: "14px" }}>
-                      1. Fundamental Score (F-Score)
-                    </h4>
-                    <p style={{ margin: 0, fontSize: "12px", color: "#cbd5e1", lineHeight: "1.6" }}>
-                      • <b>Input Verification:</b> Checks multi-year Return on Equity (ROE) and Return on Assets (ROA) across current, 1-year, and 3-year periods.<br />
-                      • <b>Boundary Clamping:</b> Raw ROE and ROA are bounded to <b>[-25, 50]</b> (`roe-c` and `roa-c`) to suppress extreme capital structure distortions.<br />
-                      • <b>Logistic Weighting:</b> An S-curve weight (K) dynamically balances ROE against asset profitability (ROA).<br />
-                      • <b>0–100 Scale:</b> Min-Max normalization assigns the final Fundamental score, with disqualified stocks set to 101.
+                {/* METHODOLOGY 1: F-SCORE */}
+                <div style={{ backgroundColor: "#040812", padding: "20px", borderRadius: "10px", borderLeft: "5px solid #10b981", display: "flex", flexDirection: "column", gap: "10px" }}>
+                  <h3 style={{ color: "#10b981", margin: 0, fontSize: "15px", textTransform: "uppercase", letterSpacing: "0.5px" }}>
+                    1. Fundamental Score (F-Score) — Calculation Logic
+                  </h3>
+                  <div style={{ fontSize: "13px", color: "#cbd5e1", lineHeight: "1.7" }}>
+                    <p style={{ margin: "0 0 8px 0" }}>
+                      The <b>F-score</b> measures the underlying capital quality and operational efficiency of the business. It blends Return on Equity (ROE) and Return on Assets (ROA) while applying non-linear dampening to guard against financial leverage traps:
                     </p>
+                    <ul style={{ margin: 0, paddingLeft: "20px" }}>
+                      <li>
+                        <b>Mandatory Gatekeeper (Group 1):</b> A company must have valid data for the latest annual numbers: <code>roe-0</code> and <code>roa-0</code>. If either is missing, infinite, or außerhalb of [-999, 999], the stock is disqualified and assigned a sentinel value of <b>101.0</b>.
+                      </li>
+                      <li>
+                        <b>Temporal Cascading:</b>
+                        <br />• <i>If only G1 is available:</i> <code>roe_raw = roe-0</code>, <code>roa_raw = roa-0</code>.
+                        <br />• <i>If G1 + G2 (1-year prior) are available:</i> <code>60% * Year-0 + 40% * Year-1</code>.
+                        <br />• <i>If G1 + G2 + G3 (3-year average) are all available:</i> <code>40% * Year-0 + 35% * Year-1 + 25% * 3Y-Avg</code>.
+                      </li>
+                      <li>
+                        <b>Boundary Clamping ([-25, 50]):</b> <code>roe-c = max(-25, min(50, roe_raw))</code> and <code>roa-c = max(-25, min(50, roa_raw))</code>. This isolates companies from abnormal, non-recurring accounting windfalls or catastrophic write-downs.
+                      </li>
+                      <li>
+                        <b>Non-Linear Leverage Sensitivity (Logistic Parameter K):</b> Highly leveraged companies can exhibit artificial spikes in ROE with weak ROA. The engine computes a logistic weighting factor:
+                        <br />
+                        <code style={{ color: "#38bdf8" }}>K = 1.0 / ( (1 + exp(-0.025 * (roa-c - 7.5))) ^ 25 )</code>
+                        <br />
+                        The final fundamental value becomes: <code>Fv = (roa-c + K * roe-c) / (1 + K)</code>. When ROA is strong, ROE is weighted normally; when ROA is weak or compromised, ROE weight collapses, protecting the score from debt-fueled optical performance.
+                      </li>
+                      <li>
+                        <b>Cross-Sectional Min-Max Rescaling:</b> The fundamental value <code>Fv</code> is scaled linearly from <b>0.00 to 100.00</b> relative to the cross-sectional minimum and maximum observed across all active companies in the market.
+                      </li>
+                    </ul>
                   </div>
+                </div>
 
-                  {/* G-Score Summary */}
-                  <div style={{ backgroundColor: "#040812", padding: "14px", borderRadius: "8px", borderLeft: "4px solid #f59e0b" }}>
-                    <h4 style={{ color: "#f59e0b", margin: "0 0 8px 0", fontSize: "14px" }}>
-                      2. Growth Score (G-Score)
-                    </h4>
-                    <p style={{ margin: 0, fontSize: "12px", color: "#cbd5e1", lineHeight: "1.6" }}>
-                      • <b>Sales & Profit Blends:</b> Merges TTM, latest quarter, and 3-year sales (`sg`) and 1-year/3-year profit growth (`pg`).<br />
-                      • <b>Outlier Clamping:</b> Blended metrics are clamped strictly into <b>[-50, 100]</b> (`sgc` and `pgc`).<br />
-                      • <b>Divergence Decay:</b> If sales and profit growth disagree heavily, profit weight drops toward 0.25 to prioritize reliable revenues.<br />
-                      • <b>0–100 Scale:</b> Cross-sectional rescaling generates relative industry strength; missing metrics receive 101.
+                {/* METHODOLOGY 2: G-SCORE */}
+                <div style={{ backgroundColor: "#040812", padding: "20px", borderRadius: "10px", borderLeft: "5px solid #f59e0b", display: "flex", flexDirection: "column", gap: "10px" }}>
+                  <h3 style={{ color: "#f59e0b", margin: 0, fontSize: "15px", textTransform: "uppercase", letterSpacing: "0.5px" }}>
+                    2. Growth Score (G-Score) — Calculation Logic
+                  </h3>
+                  <div style={{ fontSize: "13px", color: "#cbd5e1", lineHeight: "1.7" }}>
+                    <p style={{ margin: "0 0 8px 0" }}>
+                      The <b>G-score</b> quantifies business expansion velocity. It merges sales expansion with net profit traction and utilizes dynamic divergence decay to ensure revenue growth confirms bottom-line expansion:
                     </p>
+                    <ul style={{ margin: 0, paddingLeft: "20px" }}>
+                      <li>
+                        <b>Mandatory Gatekeeper:</b> Both TTM Sales Growth (<code>sg-ttm</code>) and 1-Year Profit Growth (<code>pg-1</code>) must be present and valid within [-100, 9999]. If either fails, the company is ineligible and assigned <b>101.0</b>.
+                      </li>
+                      <li>
+                        <b>Multi-Horizon Blending:</b>
+                        <br />• <i>Sales Growth (`sg`):</i> When quarterly (<code>sg-eq</code>), TTM, and 3-Year metrics exist, it weights short-term momentum and stability: <code>0.6 * (0.25 * sg-eq + 0.75 * sg-ttm) + 0.4 * sg-3y</code>.
+                        <br />• <i>Profit Growth (`pg`):</i> Blends 1-Year (60%) with 3-Year (40%) profit trajectories: <code>0.6 * pg-1 + 0.4 * pg-3</code>.
+                      </li>
+                      <li>
+                        <b>Clamping Outliers ([-50, 100]):</b> Blended sales and profit growth are capped strictly to <code>[-50, 100]</code> (`sgc` and `pgc`) to neutralize high base-effect distortions in small-cap turnarounds.
+                      </li>
+                      <li>
+                        <b>Dynamic Divergence Sigmoid Decay:</b>
+                        <br />• Computes discrepancy: <code>diff = |sgc - pgc|</code>.
+                        <br />• Calculates sigmoid penalty: <code>kf = 100 / (1 + exp(ln(9) * (diff - 50) / 25))</code>.
+                        <br />• Effective profit weight: <code>k = 0.25 + 0.0075 * kf</code>.
+                        <br />• Raw growth metric: <code>fv = (sgc + k * pgc) / (1 + k)</code>.
+                        <br />
+                        <i>Significance:</i> When top-line sales growth and bottom-line profit growth expand together, profit gets near-equal weight ($k \approx 1.0$). When profit spikes without supporting sales growth, $k$ automatically drops down to $0.25$, prioritizing verifiable sales expansion.
+                      </li>
+                      <li>
+                        <b>Market-Wide Rescaling:</b> Raw growth value <code>fv</code> is normalized across all eligible stocks to produce a final <b>0 to 100</b> rating (2 decimals).
+                      </li>
+                    </ul>
                   </div>
+                </div>
 
-                  {/* T-Score Summary */}
-                  <div style={{ backgroundColor: "#040812", padding: "14px", borderRadius: "8px", borderLeft: "4px solid #38bdf8" }}>
-                    <h4 style={{ color: "#38bdf8", margin: "0 0 8px 0", fontSize: "14px" }}>
-                      3. Technical Score (T-Score)
-                    </h4>
-                    <p style={{ margin: 0, fontSize: "12px", color: "#cbd5e1", lineHeight: "1.6" }}>
-                      • <b>DMA Engine (60%):</b> Measures price position relative to 50 DMA, 200 DMA, and 52-week extremes with volatility range dampening.<br />
-                      • <b>Short-Term Returns (30%):</b> Weights 1-week, 1-month, and 3-month momentum against market-cap trimmed benchmarks.<br />
-                      • <b>Long-Term Returns (10%):</b> Evaluates 6-month, 1-year, and 3-year performance vs broader market medians.<br />
-                      • <b>Blended Composite:</b> Final combination creates a robust technical health metric.
+                {/* METHODOLOGY 3: T-SCORE */}
+                <div style={{ backgroundColor: "#040812", padding: "20px", borderRadius: "10px", borderLeft: "5px solid #38bdf8", display: "flex", flexDirection: "column", gap: "10px" }}>
+                  <h3 style={{ color: "#38bdf8", margin: 0, fontSize: "15px", textTransform: "uppercase", letterSpacing: "0.5px" }}>
+                    3. Technical Score (T-Score) — Calculation Logic
+                  </h3>
+                  <div style={{ fontSize: "13px", color: "#cbd5e1", lineHeight: "1.7" }}>
+                    <p style={{ margin: "0 0 8px 0" }}>
+                      The <b>T-score</b> evaluates multi-timeframe price momentum and structural trend strength. It combines price distance from key moving averages with benchmark-trimmed multi-horizon relative returns:
                     </p>
+                    <ul style={{ margin: 0, paddingLeft: "20px" }}>
+                      <li>
+                        <b>Part 1: Distance-to-Moving-Averages (P-SCORE, Weight 60%):</b>
+                        <br />• Measures relative position within 52-week channel: <code>x1 = (CMP - 52WL) / (52WH - 52WL)</code>, <code>x2 = 50MA position</code>, <code>x3 = 200MA position</code>.
+                        <br />• Computes weighted price-structure centroid: <code>PSK = (w1*x1 + w2*x2 + w3*x3) / (w1 + w2 + w3)</code>.
+                        <br />• Applies volatility range compression factor <code>F = 1 - 0.5 * exp(-4.5 * (52W Range %))</code> to prevent whip-saws in wide consolidation channels.
+                        <br />• Centered metric <code>F1 = (PSK - 50) * F</code> is normalized across the market to generate <code>P-SCORE</code>.
+                      </li>
+                      <li>
+                        <b>Part 2: Short-Term Return Alpha (ST-SCORE, Weight 30%):</b>
+                        <br />• Uses 1-Week, 1-Month, and 3-Month returns converted to price equivalents.
+                        <br />• Measures distance from the Top-1000 market-cap interquartile benchmark median (trimmed 45%–55% quantile).
+                        <br />• Weights are biased toward immediate agility (7-day to 30-day levels weighted highest). Scaled from 0 to 100 using 5th and 95th percentiles.
+                      </li>
+                      <li>
+                        <b>Part 3: Long-Term Return Alpha (OT-SCORE, Weight 10%):</b>
+                        <br />• Uses 6-Month, 1-Year, and 3-Year returns against market-cap trimmed benchmarks.
+                        <br />• Weights are biased toward structural multi-year persistence. Scaled from 0 to 100 via percentile normalization.
+                      </li>
+                      <li>
+                        <b>Final Composite Formulation:</b>
+                        <br />
+                        <code style={{ color: "#38bdf8", fontWeight: "bold" }}>
+                          T-score = 0.60 * P-SCORE + 0.30 * ST-SCORE + 0.10 * OT-SCORE
+                        </code>
+                        <br />
+                        Stocks with invalid price channels or missing metrics default to 101.0.
+                      </li>
+                    </ul>
                   </div>
                 </div>
               </div>
