@@ -219,7 +219,7 @@ function StretchedAnalyticalCard({
       {/* PLOT 1: X = Score (0..100) vs Y = Metric */}
       <div style={{ backgroundColor: "#030712", borderRadius: "8px", border: "1px solid #131e33", padding: "12px" }}>
         <div style={{ display: "flex", justifyContent: "space-between", padding: "0 6px 6px 6px", fontSize: "11px", color: "#94a3b8", fontWeight: "800" }}>
-          <span>📈 COLUMNAR PLOT: {scoreKey} (X-AXIS) VS {metricKey} (Y-AXIS)</span>
+          <span>📈 PLOT: {scoreKey}  VS {metricKey} </span>
           <span style={{ color: themeColor }}>DOMAIN: X ∈ [0, 100], Y ∈ [{minD}, {maxD}]</span>
         </div>
         <svg width="100%" height={heightPlot} viewBox={`0 0 ${plotWidth} ${heightPlot}`} style={{ overflow: "visible" }}>
@@ -632,54 +632,54 @@ export default function Help({ isOpen, onClose }) {
 
                 {/* 1. roe-c vs F-score */}
                 <StretchedAnalyticalCard
-                  title="1. ROE-C (Consolidated Return on Equity) vs Fundamental Score (F-Score)"
+                  title="ROE-C (Consolidated Return on Equity) vs Fundamental Score (F-Score)"
                   metricKey="roe-c"
                   scoreKey="F-score"
                   data={data}
                   themeColor="#10b981"
                   accentColor="#06b6d4"
                   metricDomain={[-25, 50]}
-                  scoreLabel="Fundamental Score (F-Score) [0 to 100]"
-                  metricLabel="Consolidated ROE (%) [Clamped: -25 to 50]"
+                  scoreLabel="F-Score"
+                  metricLabel="ROE-C"
                 />
 
                 {/* 2. roa-c vs F-score */}
                 <StretchedAnalyticalCard
-                  title="2. ROA-C (Consolidated Return on Assets) vs Fundamental Score (F-Score)"
+                  title="ROA-C (Consolidated Return on Assets) vs Fundamental Score (F-Score)"
                   metricKey="roa-c"
                   scoreKey="F-score"
                   data={data}
                   themeColor="#3b82f6"
                   accentColor="#8b5cf6"
                   metricDomain={[-25, 50]}
-                  scoreLabel="Fundamental Score (F-Score) [0 to 100]"
-                  metricLabel="Consolidated ROA (%) [Clamped: -25 to 50]"
+                  scoreLabel="F-Score"
+                  metricLabel="ROA-C"
                 />
 
                 {/* 3. sgc vs G-score */}
                 <StretchedAnalyticalCard
-                  title="3. SGC (Clamped Sales Growth) vs Growth Score (G-Score)"
+                  title="Avg. Sales Growth (SGC) vs Growth Score (G-Score)"
                   metricKey="sgc"
                   scoreKey="G-score"
                   data={data}
                   themeColor="#f59e0b"
                   accentColor="#ef4444"
                   metricDomain={[-50, 100]}
-                  scoreLabel="Growth Score (G-Score) [0 to 100]"
-                  metricLabel="Clamped Sales Growth SGC (%) [Bounds: -50 to 100]"
+                  scoreLabel="G-Score"
+                  metricLabel="SGC (%)]"
                 />
 
                 {/* 4. pgc vs G-score */}
                 <StretchedAnalyticalCard
-                  title="4. PGC (Clamped Profit Growth) vs Growth Score (G-Score)"
+                  title="Avg. Profit Growth (PGC) vs Growth Score (G-Score)"
                   metricKey="pgc"
                   scoreKey="G-score"
                   data={data}
                   themeColor="#ec4899"
                   accentColor="#f97316"
                   metricDomain={[-50, 100]}
-                  scoreLabel="Growth Score (G-Score) [0 to 100]"
-                  metricLabel="Clamped Profit Growth PGC (%) [Bounds: -50 to 100]"
+                  scoreLabel="G-Score"
+                  metricLabel="PGC (%)"
                 />
               </div>
 
