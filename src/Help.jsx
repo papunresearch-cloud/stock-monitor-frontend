@@ -45,16 +45,17 @@ function calculateStats(arr) {
 function StretchedAnalyticalCard({
   title,
   metricKey,
-  scoreKey = "F-score",
+  scoreKey,
   data,
   themeColor,
   accentColor,
   metricDomain = [-25, 50],
+  metricLabel,
+  scoreLabel,
 }) {
   const containerRef = useRef(null);
   const [plotWidth, setPlotWidth] = useState(1100);
 
-  // Dynamically listen to width changes to stretch plots to maximum container width
   useEffect(() => {
     if (!containerRef.current) return;
     const observer = new ResizeObserver((entries) => {
@@ -82,25 +83,25 @@ function StretchedAnalyticalCard({
           isFinite(p.metric) &&
           !isNaN(p.score) &&
           isFinite(p.score) &&
-          p.score <= 100.0 &&
-          p.score >= 0.0
+          p.score >= 0.0 &&
+          p.score <= 100.0
       );
   }, [data, metricKey, scoreKey]);
 
-  // Telemetry statistics
+  // Telemetry statistics calculated over the metric
   const stats = useMemo(() => {
     const metricVals = points.map((p) => p.metric);
     return calculateStats(metricVals);
   }, [points]);
 
-  // Points sorted by metric for continuous columnar representation
+  // Points sorted by score (X-axis) for orderly columnar rendering
   const sortedPoints = useMemo(() => {
-    return [...points].sort((a, b) => a.metric - b.metric);
+    return [...points].sort((a, b) => a.score - b.score);
   }, [points]);
 
-  // Frequency distribution histogram
+  // Frequency distribution histogram (Dense bins with tight spacing)
   const histogramBins = useMemo(() => {
-    const binCount = 45; // Enhanced bin resolution for stretched view
+    const binCount = 60; // Dense bucket count
     const [minDomain, maxDomain] = metricDomain;
     const step = (maxDomain - minDomain) / binCount;
     const bins = Array.from({ length: binCount }, (_, i) => ({
@@ -121,34 +122,64 @@ function StretchedAnalyticalCard({
     return { bins, maxCount };
   }, [points, metricDomain]);
 
-  // Dimensions maintaining balanced panoramic aspect ratio
+  // Dimensions & Margins
   const heightPlot = 260;
   const heightHist = 190;
-  const margin = { top: 16, right: 30, bottom: 32, left: 45 };
+  const margin = { top: 20, right: 35, bottom: 45, left: 60 };
 
   const innerWidth = Math.max(200, plotWidth - margin.left - margin.right);
   const innerHeightPlot = heightPlot - margin.top - margin.bottom;
   const innerHeightHist = heightHist - margin.top - margin.bottom;
 
-  // Scales
+  // Scales for Plot 1 (X = Score [0..100], Y = Metric [minD..maxD])
   const [minD, maxD] = metricDomain;
-  const scaleX = (val) => margin.left + ((val - minD) / (maxD - minD)) * innerWidth;
-  const scaleYScore = (val) => margin.top + innerHeightPlot - (val / 100) * innerHeightPlot;
+  const scaleXScore = (scoreVal) => margin.left + (scoreVal / 100.0) * innerWidth;
+  const scaleYMetric = (metricVal) =>
+    margin.top + innerHeightPlot - ((metricVal - minD) / (maxD - minD)) * innerHeightPlot;
+  const baselineYMetric = scaleYMetric(0);
+
+  // Scales for Plot 2 (Histogram: X = Metric [minD..maxD], Y = Count [0..maxCount])
+  const scaleXMetric = (metricVal) =>
+    margin.left + ((metricVal - minD) / (maxD - minD)) * innerWidth;
   const scaleYHist = (count) =>
     margin.top + innerHeightHist - (count / histogramBins.maxCount) * innerHeightHist;
 
-  // Ticks at 10% to 20% intervals to avoid congested axis markers
-  const xTicks = useMemo(() => {
-    const range = maxD - minD;
-    const step = range <= 80 ? 10 : 20;
+  // X-axis Score ticks: 0, 5, 10, ..., 100
+  const scoreTicks = useMemo(() => {
     const ticks = [];
-    for (let t = Math.ceil(minD / step) * step; t <= maxD; t += step) {
+    for (let t = 0; t <= 100; t += 5) {
       ticks.push(t);
+    }
+    return ticks;
+  }, []);
+
+  // Y-axis Metric ticks
+  const yMetricTicks = useMemo(() => {
+    const range = maxD - minD;
+    const step = range <= 80 ? 15 : 25;
+    const ticks = [];
+    for (let v = Math.ceil(minD / step) * step; v <= maxD; v += step) {
+      ticks.push(v);
     }
     return ticks;
   }, [minD, maxD]);
 
-  const yScoreTicks = [0, 20, 40, 60, 80, 100]; // 20% increments
+  // X-axis Metric ticks for histogram
+  const xMetricTicks = useMemo(() => {
+    const range = maxD - minD;
+    const step = range <= 80 ? 10 : 20;
+    const ticks = [];
+    for (let v = Math.ceil(minD / step) * step; v <= maxD; v += step) {
+      ticks.push(v);
+    }
+    return ticks;
+  }, [minD, maxD]);
+
+  // Y-axis Histogram frequency ticks (4 evenly spaced intervals)
+  const yHistTicks = useMemo(() => {
+    const max = histogramBins.maxCount;
+    return [0, Math.round(max * 0.33), Math.round(max * 0.66), max];
+  }, [histogramBins.maxCount]);
 
   return (
     <div
@@ -177,7 +208,7 @@ function StretchedAnalyticalCard({
         </div>
         <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
           <span style={{ backgroundColor: "#1e293b", color: "#94a3b8", padding: "4px 10px", borderRadius: "5px", fontSize: "11px", fontWeight: "bold" }}>
-            DOMAIN: [{minD}, {maxD}]
+            BOUNDS: [{minD}, {maxD}]
           </span>
           <span style={{ backgroundColor: "#1e293b", color: accentColor, padding: "4px 12px", borderRadius: "5px", fontSize: "12px", fontWeight: "900" }}>
             {points.length} ACTIVE STOCKS
@@ -185,34 +216,34 @@ function StretchedAnalyticalCard({
         </div>
       </div>
 
-      {/* PLOT 1: Full-Width Columnar Plot */}
-      <div style={{ backgroundColor: "#030712", borderRadius: "8px", border: "1px solid #131e33", padding: "10px" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", padding: "0 10px 6px 10px", fontSize: "11px", color: "#94a3b8", fontWeight: "800" }}>
-          <span>COLUMNAR PLOT: {metricKey} VS {scoreKey}</span>
-          <span style={{ color: themeColor }}>Y-AXIS: 0 TO 100 NORMALIZED SCORE</span>
+      {/* PLOT 1: X = Score (0..100) vs Y = Metric */}
+      <div style={{ backgroundColor: "#030712", borderRadius: "8px", border: "1px solid #131e33", padding: "12px" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", padding: "0 6px 6px 6px", fontSize: "11px", color: "#94a3b8", fontWeight: "800" }}>
+          <span>📈 COLUMNAR PLOT: {scoreKey} (X-AXIS) VS {metricKey} (Y-AXIS)</span>
+          <span style={{ color: themeColor }}>DOMAIN: X ∈ [0, 100], Y ∈ [{minD}, {maxD}]</span>
         </div>
         <svg width="100%" height={heightPlot} viewBox={`0 0 ${plotWidth} ${heightPlot}`} style={{ overflow: "visible" }}>
           <defs>
             <linearGradient id={`grad-col-${metricKey}`} x1="0" y1="0" x2="0" y2="1">
               <stop offset="0%" stopColor={themeColor} stopOpacity="0.95" />
-              <stop offset="100%" stopColor={accentColor} stopOpacity="0.2" />
+              <stop offset="100%" stopColor={accentColor} stopOpacity="0.25" />
             </linearGradient>
           </defs>
 
-          {/* Grid lines & Y-ticks */}
-          {yScoreTicks.map((yVal) => (
+          {/* Horizontal Gridlines & Y-Axis Labels */}
+          {yMetricTicks.map((yVal) => (
             <g key={`y-grid-${yVal}`}>
               <line
                 x1={margin.left}
-                y1={scaleYScore(yVal)}
+                y1={scaleYMetric(yVal)}
                 x2={margin.left + innerWidth}
-                y2={scaleYScore(yVal)}
+                y2={scaleYMetric(yVal)}
                 stroke="#172439"
                 strokeDasharray="4 4"
               />
               <text
                 x={margin.left - 8}
-                y={scaleYScore(yVal) + 4}
+                y={scaleYMetric(yVal) + 4}
                 fill="#64748b"
                 fontSize="10"
                 fontWeight="bold"
@@ -223,19 +254,149 @@ function StretchedAnalyticalCard({
             </g>
           ))}
 
-          {/* X-ticks */}
-          {xTicks.map((xVal) => (
-            <g key={`x-tick-${xVal}`}>
+          {/* Zero reference line if within bounds */}
+          {minD < 0 && maxD > 0 && (
+            <line
+              x1={margin.left}
+              y1={baselineYMetric}
+              x2={margin.left + innerWidth}
+              y2={baselineYMetric}
+              stroke="#334155"
+              strokeWidth="1.2"
+            />
+          )}
+
+          {/* X-Axis Ticks (Multiples of 10 labeled; 5s only marked) */}
+          {scoreTicks.map((val) => {
+            const isLabeled = val % 10 === 0;
+            const tickX = scaleXScore(val);
+            const tickY = margin.top + innerHeightPlot;
+            return (
+              <g key={`score-tick-${val}`}>
+                <line
+                  x1={tickX}
+                  y1={tickY}
+                  x2={tickX}
+                  y2={tickY + (isLabeled ? 7 : 4)}
+                  stroke={isLabeled ? "#64748b" : "#334155"}
+                  strokeWidth={isLabeled ? "1.5" : "1"}
+                />
+                {isLabeled && (
+                  <text
+                    x={tickX}
+                    y={tickY + 20}
+                    fill="#94a3b8"
+                    fontSize="10"
+                    fontWeight="bold"
+                    textAnchor="middle"
+                  >
+                    {val}
+                  </text>
+                )}
+              </g>
+            );
+          })}
+
+          {/* Dense Bars */}
+          {sortedPoints.map((p, idx) => {
+            const barX = scaleXScore(p.score);
+            const barY = scaleYMetric(p.metric);
+            const barH = Math.abs(baselineYMetric - barY);
+            const topY = p.metric >= 0 ? barY : baselineYMetric;
+            const barW = Math.max(2, (innerWidth / (points.length || 1)) * 0.95);
+
+            return (
+              <rect
+                key={idx}
+                x={barX - barW / 2}
+                y={topY}
+                width={barW}
+                height={Math.max(1.5, barH)}
+                fill={`url(#grad-col-${metricKey})`}
+                opacity={0.88}
+              >
+                <title>{`${scoreKey}: ${p.score.toFixed(2)} | ${metricKey}: ${p.metric.toFixed(2)}`}</title>
+              </rect>
+            );
+          })}
+
+          {/* Axis Labels */}
+          <text
+            x={margin.left + innerWidth / 2}
+            y={heightPlot - 4}
+            fill="#38bdf8"
+            fontSize="11"
+            fontWeight="900"
+            textAnchor="middle"
+            letterSpacing="0.5px"
+          >
+            {scoreLabel}
+          </text>
+          <text
+            transform={`rotate(-90)`}
+            x={-(margin.top + innerHeightPlot / 2)}
+            y={16}
+            fill="#e2e8f0"
+            fontSize="10"
+            fontWeight="bold"
+            textAnchor="middle"
+          >
+            {metricLabel}
+          </text>
+        </svg>
+      </div>
+
+      {/* PLOT 2: Dense Frequency Distribution Histogram */}
+      <div style={{ backgroundColor: "#030712", borderRadius: "8px", border: "1px solid #131e33", padding: "12px" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", padding: "0 6px 6px 6px", fontSize: "11px", color: "#94a3b8", fontWeight: "800" }}>
+          <span>📊 DENSE DISTRIBUTION HISTOGRAM: {metricKey}</span>
+          <span style={{ color: accentColor }}>MAX FREQUENCY PER BUCKET: {histogramBins.maxCount}</span>
+        </div>
+        <svg width="100%" height={heightHist} viewBox={`0 0 ${plotWidth} ${heightHist}`} style={{ overflow: "visible" }}>
+          <defs>
+            <linearGradient id={`grad-hist-${metricKey}`} x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor={accentColor} stopOpacity="0.95" />
+              <stop offset="100%" stopColor={themeColor} stopOpacity="0.25" />
+            </linearGradient>
+          </defs>
+
+          {/* Y-Axis Horizontal Gridlines & Count Numbers */}
+          {yHistTicks.map((countVal) => (
+            <g key={`y-hist-${countVal}`}>
               <line
-                x1={scaleX(xVal)}
-                y1={margin.top + innerHeightPlot}
-                x2={scaleX(xVal)}
-                y2={margin.top + innerHeightPlot + 6}
+                x1={margin.left}
+                y1={scaleYHist(countVal)}
+                x2={margin.left + innerWidth}
+                y2={scaleYHist(countVal)}
+                stroke="#172439"
+                strokeDasharray="4 4"
+              />
+              <text
+                x={margin.left - 8}
+                y={scaleYHist(countVal) + 4}
+                fill="#64748b"
+                fontSize="10"
+                fontWeight="bold"
+                textAnchor="end"
+              >
+                {countVal}
+              </text>
+            </g>
+          ))}
+
+          {/* X-Axis Ticks (Metric Domain) */}
+          {xMetricTicks.map((xVal) => (
+            <g key={`x-hist-tick-${xVal}`}>
+              <line
+                x1={scaleXMetric(xVal)}
+                y1={margin.top + innerHeightHist}
+                x2={scaleXMetric(xVal)}
+                y2={margin.top + innerHeightHist + 5}
                 stroke="#334155"
               />
               <text
-                x={scaleX(xVal)}
-                y={margin.top + innerHeightPlot + 20}
+                x={scaleXMetric(xVal)}
+                y={margin.top + innerHeightHist + 18}
                 fill="#94a3b8"
                 fontSize="10"
                 fontWeight="bold"
@@ -246,63 +407,10 @@ function StretchedAnalyticalCard({
             </g>
           ))}
 
-          {/* Dense Bars */}
-          {sortedPoints.map((p, idx) => {
-            const barX = scaleX(p.metric);
-            const barY = scaleYScore(p.score);
-            const barH = margin.top + innerHeightPlot - barY;
-            const barW = Math.max(2, innerWidth / (points.length || 1) * 0.9);
-
-            return (
-              <rect
-                key={idx}
-                x={barX - barW / 2}
-                y={barY}
-                width={barW}
-                height={Math.max(1.5, barH)}
-                fill={`url(#grad-col-${metricKey})`}
-                opacity={0.85}
-              >
-                <title>{`${metricKey}: ${p.metric.toFixed(2)} | ${scoreKey}: ${p.score.toFixed(2)}`}</title>
-              </rect>
-            );
-          })}
-        </svg>
-      </div>
-
-      {/* PLOT 2: Full-Width Distribution Histogram */}
-      <div style={{ backgroundColor: "#030712", borderRadius: "8px", border: "1px solid #131e33", padding: "10px" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", padding: "0 10px 6px 10px", fontSize: "11px", color: "#94a3b8", fontWeight: "800" }}>
-          <span>DENSE FREQUENCY DISTRIBUTION: {metricKey}</span>
-          <span style={{ color: accentColor }}>MAX FREQUENCY IN BIN: {histogramBins.maxCount}</span>
-        </div>
-        <svg width="100%" height={heightHist} viewBox={`0 0 ${plotWidth} ${heightHist}`} style={{ overflow: "visible" }}>
-          <defs>
-            <linearGradient id={`grad-hist-${metricKey}`} x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor={accentColor} stopOpacity="0.95" />
-              <stop offset="100%" stopColor={themeColor} stopOpacity="0.25" />
-            </linearGradient>
-          </defs>
-
-          {/* X ticks */}
-          {xTicks.map((xVal) => (
-            <text
-              key={`x-hist-tick-${xVal}`}
-              x={scaleX(xVal)}
-              y={margin.top + innerHeightHist + 18}
-              fill="#94a3b8"
-              fontSize="10"
-              fontWeight="bold"
-              textAnchor="middle"
-            >
-              {xVal}
-            </text>
-          ))}
-
-          {/* Histogram Bins */}
+          {/* Histogram Bins (Zero-gap dense layout) */}
           {histogramBins.bins.map((bin, i) => {
-            const bx = scaleX(bin.x0);
-            const bw = Math.max(2.5, scaleX(bin.x1) - bx - 1.5);
+            const bx = scaleXMetric(bin.x0);
+            const bw = Math.max(1.8, scaleXMetric(bin.x1) - bx);
             const bh = (bin.count / histogramBins.maxCount) * innerHeightHist;
             const by = margin.top + innerHeightHist - bh;
 
@@ -314,12 +422,36 @@ function StretchedAnalyticalCard({
                 width={bw}
                 height={Math.max(1, bh)}
                 fill={`url(#grad-hist-${metricKey})`}
-                rx={2}
+                opacity={0.92}
               >
-                <title>{`Bucket Range: [${bin.x0.toFixed(1)}, ${bin.x1.toFixed(1)}] | Stock Count: ${bin.count}`}</title>
+                <title>{`Range: [${bin.x0.toFixed(1)}, ${bin.x1.toFixed(1)}] | Stock Count: ${bin.count}`}</title>
               </rect>
             );
           })}
+
+          {/* Histogram Axis Labels */}
+          <text
+            x={margin.left + innerWidth / 2}
+            y={heightHist - 4}
+            fill="#38bdf8"
+            fontSize="11"
+            fontWeight="900"
+            textAnchor="middle"
+            letterSpacing="0.5px"
+          >
+            {metricLabel} (Grouped Intervals)
+          </text>
+          <text
+            transform={`rotate(-90)`}
+            x={-(margin.top + innerHeightHist / 2)}
+            y={16}
+            fill="#e2e8f0"
+            fontSize="10"
+            fontWeight="bold"
+            textAnchor="middle"
+          >
+            Stock Count
+          </text>
         </svg>
       </div>
 
@@ -487,8 +619,8 @@ export default function Help({ isOpen, onClose }) {
             </div>
           ) : (
             <>
-              {/* SECTION 1: 4 FULLY STRETCHED VERTICAL PLOTS */}
-              <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
+              {/* SECTION 1: 4 VERTICALLY STACKED HORIZONTALLY STRETCHED CHARTS */}
+              <div style={{ display: "flex", flexDirection: "column", gap: "26px" }}>
                 <div style={{ borderBottom: "1px solid #1e293b", paddingBottom: "10px" }}>
                   <h3 style={{ margin: 0, color: "#38bdf8", fontSize: "16px", fontWeight: "900", letterSpacing: "1px", textTransform: "uppercase" }}>
                     📈 Cross-Sectional Score Distributions (Single-Column Panoramic View)
@@ -507,6 +639,8 @@ export default function Help({ isOpen, onClose }) {
                   themeColor="#10b981"
                   accentColor="#06b6d4"
                   metricDomain={[-25, 50]}
+                  scoreLabel="Fundamental Score (F-Score) [0 to 100]"
+                  metricLabel="Consolidated ROE (%) [Clamped: -25 to 50]"
                 />
 
                 {/* 2. roa-c vs F-score */}
@@ -518,28 +652,34 @@ export default function Help({ isOpen, onClose }) {
                   themeColor="#3b82f6"
                   accentColor="#8b5cf6"
                   metricDomain={[-25, 50]}
+                  scoreLabel="Fundamental Score (F-Score) [0 to 100]"
+                  metricLabel="Consolidated ROA (%) [Clamped: -25 to 50]"
                 />
 
-                {/* 3. sgc vs F-score */}
+                {/* 3. sgc vs G-score */}
                 <StretchedAnalyticalCard
-                  title="3. SGC (Clamped Sales Growth) vs Fundamental Score (F-Score)"
+                  title="3. SGC (Clamped Sales Growth) vs Growth Score (G-Score)"
                   metricKey="sgc"
-                  scoreKey="F-score"
+                  scoreKey="G-score"
                   data={data}
                   themeColor="#f59e0b"
                   accentColor="#ef4444"
                   metricDomain={[-50, 100]}
+                  scoreLabel="Growth Score (G-Score) [0 to 100]"
+                  metricLabel="Clamped Sales Growth SGC (%) [Bounds: -50 to 100]"
                 />
 
-                {/* 4. pgc vs F-score */}
+                {/* 4. pgc vs G-score */}
                 <StretchedAnalyticalCard
-                  title="4. PGC (Clamped Profit Growth) vs Fundamental Score (F-Score)"
+                  title="4. PGC (Clamped Profit Growth) vs Growth Score (G-Score)"
                   metricKey="pgc"
-                  scoreKey="F-score"
+                  scoreKey="G-score"
                   data={data}
                   themeColor="#ec4899"
                   accentColor="#f97316"
                   metricDomain={[-50, 100]}
+                  scoreLabel="Growth Score (G-Score) [0 to 100]"
+                  metricLabel="Clamped Profit Growth PGC (%) [Bounds: -50 to 100]"
                 />
               </div>
 
@@ -575,7 +715,7 @@ export default function Help({ isOpen, onClose }) {
                     </p>
                     <ul style={{ margin: 0, paddingLeft: "20px" }}>
                       <li>
-                        <b>Mandatory Gatekeeper (Group 1):</b> A company must have valid data for the latest annual numbers: <code>roe-0</code> and <code>roa-0</code>. If either is missing, infinite, or außerhalb of [-999, 999], the stock is disqualified and assigned a sentinel value of <b>101.0</b>.
+                        <b>Mandatory Gatekeeper (Group 1):</b> A company must have valid data for the latest annual numbers: <code>roe-0</code> and <code>roa-0</code>. If either is missing, infinite, or outside of [-999, 999], the stock is disqualified and assigned a sentinel value of <b>101.0</b>.
                       </li>
                       <li>
                         <b>Temporal Cascading:</b>
