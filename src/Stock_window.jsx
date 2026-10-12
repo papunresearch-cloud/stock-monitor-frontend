@@ -77,7 +77,7 @@ const Marker = ({ value, color, circleSize, lineHeight, label, isTop = false, ra
 
       {rawValue !== null && (
         <div style={{ fontSize: '13px', color: '#FFFF00', marginBottom: isTop ? '4px' : '0', marginTop: isTop ? '0' : '4px', fontWeight: 'bold', textShadow: '1px 1px 2px #000', whiteSpace: 'nowrap' }}>
-          ₹${rawValue}
+          ₹{rawValue}
         </div>
       )}
     </div>
@@ -535,6 +535,7 @@ export default function Stock_window({
           tableLayout: 'fixed'
         }}>
           <tbody>
+            {/* ROW 1: PE | DY | BVgr */}
             <tr style={{ borderBottom: `1px solid ${BORDER_COLOR}` }}>
               <td style={{ width: '42%', padding: '4px 2px', whiteSpace: 'nowrap' }}>
                 <span style={{ color: STATIC_TEXT_COLOR }}>PE : </span>
@@ -553,6 +554,7 @@ export default function Stock_window({
               </td>
             </tr>
 
+            {/* ROW 2: PB | PS | Payout */}
             <tr style={{ borderBottom: `1px solid ${BORDER_COLOR}` }}>
               <td style={{ padding: '4px 2px', whiteSpace: 'nowrap' }}>
                 <span style={{ color: STATIC_TEXT_COLOR }}>PB : </span>
@@ -571,6 +573,7 @@ export default function Stock_window({
               </td>
             </tr>
 
+            {/* ROW 3: ROE | ROA | ROCE */}
             <tr style={{ borderBottom: `1px solid ${BORDER_COLOR}` }}>
               <td style={{ padding: '4px 2px' }}>
                 <span style={{ color: STATIC_TEXT_COLOR }}>ROE: </span>
@@ -595,6 +598,7 @@ export default function Stock_window({
               </td>
             </tr>
 
+            {/* ROW 4: MCAP | PCAP | DE */}
             <tr style={{ borderBottom: `1px solid ${BORDER_COLOR}` }}>
               <td style={{ padding: '4px 2px' }}>
                 <span style={{ color: STATIC_TEXT_COLOR }}>MCAP: </span>
@@ -610,6 +614,7 @@ export default function Stock_window({
               </td>
             </tr>
 
+            {/* ROW 5: SALES GROWTH (Full Width) */}
             <tr style={{ borderBottom: `1px solid ${BORDER_COLOR}` }}>
               <td colSpan={3} style={{ padding: '5px 2px', whiteSpace: 'nowrap' }}>
                 <span style={{ color: STATIC_TEXT_COLOR }}>SG: </span>
@@ -619,6 +624,7 @@ export default function Stock_window({
               </td>
             </tr>
 
+            {/* ROW 6: PROFIT GROWTH (Full Width) */}
             <tr style={{ borderBottom: `1px solid ${BORDER_COLOR}` }}>
               <td colSpan={3} style={{ padding: '5px 2px', whiteSpace: 'nowrap' }}>
                 <span style={{ color: STATIC_TEXT_COLOR }}>PG: </span>
@@ -628,6 +634,7 @@ export default function Stock_window({
               </td>
             </tr>
 
+            {/* ROW 7: T-SCORE | G-SCORE | F-SCORE */}
             <tr style={{ borderBottom: `1px solid ${BORDER_COLOR}` }}>
               <td style={{ padding: '4px 2px' }}>
                 <span style={{ color: STATIC_TEXT_COLOR }}>T-SCORE: </span>
@@ -643,6 +650,7 @@ export default function Stock_window({
               </td>
             </tr>
 
+            {/* ROW 8: STACKED SHAREHOLDING (Left-Aligned, Same Font Size) */}
             <tr>
               <td style={{ padding: '3px 4px', textAlign: 'left' }}>
                 <div style={{ color: STATIC_TEXT_COLOR, fontSize: '10.5px', marginBottom: '2px' }}>PRMTR</div>
@@ -713,13 +721,18 @@ export default function Stock_window({
               overflow: 'auto'
             }}
           >
-            {/* Scoped CSS for pasted tables, links, lists & typography */}
+            {/* Scoped CSS for paragraph structure, white-space preservation, tables & links */}
             <style>{`
               .remark-rich-content {
+                white-space: pre-wrap;
                 color: #e2e8f0;
                 font-size: 14px;
                 line-height: 1.6;
                 word-break: break-word;
+              }
+              .remark-rich-content p,
+              .remark-rich-content div {
+                margin: 0 0 0.75em 0;
               }
               .remark-rich-content a {
                 color: #06b6d4;
@@ -735,6 +748,7 @@ export default function Stock_window({
                 margin: 12px 0;
                 background-color: #0b132b;
                 border: 1px solid #334155;
+                white-space: normal;
               }
               .remark-rich-content th,
               .remark-rich-content td {
