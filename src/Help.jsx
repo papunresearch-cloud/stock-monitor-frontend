@@ -349,7 +349,7 @@ function StretchedAnalyticalCard({
       {/* PLOT 2: Dense Frequency Distribution Histogram */}
       <div style={{ backgroundColor: "#030712", borderRadius: "8px", border: "1px solid #131e33", padding: "12px" }}>
         <div style={{ display: "flex", justifyContent: "space-between", padding: "0 6px 6px 6px", fontSize: "11px", color: "#94a3b8", fontWeight: "800" }}>
-          <span>📊 DENSE DISTRIBUTION HISTOGRAM: {metricKey}</span>
+          <span>📊 HISTOGRAM: {metricKey}</span>
           <span style={{ color: accentColor }}>MAX FREQUENCY PER BUCKET: {histogramBins.maxCount}</span>
         </div>
         <svg width="100%" height={heightHist} viewBox={`0 0 ${plotWidth} ${heightHist}`} style={{ overflow: "visible" }}>
