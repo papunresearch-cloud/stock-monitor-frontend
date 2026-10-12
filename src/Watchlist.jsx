@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from "react";
+import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { ref, get, set, update, remove, onValue } from "firebase/database";
 import { database } from "./firebase";
 
@@ -90,20 +90,17 @@ const purgeFromDisplayList = async (stockToDelete) => {
       const safeKey = sanitizeKey(stockToDelete);
 
       if (Array.isArray(data)) {
-        // Filter out target symbol and normalize the remaining elements
         const updatedArray = data
           .map((item) => extractStockName(item))
           .filter((item) => Boolean(item) && item !== stockToDelete && sanitizeKey(item) !== safeKey);
 
         await set(displayStocksRef, updatedArray.length > 0 ? updatedArray : null);
       } else if (typeof data === "object" && data !== null) {
-        // If stored as index-keyed map or named dictionary, prune both forms
         const entries = Object.entries(data);
         const filteredValues = entries
           .map(([k, val]) => extractStockName(val))
           .filter((val) => Boolean(val) && val !== stockToDelete && sanitizeKey(val) !== safeKey);
 
-        // Check if map keys were numeric indices (0, 1, 2)
         const isNumericIndexMap = entries.every(([k]) => !isNaN(Number(k)));
 
         if (isNumericIndexMap) {
@@ -163,6 +160,29 @@ export default function StockWatchlist() {
   const [bannerMsg, setBannerMsg] = useState({ text: "", type: "info" });
 
   const todayFormattedDate = formatDateToDDMMYYYY(new Date());
+
+  // Rich Text Editor Ref and Status Counter
+  const editorRef = useRef(null);
+  const [editorWordCount, setEditorWordCount] = useState(0);
+
+  // 15 Palette Color Presets for Font & Selection Background
+  const COLOR_PALETTE = [
+    { label: "White", value: "#ffffff" },
+    { label: "Black", value: "#000000" },
+    { label: "Red", value: "#ef4444" },
+    { label: "Green", value: "#10b981" },
+    { label: "Blue", value: "#3b82f6" },
+    { label: "Yellow", value: "#facc15" },
+    { label: "Amber / Orange", value: "#f59e0b" },
+    { label: "Purple", value: "#a855f7" },
+    { label: "Pink", value: "#ec4899" },
+    { label: "Cyan", value: "#06b6d4" },
+    { label: "Emerald Dark", value: "#047857" },
+    { label: "Navy Blue", value: "#1d4ed8" },
+    { label: "Crimson Maroon", value: "#991b1b" },
+    { label: "Slate Gray", value: "#64748b" },
+    { label: "Lime Neon", value: "#84cc16" }
+  ];
 
   // Real-Time Sync & Initializer
   useEffect(() => {
@@ -462,7 +482,7 @@ export default function StockWatchlist() {
   };
 
   // ============================================================================
-  // 2. DELETE HANDLER (Full Cascade: Watchlist, Stocklist, OHLC, Param, Alerts, Display List)
+  // 2. DELETE HANDLER
   // ============================================================================
   const startDeleteProcess = () => {
     const list = Array.from(watchlistEditSelected);
@@ -495,21 +515,16 @@ export default function StockWatchlist() {
     });
 
     try {
-      // 1. Direct targeted purges across core nodes
       await set(ref(database, 'watchlist/watchlist'), nextWatchlist);
       await remove(ref(database, `stocklist/${safeStockKey}`));
       await remove(ref(database, `watchlist/detailedDb/${safeStockKey}`));
       await remove(ref(database, `stocks/${safeStockKey}`));
       await remove(ref(database, `param/${safeStockKey}`));
 
-      // 2. Instant purges across alerts and stock controls
       await remove(ref(database, `alerts/${safeStockKey}`));
       await remove(ref(database, `alerts/stock_controls/${safeStockKey}`));
 
-      // 3. Permanent purge from display_list/stocks
       await purgeFromDisplayList(stockToDelete);
-
-      // 4. Dispatch backend deletion command for elevated daemon cleanup
       await dispatchStockEvent("DELETE", stockToDelete);
 
       setBannerMsg({ text: `Purged ${stockToDelete} cleanly from all folders. 🗑️`, type: "success" });
@@ -628,8 +643,56 @@ export default function StockWatchlist() {
     setAppliedFilter(new Set(watchlistEditSelected));
   };
 
+  // ============================================================================
+  // RICH TEXT EDITING SUITE & NOTEPAD HANDLERS
+  // ============================================================================
+  const executeCommand = (command, value = null) => {
+    if (!editorRef.current) return;
+    editorRef.current.focus();
+    document.execCommand(command, false, value);
+    handleEditorInput();
+  };
+
+  const handleApplyLink = () => {
+    const selection = window.getSelection();
+    if (!selection || selection.rangeCount === 0 || selection.isCollapsed) {
+      alert("Please select the text portion you want to hyperlink first!");
+      return;
+    }
+    const url = prompt("Enter hyperlink URL (e.g. https://www.google.com):", "https://");
+    if (url && url.trim() !== "https://" && url.trim() !== "") {
+      executeCommand("createLink", url.trim());
+    }
+  };
+
+  const handleEditorInput = () => {
+    if (!editorRef.current) return;
+    const textContent = editorRef.current.innerText || "";
+    const words = textContent.trim().split(/\s+/).filter(Boolean).length;
+    setEditorWordCount(words);
+  };
+
+  const openNotepadModal = (stockName) => {
+    const rawRemark = stockDatabase[stockName]?.REMARK || "";
+    setNotepadModal({
+      isOpen: true,
+      stockName: stockName,
+      text: rawRemark,
+      error: ""
+    });
+    // Calculate initial word count cleanly from innerText
+    setTimeout(() => {
+      if (editorRef.current) {
+        editorRef.current.innerHTML = rawRemark;
+        const textContent = editorRef.current.innerText || "";
+        setEditorWordCount(textContent.trim().split(/\s+/).filter(Boolean).length);
+      }
+    }, 50);
+  };
+
   const handleSaveNotepad = () => {
-    handleFieldChange(notepadModal.stockName, "REMARK", notepadModal.text);
+    const richContent = editorRef.current ? editorRef.current.innerHTML : notepadModal.text;
+    handleFieldChange(notepadModal.stockName, "REMARK", richContent);
     setNotepadModal({ isOpen: false, stockName: "", text: "", error: "" });
   };
 
@@ -980,7 +1043,7 @@ export default function StockWatchlist() {
                         type="button"
                         onClick={() => {
                           if (!isEditable) return;
-                          setNotepadModal({ isOpen: true, stockName: stockName, text: stockData["REMARK"] || "", error: "" });
+                          openNotepadModal(stockName);
                         }}
                         style={{ backgroundColor: stockData["REMARK"] ? theme.accentGreen : theme.accentAmber, color: "#000000", border: "none", padding: "6px 12px", borderRadius: "4px", fontWeight: "900", cursor: isEditable ? "pointer" : "not-allowed", display: "inline-flex", alignItems: "center", gap: "4px", fontSize: "12px" }}
                       >
@@ -1284,37 +1347,164 @@ export default function StockWatchlist() {
         </div>
       )}
 
-      {/* NOTEPAD MODAL */}
+      {/* 4. FULLY EQUIPPED RICH TEXT NOTEPAD MODAL */}
       {notepadModal.isOpen && (
-        <div style={{ position: "fixed", top: 0, left: 0, width: "100vw", height: "100vh", backgroundColor: "rgba(0,0,0,0.8)", display: "flex", justifyContent: "center", alignItems: "center", zIndex: 9999, padding: "20px" }}>
-          <div style={{ backgroundColor: "#0f172a", border: `3px solid ${theme.accentCyan}`, borderRadius: "12px", padding: "24px", width: "600px", maxWidth: "100%", boxShadow: "0 10px 40px rgba(0,0,0,0.7)" }}>
-            <h3 style={{ color: theme.accentCyan, fontSize: "18px", fontWeight: "900", marginBottom: "8px", textTransform: "uppercase" }}>NOTEPAD: REMARK FOR {notepadModal.stockName}</h3>
-            <p style={{ color: "#94a3b8", fontSize: "12px", marginBottom: "16px", fontWeight: "bold" }}>Enter detailed evaluation notes. Maximum 1000 words allowed.</p>
+        <div style={{ position: "fixed", top: 0, left: 0, width: "100vw", height: "100vh", backgroundColor: "rgba(0,0,0,0.85)", display: "flex", justifyContent: "center", alignItems: "center", zIndex: 9999, padding: "20px" }}>
+          <div style={{ backgroundColor: "#0f172a", border: `3px solid ${theme.accentCyan}`, borderRadius: "12px", padding: "24px", width: "720px", maxWidth: "98%", boxShadow: "0 10px 40px rgba(0,0,0,0.8)", display: "flex", flexDirection: "column" }}>
             
-            <textarea
-              rows="10"
-              value={notepadModal.text}
-              onChange={(e) => {
-                const val = e.target.value;
-                const wordCount = val.trim().split(/\s+/).filter(Boolean).length;
-                if (wordCount <= 1000) {
-                  setNotepadModal({ ...notepadModal, text: val, error: "" });
-                } else {
-                  setNotepadModal({ ...notepadModal, error: "ERROR: Word limit exceeded! Maximum allowed is 1000 words." });
-                }
-              }}
-              placeholder="Type detailed review here..."
-              style={{ width: "100%", backgroundColor: "#1e293b", border: "2px solid #334155", borderRadius: "6px", color: "#ffffff", padding: "12px", fontSize: "14px", fontWeight: "bold", boxSizing: "border-box", outline: "none" }}
-            />
-
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: "8px", fontSize: "12px", fontWeight: "bold" }}>
-              <span style={{ color: notepadModal.text.trim().split(/\s+/).filter(Boolean).length >= 1000 ? theme.accentRed : "#94a3b8" }}>
-                {notepadModal.text.trim().split(/\s+/).filter(Boolean).length} / 1000 words
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "6px" }}>
+              <h3 style={{ color: theme.accentCyan, fontSize: "18px", fontWeight: "900", margin: 0, textTransform: "uppercase" }}>
+                NOTEPAD: REMARK FOR {notepadModal.stockName}
+              </h3>
+              <span style={{ fontSize: "11px", backgroundColor: "#1e293b", padding: "3px 8px", borderRadius: "4px", border: `1px solid ${theme.accentCyan}`, color: theme.accentCyan, fontWeight: "900" }}>
+                RICH EDITOR
               </span>
-              {notepadModal.error && <span style={{ color: theme.accentRed }}>{notepadModal.error}</span>}
+            </div>
+            
+            <p style={{ color: "#94a3b8", fontSize: "12px", margin: "0 0 12px 0", fontWeight: "bold" }}>
+              Rich notepad with colors, background highlights, lists, hyperlinks and table support.
+            </p>
+
+            {/* RICH TOOLBAR CONTROLS */}
+            <div style={{ display: "flex", flexWrap: "wrap", gap: "6px", alignItems: "center", backgroundColor: "#1e293b", padding: "8px 10px", borderRadius: "6px 6px 0 0", border: "1px solid #334155", borderBottom: "none" }}>
+              
+              {/* Bold */}
+              <button 
+                type="button" 
+                onClick={() => executeCommand("bold")}
+                title="Bold"
+                style={{ backgroundColor: "#334155", color: "#ffffff", border: "1px solid #475569", padding: "5px 10px", borderRadius: "4px", fontWeight: "900", cursor: "pointer", fontSize: "13px" }}
+              >
+                <b>B</b>
+              </button>
+
+              {/* Italic */}
+              <button 
+                type="button" 
+                onClick={() => executeCommand("italic")}
+                title="Italic"
+                style={{ backgroundColor: "#334155", color: "#ffffff", border: "1px solid #475569", padding: "5px 10px", borderRadius: "4px", fontStyle: "italic", fontWeight: "900", cursor: "pointer", fontSize: "13px" }}
+              >
+                <i>I</i>
+              </button>
+
+              {/* Underline */}
+              <button 
+                type="button" 
+                onClick={() => executeCommand("underline")}
+                title="Underline"
+                style={{ backgroundColor: "#334155", color: "#ffffff", border: "1px solid #475569", padding: "5px 10px", borderRadius: "4px", textDecoration: "underline", fontWeight: "900", cursor: "pointer", fontSize: "13px" }}
+              >
+                <u>U</u>
+              </button>
+
+              <div style={{ width: "1px", height: "20px", backgroundColor: "#475569", margin: "0 4px" }} />
+
+              {/* Text Color Dropdown (15 colors) */}
+              <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+                <span style={{ color: "#cbd5e1", fontSize: "11px", fontWeight: "bold" }}>Font:</span>
+                <select
+                  onChange={(e) => {
+                    if (e.target.value) executeCommand("foreColor", e.target.value);
+                  }}
+                  defaultValue="#ffffff"
+                  style={{ backgroundColor: "#0f172a", color: "#ffffff", border: "1px solid #475569", padding: "4px 8px", borderRadius: "4px", fontSize: "11px", fontWeight: "bold", cursor: "pointer", outline: "none" }}
+                >
+                  <option disabled value="">Text Color (15)</option>
+                  {COLOR_PALETTE.map((c) => (
+                    <option key={`fg-${c.value}`} value={c.value} style={{ backgroundColor: "#0f172a", color: c.value }}>
+                      ● {c.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Selection Background Color Dropdown (15 colors) */}
+              <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+                <span style={{ color: "#cbd5e1", fontSize: "11px", fontWeight: "bold" }}>Highlight:</span>
+                <select
+                  onChange={(e) => {
+                    if (e.target.value) executeCommand("hiliteColor", e.target.value);
+                  }}
+                  defaultValue="transparent"
+                  style={{ backgroundColor: "#0f172a", color: "#ffffff", border: "1px solid #475569", padding: "4px 8px", borderRadius: "4px", fontSize: "11px", fontWeight: "bold", cursor: "pointer", outline: "none" }}
+                >
+                  <option value="transparent">Highlight (None)</option>
+                  {COLOR_PALETTE.map((c) => (
+                    <option key={`bg-${c.value}`} value={c.value} style={{ backgroundColor: "#0f172a", color: c.value }}>
+                      █ {c.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div style={{ width: "1px", height: "20px", backgroundColor: "#475569", margin: "0 4px" }} />
+
+              {/* Bullets Option */}
+              <button 
+                type="button" 
+                onClick={() => executeCommand("insertUnorderedList")}
+                title="Bullet List"
+                style={{ backgroundColor: "#334155", color: "#ffffff", border: "1px solid #475569", padding: "5px 10px", borderRadius: "4px", fontWeight: "bold", cursor: "pointer", fontSize: "12px" }}
+              >
+                • Bullets
+              </button>
+
+              {/* Hyperlink Option */}
+              <button 
+                type="button" 
+                onClick={handleApplyLink}
+                title="Add Hyperlink"
+                style={{ backgroundColor: "#334155", color: theme.accentCyan, border: "1px solid #475569", padding: "5px 10px", borderRadius: "4px", fontWeight: "bold", cursor: "pointer", fontSize: "12px" }}
+              >
+                🔗 Link
+              </button>
+
+              {/* Remove Formatting Clean Slate */}
+              <button 
+                type="button" 
+                onClick={() => executeCommand("removeFormat")}
+                title="Clear Styling"
+                style={{ backgroundColor: "#334155", color: "#f87171", border: "1px solid #475569", padding: "5px 8px", borderRadius: "4px", fontWeight: "bold", cursor: "pointer", fontSize: "11px", marginLeft: "auto" }}
+              >
+                Clear
+              </button>
             </div>
 
-            <div style={{ display: "flex", justifyContent: "flex-end", gap: "10px", marginTop: "20px" }}>
+            {/* CONTENTEDITABLE RICH CANVAS (SUPPORTS DIRECT TABULAR PASTING) */}
+            <div
+              ref={editorRef}
+              contentEditable
+              suppressContentEditableWarning
+              onInput={handleEditorInput}
+              style={{
+                width: "100%",
+                height: "260px",
+                maxHeight: "360px",
+                overflowY: "auto",
+                backgroundColor: "#0b132b",
+                border: "2px solid #334155",
+                borderRadius: "0 0 6px 6px",
+                color: "#ffffff",
+                padding: "14px",
+                fontSize: "14px",
+                fontWeight: "500",
+                boxSizing: "border-box",
+                outline: "none",
+                lineHeight: "1.6"
+              }}
+            />
+
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: "10px", fontSize: "12px", fontWeight: "bold" }}>
+              <span style={{ color: "#94a3b8" }}>
+                Total Words: <b style={{ color: theme.accentCyan }}>{editorWordCount}</b>
+              </span>
+              <span style={{ color: "#64748b", fontSize: "11px" }}>
+                Tip: Copy & paste tables directly from Excel or Google Sheets.
+              </span>
+            </div>
+
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: "10px", marginTop: "18px" }}>
               <button onClick={() => setNotepadModal({ isOpen: false, stockName: "", text: "", error: "" })} style={{ backgroundColor: "#334155", color: "#ffffff", border: "none", padding: "8px 16px", borderRadius: "6px", fontWeight: "900", cursor: "pointer", textTransform: "uppercase" }}>CANCEL</button>
               <button onClick={handleSaveNotepad} style={{ backgroundColor: theme.accentAmber, color: "#000000", border: "none", padding: "8px 20px", borderRadius: "6px", fontWeight: "900", cursor: "pointer", textTransform: "uppercase" }}>SAVE REMARK</button>
             </div>
@@ -1333,7 +1523,7 @@ export default function StockWatchlist() {
               <p>🔹 <b>DURATION:</b> Manual time horizon selection.</p>
               <p>🔹 <b>PRESET LOW:</b> Lower price boundary for alert triggers (default: <b>0</b>).</p>
               <p>🔹 <b>PRESET HIGH:</b> Upper price boundary for alert triggers (default: <b>99999999</b>).</p>
-              <p>🔹 <b>REMARK:</b> Detailed notes (up to 1000 words max).</p>
+              <p>🔹 <b>REMARK:</b> Detailed notes (Supports rich formatting, links, colors & pasted tables).</p>
               <p>🔹 <b>DATE:</b> Read-only; auto-records update date in DD-MM-YYYY format.</p>
               <p>🔹 <b>TICKER:</b> Yahoo Finance tracking ticker (e.g. MAHABANK.NS).</p>
               <hr style={{ borderColor: "#334155", margin: "10px 0" }} />
