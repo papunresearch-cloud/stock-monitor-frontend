@@ -77,7 +77,7 @@ const Marker = ({ value, color, circleSize, lineHeight, label, isTop = false, ra
 
       {rawValue !== null && (
         <div style={{ fontSize: '13px', color: '#FFFF00', marginBottom: isTop ? '4px' : '0', marginTop: isTop ? '0' : '4px', fontWeight: 'bold', textShadow: '1px 1px 2px #000', whiteSpace: 'nowrap' }}>
-          ₹{rawValue}
+          ₹${rawValue}
         </div>
       )}
     </div>
@@ -135,19 +135,21 @@ export default function Stock_window({
     if (isFrozen || !primaryKey) return;
 
     try {
-      // PARAM DATA: Strictly loaded from /param/<script> folder
-      let paramRes = await fetch(`${FIREBASE_DB_URL}/param/${encodeURIComponent(primaryKey)}.json`);
+      const cacheBust = `_t=${Date.now()}`;
+
+      // PARAM DATA: Loaded with cache-busting query to guarantee fresh values
+      let paramRes = await fetch(`${FIREBASE_DB_URL}/param/${encodeURIComponent(primaryKey)}.json?${cacheBust}`);
       let data = paramRes.ok ? await paramRes.json() : null;
 
       if (!data && legacyTarget && legacyTarget !== primaryKey) {
-        const fallbackRes = await fetch(`${FIREBASE_DB_URL}/param/${encodeURIComponent(legacyTarget)}.json`);
+        const fallbackRes = await fetch(`${FIREBASE_DB_URL}/param/${encodeURIComponent(legacyTarget)}.json?${cacheBust}`);
         if (fallbackRes.ok) data = await fallbackRes.json();
       }
 
-      // LIVE OHLC DATA: Live candle endpoints
+      // LIVE OHLC DATA: Live candle endpoints with cache-busting
       let [liveRes0, liveRes1] = await Promise.all([
-        fetch(`${FIREBASE_DB_URL}/stocks/${encodeURIComponent(primaryKey)}/0.json`),
-        fetch(`${FIREBASE_DB_URL}/stocks/${encodeURIComponent(primaryKey)}/1.json`)
+        fetch(`${FIREBASE_DB_URL}/stocks/${encodeURIComponent(primaryKey)}/0.json?${cacheBust}`),
+        fetch(`${FIREBASE_DB_URL}/stocks/${encodeURIComponent(primaryKey)}/1.json?${cacheBust}`)
       ]);
 
       let c0 = liveRes0.ok ? await liveRes0.json() : null;
@@ -155,8 +157,8 @@ export default function Stock_window({
 
       if (!c0 && !c1 && legacyTarget && legacyTarget !== primaryKey) {
         const [fb0, fb1] = await Promise.all([
-          fetch(`${FIREBASE_DB_URL}/stocks/${encodeURIComponent(legacyTarget)}/0.json`),
-          fetch(`${FIREBASE_DB_URL}/stocks/${encodeURIComponent(legacyTarget)}/1.json`)
+          fetch(`${FIREBASE_DB_URL}/stocks/${encodeURIComponent(legacyTarget)}/0.json?${cacheBust}`),
+          fetch(`${FIREBASE_DB_URL}/stocks/${encodeURIComponent(legacyTarget)}/1.json?${cacheBust}`)
         ]);
         if (fb0.ok) c0 = await fb0.json();
         if (fb1.ok) c1 = await fb1.json();
@@ -198,20 +200,25 @@ export default function Stock_window({
     }
   }, [primaryKey, legacyTarget, isFrozen]);
 
+  // Initial load
   useEffect(() => {
     fetchStockData();
   }, [fetchStockData]);
 
+  // Manual Refresh & Trigger Listeners
   useEffect(() => {
     if (updateTrigger > 0 || refreshTrigger > 0) {
       fetchStockData();
     }
   }, [updateTrigger, refreshTrigger, fetchStockData]);
 
+  // Auto Mode Periodic Polling
   useEffect(() => {
     let intervalId;
     if (isAutoMode && !isFrozen && refreshRate > 0) {
-      intervalId = setInterval(fetchStockData, (refreshRate || 10) * 1000);
+      intervalId = setInterval(() => {
+        fetchStockData();
+      }, (refreshRate || 10) * 1000);
     }
     return () => {
       if (intervalId) clearInterval(intervalId);
@@ -377,7 +384,7 @@ export default function Stock_window({
           <div style={{ padding: '10px 2px', fontSize: '14px', fontWeight: 'bold', color: slowData.RSI > 50 ? COLOR_GREEN : COLOR_RED }}>{slowData.RSI}</div>
         </div>
 
-        {/* 3. LEGEND STRIP (Left-aligned, below data table, above scale visualizer) */}
+        {/* 3. LEGEND STRIP */}
         <div style={{ 
           display: 'flex', 
           alignItems: 'center', 
@@ -420,7 +427,7 @@ export default function Stock_window({
                 left: '50px', 
                 right: '50px', 
                 height: '18px', 
-                background: 'linear-gradient(180deg, #22d3ee 0%, #0891b2 100%)', /* 52WR: Cyan Base */
+                background: 'linear-gradient(180deg, #22d3ee 0%, #0891b2 100%)',
                 transform: 'translateY(-50%)', 
                 borderRadius: '6px',
                 border: '1px solid rgba(255, 255, 255, 0.4)',
@@ -528,7 +535,6 @@ export default function Stock_window({
           tableLayout: 'fixed'
         }}>
           <tbody>
-            {/* ROW 1: PE (value + delta on same line) | DY | BVgr */}
             <tr style={{ borderBottom: `1px solid ${BORDER_COLOR}` }}>
               <td style={{ width: '42%', padding: '4px 2px', whiteSpace: 'nowrap' }}>
                 <span style={{ color: STATIC_TEXT_COLOR }}>PE : </span>
@@ -547,7 +553,6 @@ export default function Stock_window({
               </td>
             </tr>
 
-            {/* ROW 2: PB (value + delta on same line) | PS | Payout */}
             <tr style={{ borderBottom: `1px solid ${BORDER_COLOR}` }}>
               <td style={{ padding: '4px 2px', whiteSpace: 'nowrap' }}>
                 <span style={{ color: STATIC_TEXT_COLOR }}>PB : </span>
@@ -566,7 +571,6 @@ export default function Stock_window({
               </td>
             </tr>
 
-            {/* ROW 3: ROE | ROA | ROCE */}
             <tr style={{ borderBottom: `1px solid ${BORDER_COLOR}` }}>
               <td style={{ padding: '4px 2px' }}>
                 <span style={{ color: STATIC_TEXT_COLOR }}>ROE: </span>
@@ -591,7 +595,6 @@ export default function Stock_window({
               </td>
             </tr>
 
-            {/* ROW 4: MCAP | PCAP | DE */}
             <tr style={{ borderBottom: `1px solid ${BORDER_COLOR}` }}>
               <td style={{ padding: '4px 2px' }}>
                 <span style={{ color: STATIC_TEXT_COLOR }}>MCAP: </span>
@@ -607,7 +610,6 @@ export default function Stock_window({
               </td>
             </tr>
 
-            {/* ROW 5: SALES GROWTH (Full Width) */}
             <tr style={{ borderBottom: `1px solid ${BORDER_COLOR}` }}>
               <td colSpan={3} style={{ padding: '5px 2px', whiteSpace: 'nowrap' }}>
                 <span style={{ color: STATIC_TEXT_COLOR }}>SG: </span>
@@ -617,7 +619,6 @@ export default function Stock_window({
               </td>
             </tr>
 
-            {/* ROW 6: PROFIT GROWTH (Full Width) */}
             <tr style={{ borderBottom: `1px solid ${BORDER_COLOR}` }}>
               <td colSpan={3} style={{ padding: '5px 2px', whiteSpace: 'nowrap' }}>
                 <span style={{ color: STATIC_TEXT_COLOR }}>PG: </span>
@@ -627,7 +628,6 @@ export default function Stock_window({
               </td>
             </tr>
 
-            {/* ROW 7: T-SCORE | G-SCORE | F-SCORE */}
             <tr style={{ borderBottom: `1px solid ${BORDER_COLOR}` }}>
               <td style={{ padding: '4px 2px' }}>
                 <span style={{ color: STATIC_TEXT_COLOR }}>T-SCORE: </span>
@@ -643,7 +643,6 @@ export default function Stock_window({
               </td>
             </tr>
 
-            {/* ROW 8: STACKED SHAREHOLDING (Left-Aligned, Same Font Size) */}
             <tr>
               <td style={{ padding: '3px 4px', textAlign: 'left' }}>
                 <div style={{ color: STATIC_TEXT_COLOR, fontSize: '10.5px', marginBottom: '2px' }}>PRMTR</div>
@@ -671,13 +670,137 @@ export default function Stock_window({
         </table>
       </div>
 
-      {/* REMARK NOTEBOOK MODAL (100% UNTOUCHED) */}
+      {/* ======================================================== */}
+      {/* 4. EXPANDABLE & RESPONSIVE RICH REMARK NOTEBOOK MODAL    */}
+      {/* ======================================================== */}
       {isRemarkOpen && (
-        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0, 0, 0, 0.8)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <div style={{ backgroundColor: '#121212', border: '2px solid #C0C0C0', borderRadius: '10px', padding: '25px', width: '450px', height: '350px', overflowY: 'auto', boxShadow: '0 10px 30px rgba(0,0,0,0.8)', position: 'relative', boxSizing: 'border-box' }}>
-            <button onClick={() => setIsRemarkOpen(false)} style={{ position: 'absolute', top: '10px', right: '15px', background: 'transparent', border: 'none', color: '#ff5252', fontSize: '20px', cursor: 'pointer', fontWeight: 'bold' }}>✕</button>
-            <h2 style={{ marginTop: 0, color: '#FFD700', borderBottom: '1px solid #444', paddingBottom: '10px' }}>Remark: {displayName}</h2>
-            <p style={{ color: '#ffffff', fontSize: '16px', lineHeight: '1.6' }}>{remark || "No remarks available for this stock."}</p>
+        <div 
+          onClick={() => setIsRemarkOpen(false)}
+          style={{ 
+            position: 'fixed', 
+            top: 0, 
+            left: 0, 
+            right: 0, 
+            bottom: 0, 
+            backgroundColor: 'rgba(0, 0, 0, 0.85)', 
+            zIndex: 9999, 
+            display: 'flex', 
+            alignItems: 'center', 
+            justifyContent: 'center',
+            padding: '16px',
+            boxSizing: 'border-box'
+          }}
+        >
+          <div 
+            onClick={(e) => e.stopPropagation()}
+            style={{ 
+              backgroundColor: '#0f172a', 
+              border: '3px solid #C0C0C0', 
+              borderRadius: '12px', 
+              padding: '24px', 
+              width: '90%',
+              maxWidth: '900px',
+              minWidth: '360px',
+              height: 'auto',
+              maxHeight: '85vh',
+              minHeight: '320px',
+              display: 'flex',
+              flexDirection: 'column',
+              boxShadow: '0 15px 45px rgba(0,0,0,0.9)', 
+              position: 'relative', 
+              boxSizing: 'border-box',
+              resize: 'both',
+              overflow: 'auto'
+            }}
+          >
+            {/* Scoped CSS for pasted tables, links, lists & typography */}
+            <style>{`
+              .remark-rich-content {
+                color: #e2e8f0;
+                font-size: 14px;
+                line-height: 1.6;
+                word-break: break-word;
+              }
+              .remark-rich-content a {
+                color: #06b6d4;
+                text-decoration: underline;
+                font-weight: bold;
+              }
+              .remark-rich-content a:hover {
+                color: #38bdf8;
+              }
+              .remark-rich-content table {
+                width: 100%;
+                border-collapse: collapse;
+                margin: 12px 0;
+                background-color: #0b132b;
+                border: 1px solid #334155;
+              }
+              .remark-rich-content th,
+              .remark-rich-content td {
+                border: 1px solid #334155;
+                padding: 6px 10px;
+                text-align: left;
+                font-size: 13px;
+              }
+              .remark-rich-content th {
+                background-color: #1e293b;
+                color: #f59e0b;
+                font-weight: bold;
+              }
+              .remark-rich-content ul,
+              .remark-rich-content ol {
+                padding-left: 22px;
+                margin: 8px 0;
+              }
+              .remark-rich-content li {
+                margin-bottom: 4px;
+              }
+            `}</style>
+
+            {/* Header Strip */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #334155', paddingBottom: '12px', marginBottom: '16px' }}>
+              <h2 style={{ margin: 0, color: '#FFD700', fontSize: '18px', letterSpacing: '0.5px', textTransform: 'uppercase' }}>
+                Remark: {displayName}
+              </h2>
+              <button 
+                onClick={() => setIsRemarkOpen(false)} 
+                title="Close Remark"
+                style={{ 
+                  background: '#1e293b', 
+                  border: '1px solid #475569', 
+                  borderRadius: '6px', 
+                  color: '#ef4444', 
+                  fontSize: '16px', 
+                  cursor: 'pointer', 
+                  fontWeight: 'bold',
+                  padding: '4px 10px',
+                  lineHeight: '1'
+                }}
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Scrollable Rich Content Body */}
+            <div style={{ flexGrow: 1, overflowY: 'auto', paddingRight: '6px' }}>
+              {remark && remark.trim() !== "" ? (
+                <div 
+                  className="remark-rich-content"
+                  dangerouslySetInnerHTML={{ __html: remark }} 
+                />
+              ) : (
+                <p style={{ color: '#94a3b8', fontStyle: 'italic', margin: '20px 0', fontSize: '14px' }}>
+                  No remarks available for this stock.
+                </p>
+              )}
+            </div>
+
+            {/* Footer with Resize Hint */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid #334155', paddingTop: '10px', marginTop: '14px', fontSize: '11px', color: '#64748b' }}>
+              <span>HTML Rich Note View</span>
+              <span>↔ Drag bottom-right corner to resize</span>
+            </div>
           </div>
         </div>
       )}
