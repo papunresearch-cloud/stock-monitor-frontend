@@ -1350,7 +1350,22 @@ export default function StockWatchlist() {
       {/* 4. FULLY EQUIPPED RICH TEXT NOTEPAD MODAL */}
       {notepadModal.isOpen && (
         <div style={{ position: "fixed", top: 0, left: 0, width: "100vw", height: "100vh", backgroundColor: "rgba(0,0,0,0.85)", display: "flex", justifyContent: "center", alignItems: "center", zIndex: 9999, padding: "20px" }}>
-          <div style={{ backgroundColor: "#0f172a", border: `3px solid ${theme.accentCyan}`, borderRadius: "12px", padding: "24px", width: "720px", maxWidth: "98%", boxShadow: "0 10px 40px rgba(0,0,0,0.8)", display: "flex", flexDirection: "column" }}>
+          <div style={{ 
+            backgroundColor: "#0f172a", 
+            border: `3px solid ${theme.accentCyan}`, 
+            borderRadius: "12px", 
+            padding: "24px", 
+            width: "720px", 
+            maxWidth: "96vw", 
+            maxHeight: "92vh",
+            minWidth: "420px",
+            minHeight: "400px",
+            resize: "both",           /* Enables native 2D drag handle in the bottom-right corner */
+            overflow: "auto",          /* Required by CSS for resize: both to work */
+            boxShadow: "0 10px 40px rgba(0,0,0,0.8)", 
+            display: "flex", 
+            flexDirection: "column" 
+          }}>
             
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "6px" }}>
               <h3 style={{ color: theme.accentCyan, fontSize: "18px", fontWeight: "900", margin: 0, textTransform: "uppercase" }}>
@@ -1479,8 +1494,8 @@ export default function StockWatchlist() {
               onInput={handleEditorInput}
               style={{
                 width: "100%",
-                height: "260px",
-                maxHeight: "360px",
+                flex: "1 1 auto",       /* Fills all available vertical room as the popup expands */
+                minHeight: "220px",
                 overflowY: "auto",
                 backgroundColor: "#0b132b",
                 border: "2px solid #334155",
