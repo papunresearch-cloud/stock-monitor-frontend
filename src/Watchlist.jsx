@@ -1419,7 +1419,6 @@ export default function StockWatchlist() {
                 </h3>
               </div>
               <span style={{ fontSize: "11px", backgroundColor: "#1e293b", padding: "3px 8px", borderRadius: "4px", border: `1px solid ${theme.accentCyan}`, color: theme.accentCyan, fontWeight: "900" }}>
-                DRAGGABLE
               </span>
             </div>
             
