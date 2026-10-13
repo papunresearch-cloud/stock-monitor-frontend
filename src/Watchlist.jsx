@@ -165,24 +165,10 @@ export default function StockWatchlist() {
   const editorRef = useRef(null);
   const [editorWordCount, setEditorWordCount] = useState(0);
 
-  // 15 Palette Color Presets for Font & Selection Background
-  const COLOR_PALETTE = [
-    { label: "White", value: "#ffffff" },
-    { label: "Black", value: "#000000" },
-    { label: "Red", value: "#ef4444" },
-    { label: "Green", value: "#10b981" },
-    { label: "Blue", value: "#3b82f6" },
-    { label: "Yellow", value: "#facc15" },
-    { label: "Amber / Orange", value: "#f59e0b" },
-    { label: "Purple", value: "#a855f7" },
-    { label: "Pink", value: "#ec4899" },
-    { label: "Cyan", value: "#06b6d4" },
-    { label: "Emerald Dark", value: "#047857" },
-    { label: "Navy Blue", value: "#1d4ed8" },
-    { label: "Crimson Maroon", value: "#991b1b" },
-    { label: "Slate Gray", value: "#64748b" },
-    { label: "Lime Neon", value: "#84cc16" }
-  ];
+  // Draggable Modal Coordinates & State
+  const [modalPos, setModalPos] = useState({ x: 0, y: 0 });
+  const [isDragging, setIsDragging] = useState(false);
+  const dragStartRef = useRef({ mouseX: 0, mouseY: 0, startX: 0, startY: 0 });
 
   // Real-Time Sync & Initializer
   useEffect(() => {
@@ -298,6 +284,45 @@ export default function StockWatchlist() {
 
     return () => unsubscribeScreener();
   }, []);
+
+  // Global Drag Event Listeners for Notepad Modal
+  useEffect(() => {
+    const handleMouseMove = (e) => {
+      if (!isDragging) return;
+      const deltaX = e.clientX - dragStartRef.current.mouseX;
+      const deltaY = e.clientY - dragStartRef.current.mouseY;
+      setModalPos({
+        x: dragStartRef.current.startX + deltaX,
+        y: dragStartRef.current.startY + deltaY,
+      });
+    };
+
+    const handleMouseUp = () => {
+      if (isDragging) setIsDragging(false);
+    };
+
+    if (isDragging) {
+      window.addEventListener("mousemove", handleMouseMove);
+      window.addEventListener("mouseup", handleMouseUp);
+    }
+
+    return () => {
+      window.removeEventListener("mousemove", handleMouseMove);
+      window.removeEventListener("mouseup", handleMouseUp);
+    };
+  }, [isDragging]);
+
+  const handleStartDrag = (e) => {
+    // Only drag when clicking the modal header itself, not its child controls
+    if (e.target.tagName === "BUTTON" || e.target.tagName === "INPUT" || e.target.tagName === "SELECT") return;
+    setIsDragging(true);
+    dragStartRef.current = {
+      mouseX: e.clientX,
+      mouseY: e.clientY,
+      startX: modalPos.x,
+      startY: modalPos.y,
+    };
+  };
 
   const mainDataMap = useMemo(() => {
     const map = {};
@@ -674,13 +699,13 @@ export default function StockWatchlist() {
 
   const openNotepadModal = (stockName) => {
     const rawRemark = stockDatabase[stockName]?.REMARK || "";
+    setModalPos({ x: 0, y: 0 }); // Center on each fresh open
     setNotepadModal({
       isOpen: true,
       stockName: stockName,
       text: rawRemark,
       error: ""
     });
-    // Calculate initial word count cleanly from innerText
     setTimeout(() => {
       if (editorRef.current) {
         editorRef.current.innerHTML = rawRemark;
@@ -1347,41 +1372,63 @@ export default function StockWatchlist() {
         </div>
       )}
 
-      {/* 4. FULLY EQUIPPED RICH TEXT NOTEPAD MODAL */}
+      {/* 4. DRAGGABLE & RESIZABLE RICH TEXT NOTEPAD MODAL WITH PALETTE COLOR PICKERS */}
       {notepadModal.isOpen && (
-        <div style={{ position: "fixed", top: 0, left: 0, width: "100vw", height: "100vh", backgroundColor: "rgba(0,0,0,0.85)", display: "flex", justifyContent: "center", alignItems: "center", zIndex: 9999, padding: "20px" }}>
-          <div style={{ 
-            backgroundColor: "#0f172a", 
-            border: `3px solid ${theme.accentCyan}`, 
-            borderRadius: "12px", 
-            padding: "24px", 
-            width: "720px", 
-            maxWidth: "96vw", 
+        <div style={{ position: "fixed", top: 0, left: 0, width: "100vw", height: "100vh", backgroundColor: "rgba(0,0,0,0.7)", display: "flex", justifyContent: "center", alignItems: "center", zIndex: 9999, padding: "20px", pointerEvents: "auto" }}>
+          <div style={{
+            position: "relative",
+            transform: `translate(${modalPos.x}px, ${modalPos.y}px)`,
+            backgroundColor: "#0f172a",
+            border: `3px solid ${theme.accentCyan}`,
+            borderRadius: "12px",
+            padding: "20px",
+            width: "740px",
+            maxWidth: "96vw",
             maxHeight: "92vh",
-            minWidth: "420px",
-            minHeight: "400px",
-            resize: "both",           /* Enables native 2D drag handle in the bottom-right corner */
-            overflow: "auto",          /* Required by CSS for resize: both to work */
-            boxShadow: "0 10px 40px rgba(0,0,0,0.8)", 
-            display: "flex", 
-            flexDirection: "column" 
+            minWidth: "460px",
+            minHeight: "440px",
+            resize: "both",
+            overflow: "auto",
+            boxShadow: "0 14px 50px rgba(0,0,0,0.85)",
+            display: "flex",
+            flexDirection: "column",
+            boxSizing: "border-box"
           }}>
             
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "6px" }}>
-              <h3 style={{ color: theme.accentCyan, fontSize: "18px", fontWeight: "900", margin: 0, textTransform: "uppercase" }}>
-                NOTEPAD: REMARK FOR {notepadModal.stockName}
-              </h3>
+            {/* DRAGGABLE HEADER HANDLE */}
+            <div
+              onMouseDown={handleStartDrag}
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                marginBottom: "8px",
+                cursor: isDragging ? "grabbing" : "grab",
+                userSelect: "none",
+                padding: "6px 8px",
+                borderRadius: "6px",
+                backgroundColor: "rgba(30, 41, 59, 0.5)",
+                border: "1px dashed #334155"
+              }}
+              title="Click and drag to move editor across screen"
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                <span style={{ cursor: "grab", color: theme.accentCyan, fontSize: "16px" }}>⠿</span>
+                <h3 style={{ color: theme.accentCyan, fontSize: "16px", fontWeight: "900", margin: 0, textTransform: "uppercase" }}>
+                  NOTEPAD: REMARK FOR {notepadModal.stockName}
+                </h3>
+              </div>
               <span style={{ fontSize: "11px", backgroundColor: "#1e293b", padding: "3px 8px", borderRadius: "4px", border: `1px solid ${theme.accentCyan}`, color: theme.accentCyan, fontWeight: "900" }}>
-                RICH EDITOR
+                DRAGGABLE
               </span>
             </div>
             
-            <p style={{ color: "#94a3b8", fontSize: "12px", margin: "0 0 12px 0", fontWeight: "bold" }}>
-              Rich notepad with colors, background highlights, lists, hyperlinks and table support.
+            <p style={{ color: "#94a3b8", fontSize: "12px", margin: "0 0 10px 0", fontWeight: "bold" }}>
+              Drag header to move. Drag bottom-right corner to expand both horizontally and vertically.
             </p>
 
             {/* RICH TOOLBAR CONTROLS */}
-            <div style={{ display: "flex", flexWrap: "wrap", gap: "6px", alignItems: "center", backgroundColor: "#1e293b", padding: "8px 10px", borderRadius: "6px 6px 0 0", border: "1px solid #334155", borderBottom: "none" }}>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: "6px", alignItems: "center", backgroundColor: "#1e293b", padding: "8px 10px", borderRadius: "6px 6px 0 0", border: "1px solid #334155", borderBottom: "none", flexShrink: 0 }}>
               
               {/* Bold */}
               <button 
@@ -1415,43 +1462,49 @@ export default function StockWatchlist() {
 
               <div style={{ width: "1px", height: "20px", backgroundColor: "#475569", margin: "0 4px" }} />
 
-              {/* Text Color Dropdown (15 colors) */}
-              <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+              {/* PAINT-STYLE FONT COLOR PICKER */}
+              <label style={{ display: "flex", alignItems: "center", gap: "6px", backgroundColor: "#0f172a", border: "1px solid #475569", borderRadius: "4px", padding: "3px 8px", cursor: "pointer" }}>
                 <span style={{ color: "#cbd5e1", fontSize: "11px", fontWeight: "bold" }}>Font:</span>
-                <select
-                  onChange={(e) => {
-                    if (e.target.value) executeCommand("foreColor", e.target.value);
-                  }}
+                <input
+                  type="color"
                   defaultValue="#ffffff"
-                  style={{ backgroundColor: "#0f172a", color: "#ffffff", border: "1px solid #475569", padding: "4px 8px", borderRadius: "4px", fontSize: "11px", fontWeight: "bold", cursor: "pointer", outline: "none" }}
-                >
-                  <option disabled value="">Text Color (15)</option>
-                  {COLOR_PALETTE.map((c) => (
-                    <option key={`fg-${c.value}`} value={c.value} style={{ backgroundColor: "#0f172a", color: c.value }}>
-                      ● {c.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Selection Background Color Dropdown (15 colors) */}
-              <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
-                <span style={{ color: "#cbd5e1", fontSize: "11px", fontWeight: "bold" }}>Highlight:</span>
-                <select
-                  onChange={(e) => {
-                    if (e.target.value) executeCommand("hiliteColor", e.target.value);
+                  onChange={(e) => executeCommand("foreColor", e.target.value)}
+                  title="Choose Font Color (Paint Style)"
+                  style={{
+                    appearance: "none",
+                    WebkitAppearance: "none",
+                    border: "none",
+                    width: "22px",
+                    height: "22px",
+                    borderRadius: "4px",
+                    cursor: "pointer",
+                    backgroundColor: "transparent",
+                    padding: 0
                   }}
-                  defaultValue="transparent"
-                  style={{ backgroundColor: "#0f172a", color: "#ffffff", border: "1px solid #475569", padding: "4px 8px", borderRadius: "4px", fontSize: "11px", fontWeight: "bold", cursor: "pointer", outline: "none" }}
-                >
-                  <option value="transparent">Highlight (None)</option>
-                  {COLOR_PALETTE.map((c) => (
-                    <option key={`bg-${c.value}`} value={c.value} style={{ backgroundColor: "#0f172a", color: c.value }}>
-                      █ {c.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
+                />
+              </label>
+
+              {/* PAINT-STYLE HIGHLIGHT COLOR PICKER */}
+              <label style={{ display: "flex", alignItems: "center", gap: "6px", backgroundColor: "#0f172a", border: "1px solid #475569", borderRadius: "4px", padding: "3px 8px", cursor: "pointer" }}>
+                <span style={{ color: "#cbd5e1", fontSize: "11px", fontWeight: "bold" }}>Highlight:</span>
+                <input
+                  type="color"
+                  defaultValue="#f59e0b"
+                  onChange={(e) => executeCommand("hiliteColor", e.target.value)}
+                  title="Choose Highlight Color (Paint Style)"
+                  style={{
+                    appearance: "none",
+                    WebkitAppearance: "none",
+                    border: "none",
+                    width: "22px",
+                    height: "22px",
+                    borderRadius: "4px",
+                    cursor: "pointer",
+                    backgroundColor: "transparent",
+                    padding: 0
+                  }}
+                />
+              </label>
 
               <div style={{ width: "1px", height: "20px", backgroundColor: "#475569", margin: "0 4px" }} />
 
@@ -1486,7 +1539,7 @@ export default function StockWatchlist() {
               </button>
             </div>
 
-            {/* CONTENTEDITABLE RICH CANVAS (SUPPORTS DIRECT TABULAR PASTING) */}
+            {/* EXPANDABLE CONTENTEDITABLE RICH CANVAS */}
             <div
               ref={editorRef}
               contentEditable
@@ -1494,7 +1547,7 @@ export default function StockWatchlist() {
               onInput={handleEditorInput}
               style={{
                 width: "100%",
-                flex: "1 1 auto",       /* Fills all available vertical room as the popup expands */
+                flex: "1 1 auto",
                 minHeight: "220px",
                 overflowY: "auto",
                 backgroundColor: "#0b132b",
@@ -1510,7 +1563,7 @@ export default function StockWatchlist() {
               }}
             />
 
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: "10px", fontSize: "12px", fontWeight: "bold" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: "10px", fontSize: "12px", fontWeight: "bold", flexShrink: 0 }}>
               <span style={{ color: "#94a3b8" }}>
                 Total Words: <b style={{ color: theme.accentCyan }}>{editorWordCount}</b>
               </span>
@@ -1519,7 +1572,7 @@ export default function StockWatchlist() {
               </span>
             </div>
 
-            <div style={{ display: "flex", justifyContent: "flex-end", gap: "10px", marginTop: "18px" }}>
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: "10px", marginTop: "14px", flexShrink: 0 }}>
               <button onClick={() => setNotepadModal({ isOpen: false, stockName: "", text: "", error: "" })} style={{ backgroundColor: "#334155", color: "#ffffff", border: "none", padding: "8px 16px", borderRadius: "6px", fontWeight: "900", cursor: "pointer", textTransform: "uppercase" }}>CANCEL</button>
               <button onClick={handleSaveNotepad} style={{ backgroundColor: theme.accentAmber, color: "#000000", border: "none", padding: "8px 20px", borderRadius: "6px", fontWeight: "900", cursor: "pointer", textTransform: "uppercase" }}>SAVE REMARK</button>
             </div>
