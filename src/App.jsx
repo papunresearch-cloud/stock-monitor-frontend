@@ -245,4 +245,5 @@ export default function App() {
                   gap: "6px",
                 }}
               >
-                {isScreenerSyncing ? "⏳ RUNNING ETL (2 MIN COOLDOWN)..." : "🔄 SY
+                {isScreenerSyncing ? "⏳ RUNNING ETL (2 MIN COOLDOWN)..." : "🔄 SYNC SCREENER"}
+              </button>
