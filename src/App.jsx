@@ -13,7 +13,7 @@ import Watchlist from "./Watchlist";
 // Alert System Modal Component
 import AlertSystemModal from "./alert_system";
 
-// Security PIN Guard (Restores startup PIN check)
+// Security PIN Guard
 import PinModalGuard from "./PinModalGuard";
 
 // NavLink style helper
@@ -21,16 +21,17 @@ const getLinkStyle = ({ isActive }) => ({
   backgroundColor: isActive ? "#06b6d4" : "#1e293b",
   color: isActive ? "#000000" : "#94a3b8",
   border: `1px solid ${isActive ? "#06b6d4" : "#334155"}`,
-  padding: "7px 14px",
+  padding: "6px 14px",
   borderRadius: "6px",
   textDecoration: "none",
   fontWeight: "bold",
   fontSize: "12px",
   letterSpacing: "0.5px",
-  transition: "all 0.2s ease-in-out",
+  textTransform: "uppercase",
+  transition: "all 0.15s ease-in-out",
   display: "inline-flex",
   alignItems: "center",
-  gap: "6px"
+  boxShadow: isActive ? "0 0 10px rgba(6, 182, 212, 0.4)" : "none",
 });
 
 export default function App() {
@@ -108,7 +109,7 @@ export default function App() {
         await update(ref(database, "system_status/screener_sync"), {
           "Date of database data": databaseDate,
           "sync_triggered_at": new Date().toISOString(),
-          "sync_source": syncSource
+          "sync_source": syncSource,
         });
       } catch (fbErr) {
         console.error("Firebase sync telemetry update error:", fbErr);
@@ -117,12 +118,12 @@ export default function App() {
       let response;
 
       if (syncSource === "AUTO") {
-        // Path A: Auto-Sync via Playwright directly on Screener.in
+        // Path A: Auto-Sync directly on Screener.in
         response = await fetch(`${BACKEND_URL}/auto-sync-screener`, {
           method: "POST",
           mode: "cors",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ database_date: databaseDate })
+          body: JSON.stringify({ database_date: databaseDate }),
         });
       } else if (syncSource === "BROWSE" && selectedFile) {
         // Path B: Local file multipart upload
@@ -133,7 +134,7 @@ export default function App() {
         response = await fetch(`${BACKEND_URL}/sync-screener-upload`, {
           method: "POST",
           mode: "cors",
-          body: formData
+          body: formData,
         });
       } else {
         // Path C: Google Drive flow
@@ -141,7 +142,7 @@ export default function App() {
           method: "POST",
           mode: "cors",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ database_date: databaseDate })
+          body: JSON.stringify({ database_date: databaseDate }),
         });
       }
 
@@ -459,8 +460,8 @@ export default function App() {
             </div>
           )}
 
-          {/* VIEW ROUTING */}
-          <main style={{ padding: "10px" }}>
+          {/* APPLICATION ROUTES: Zero outer padding allows full-width rendering on mobile */}
+          <main style={{ padding: 0, margin: 0, width: "100%" }}>
             <Routes>
               <Route path="/" element={<StockMonitorView />} />
               <Route path="/MarketHierarchy" element={<MarketHierarchy />} />
