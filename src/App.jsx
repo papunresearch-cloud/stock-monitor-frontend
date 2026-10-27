@@ -384,7 +384,7 @@ export default function App() {
                 {/* 2. DB Date Picker with Tooltip and 5-Day Range Lock */}
                 <div style={{ marginBottom: "20px" }}>
                   <div
-                    title="DB date basically latest date of updated data of Screener data."
+                    title="DB date => latest date of updated data of www.screener.in."
                     style={{
                       display: "inline-flex",
                       alignItems: "center",
