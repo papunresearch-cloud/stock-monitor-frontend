@@ -419,7 +419,7 @@ export default function App() {
                     value={databaseDate}
                     min={getFiveDaysAgoISO()}
                     max={getTodayISO()}
-                    title="DB date basically latest date of updated data of Screener data."
+                    title="DB date => latest date of updated data of www.screener.in"
                     onChange={(e) => setDatabaseDate(e.target.value)}
                     style={{
                       backgroundColor: "#1e293b",
