@@ -2,7 +2,6 @@ import {
   Bar, CartesianGrid, ComposedChart, Legend, Line, LineChart,
   ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from 'recharts'
-import type { AnnualRow, BankAnnualRow, BankQuarterRow, QuarterRow } from './types'
 
 type Metric = { key: string; label: string; color: string; kind?: 'line'; axis?: 'right'; unit?: 'percent' | 'ratio' | 'rupee' }
 export type ChartSpec = { id: string; title: string; subtitle: string; data: Array<Record<string, unknown>>; metrics: Metric[]; type?: 'line' | 'bar' | 'combo'; category: 'annual' | 'quarterly'; yAxisMax?: number }
