@@ -1,3 +1,6 @@
+
+package.json
+100%
 {
   "name": "frontend",
   "private": true,
@@ -10,14 +13,17 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "exceljs": "^4.4.0",
     "firebase": "^10.14.1",
+    "html2canvas": "^1.4.1",
+    "jspdf": "^2.5.1",
+    "jspdf-autotable": "^3.8.2",
+    "lucide-react": "^0.453.0",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
     "react-rnd": "^10.5.3",
     "react-router-dom": "^6.26.2",
-    "jspdf": "^2.5.1",
-    "jspdf-autotable": "^3.8.2",
-    "lucide-react": "^0.453.0",
+    "recharts": "^2.12.7",
     "xlsx": "^0.18.5"
   },
   "devDependencies": {
@@ -36,3 +42,4 @@
     "vitest": "^4.1.10"
   }
 }
+Displaying package.json.
