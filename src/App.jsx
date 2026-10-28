@@ -16,6 +16,12 @@ import AlertSystemModal from "./alert_system";
 // Security PIN Guard
 import PinModalGuard from "./PinModalGuard";
 
+// Visual Fundamental Financial Statement Components
+import CompanyDashboard from "./fundamentals/CompanyDashboard";
+import BankDashboard from "./fundamentals/BankDashboard";
+import { parseWorkbook } from "./fundamentals/parseWorkbook";
+import { exportToPDF, exportToExcel } from "./fundamentals/exportReports";
+
 // NavLink style helper
 const getLinkStyle = ({ isActive }) => ({
   backgroundColor: isActive ? "#06b6d4" : "#1e293b",
@@ -44,6 +50,21 @@ export default function App() {
   const [syncMode, setSyncMode] = useState("AUTO"); // Strictly "AUTO" or "MAN"
   const [selectedFile, setSelectedFile] = useState(null);
   const manualFileInputRef = useRef(null);
+
+  // =========================================================================
+  // VISUAL FUNDAMENTAL STATEMENT STATES
+  // =========================================================================
+  const [fundStockInput, setFundStockInput] = useState("");
+  const [activeFundMode, setActiveFundMode] = useState("normal"); // "normal" or "bank"
+  const [activeFundData, setActiveFundData] = useState(null);
+  const [isFundViewerOpen, setIsFundViewerOpen] = useState(false);
+  const [isFundManualModalOpen, setIsFundManualModalOpen] = useState(false);
+
+  // Manual Mode Popup Internal States
+  const [manualWorkbookFile, setManualWorkbookFile] = useState(null);
+  const [manualFormatChoice, setManualFormatChoice] = useState("normal");
+  const [isWorkbookParsing, setIsWorkbookParsing] = useState(false);
+  const workbookFileInputRef = useRef(null);
 
   // Format local date YYYY-MM-DD
   const getTodayISO = () => {
@@ -206,6 +227,79 @@ export default function App() {
     }
   };
 
+  // =========================================================================
+  // FUNDAMENTAL ACTIONS & HANDLERS
+  // =========================================================================
+  const handleOpenDirectMode = (mode) => {
+    if (!fundStockInput.trim()) {
+      alert("⚠️ Please enter a stock symbol first in the field.");
+      return;
+    }
+
+    setActiveFundMode(mode);
+
+    // If a workbook has already been loaded for this session, open viewer immediately
+    if (activeFundData) {
+      setIsFundViewerOpen(true);
+    } else {
+      // Prompt user to select/load the workbook via Manual Mode dialog
+      setManualFormatChoice(mode);
+      setIsFundManualModalOpen(true);
+    }
+  };
+
+  const handleOpenManualWorkbookDialog = () => {
+    setManualWorkbookFile(null);
+    setManualFormatChoice("normal");
+    setIsFundManualModalOpen(true);
+  };
+
+  const handleExecuteManualWorkbook = async () => {
+    if (!manualWorkbookFile) {
+      alert("⚠️ Please select a valid .xlsx file first.");
+      return;
+    }
+
+    setIsWorkbookParsing(true);
+    try {
+      // Pure in-browser client-side parsing: zero remote server/Playwright dependency
+      const parsed = await parseWorkbook(manualWorkbookFile);
+      setActiveFundData(parsed);
+      setActiveFundMode(manualFormatChoice);
+      if (!fundStockInput.trim()) {
+        const inferredName = manualWorkbookFile.name.replace(/\.[^/.]+$/, "").toUpperCase();
+        setFundStockInput(inferredName);
+      }
+      setIsFundManualModalOpen(false);
+      setIsFundViewerOpen(true);
+    } catch (err) {
+      console.error("Failed to parse financial workbook:", err);
+      alert("❌ Could not parse the .xlsx workbook. Ensure it is a valid Screener financial template.");
+    } finally {
+      setIsWorkbookParsing(false);
+    }
+  };
+
+  const handleExportPDF = () => {
+    if (!activeFundData) return;
+    try {
+      exportToPDF(activeFundData, activeFundMode);
+    } catch (err) {
+      console.error("PDF export error:", err);
+      alert("❌ Failed to generate PDF export.");
+    }
+  };
+
+  const handleExportExcel = () => {
+    if (!activeFundData) return;
+    try {
+      exportToExcel(activeFundData);
+    } catch (err) {
+      console.error("Excel export error:", err);
+      alert("❌ Failed to generate Excel export.");
+    }
+  };
+
   return (
     <PinModalGuard>
       <Router>
@@ -254,7 +348,105 @@ export default function App() {
             </nav>
 
             {/* TOP RIGHT ACTION BUTTONS */}
-            <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
+              
+              {/* ========================================================================= */}
+              {/* FUNDAMENTAL ANALYSIS CONTROLS (POSITIONED IMMEDIATELY LEFT OF ALERT) */}
+              {/* ========================================================================= */}
+              <div
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "6px",
+                  backgroundColor: "#0b1329",
+                  padding: "4px 8px",
+                  borderRadius: "8px",
+                  border: "1px solid #1e293b",
+                }}
+              >
+                {/* Stock Input Field */}
+                <input
+                  type="text"
+                  placeholder="STOCK NAME..."
+                  value={fundStockInput}
+                  onChange={(e) => setFundStockInput(e.target.value.toUpperCase())}
+                  style={{
+                    backgroundColor: "#070c18",
+                    border: "1px solid #334155",
+                    color: "#38bdf8",
+                    padding: "6px 10px",
+                    borderRadius: "5px",
+                    fontSize: "11px",
+                    fontWeight: "900",
+                    width: "105px",
+                    outline: "none",
+                    letterSpacing: "0.5px",
+                  }}
+                />
+
+                {/* Bank Mode Button */}
+                <button
+                  type="button"
+                  onClick={() => handleOpenDirectMode("bank")}
+                  style={{
+                    backgroundColor: "#1e293b",
+                    color: "#f59e0b",
+                    border: "1px solid #f59e0b",
+                    padding: "6px 10px",
+                    borderRadius: "5px",
+                    fontWeight: "900",
+                    fontSize: "11px",
+                    cursor: "pointer",
+                    textTransform: "uppercase",
+                    transition: "all 0.15s ease",
+                  }}
+                >
+                  🏦 Bank Mode
+                </button>
+
+                {/* Normal Mode Button */}
+                <button
+                  type="button"
+                  onClick={() => handleOpenDirectMode("normal")}
+                  style={{
+                    backgroundColor: "#1e293b",
+                    color: "#10b981",
+                    border: "1px solid #10b981",
+                    padding: "6px 10px",
+                    borderRadius: "5px",
+                    fontWeight: "900",
+                    fontSize: "11px",
+                    cursor: "pointer",
+                    textTransform: "uppercase",
+                    transition: "all 0.15s ease",
+                  }}
+                >
+                  🏢 Normal Mode
+                </button>
+
+                {/* Manual Mode Button */}
+                <button
+                  type="button"
+                  onClick={handleOpenManualWorkbookDialog}
+                  style={{
+                    backgroundColor: "#0284c7",
+                    color: "#ffffff",
+                    border: "none",
+                    padding: "6px 10px",
+                    borderRadius: "5px",
+                    fontWeight: "900",
+                    fontSize: "11px",
+                    cursor: "pointer",
+                    textTransform: "uppercase",
+                    boxShadow: "0 0 8px rgba(2, 132, 199, 0.4)",
+                    transition: "all 0.15s ease",
+                  }}
+                >
+                  📂 Manual Mode
+                </button>
+              </div>
+
+              {/* ALERT SETTING BUTTON */}
               <button
                 onClick={() => setIsAlertModalOpen(true)}
                 style={{
@@ -278,6 +470,7 @@ export default function App() {
                 🔔 ALERT SETTING
               </button>
 
+              {/* SCREENER SYNC BUTTON */}
               <button
                 onClick={handleOpenSyncModal}
                 disabled={isScreenerSyncing}
@@ -302,6 +495,313 @@ export default function App() {
               </button>
             </div>
           </header>
+
+          {/* ========================================================================= */}
+          {/* MANUAL WORKBOOK LOCAL PARSE POPUP DIALOG */}
+          {/* ========================================================================= */}
+          {isFundManualModalOpen && (
+            <div
+              style={{
+                position: "fixed",
+                top: 0,
+                left: 0,
+                width: "100%",
+                height: "100%",
+                backgroundColor: "rgba(0, 0, 0, 0.85)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                zIndex: 99999,
+              }}
+            >
+              <div
+                style={{
+                  backgroundColor: "#0f172a",
+                  border: "2px solid #06b6d4",
+                  borderRadius: "12px",
+                  padding: "24px",
+                  maxWidth: "460px",
+                  width: "90%",
+                  boxShadow: "0 0 30px rgba(6, 182, 212, 0.35)",
+                }}
+              >
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px", borderBottom: "1px solid #1e293b", paddingBottom: "10px" }}>
+                  <h3 style={{ margin: 0, color: "#38bdf8", fontSize: "16px", fontWeight: "900", textTransform: "uppercase" }}>
+                    📂 Manual Workbook Visualizer
+                  </h3>
+                  <span style={{ fontSize: "11px", color: "#10b981", fontWeight: "bold", backgroundColor: "#064e3b", padding: "2px 8px", borderRadius: "4px" }}>
+                    CLIENT SANDBOX
+                  </span>
+                </div>
+
+                {/* Step 1: File Browser Field */}
+                <div style={{ marginBottom: "16px" }}>
+                  <label style={{ display: "block", fontSize: "12px", marginBottom: "6px", color: "#cbd5e1", fontWeight: "bold" }}>
+                    1. Select .xlsx Workbook:
+                  </label>
+                  <input
+                    ref={workbookFileInputRef}
+                    type="file"
+                    accept=".xlsx, .xls"
+                    style={{ display: "none" }}
+                    onChange={(e) => setManualWorkbookFile(e.target.files?.[0] || null)}
+                  />
+                  <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+                    <button
+                      type="button"
+                      onClick={() => workbookFileInputRef.current?.click()}
+                      style={{
+                        padding: "8px 14px",
+                        backgroundColor: "#f59e0b",
+                        color: "#000000",
+                        border: "none",
+                        borderRadius: "5px",
+                        fontWeight: "900",
+                        fontSize: "12px",
+                        cursor: "pointer",
+                      }}
+                    >
+                      📁 Browse .xlsx
+                    </button>
+                    <span style={{ fontSize: "12px", color: manualWorkbookFile ? "#10b981" : "#94a3b8", fontWeight: "bold", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      {manualWorkbookFile ? manualWorkbookFile.name : "No file selected"}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Step 2: Format Choice (Bank vs Normal) */}
+                <div style={{ marginBottom: "20px" }}>
+                  <label style={{ display: "block", fontSize: "12px", marginBottom: "6px", color: "#cbd5e1", fontWeight: "bold" }}>
+                    2. Select Display Format:
+                  </label>
+                  <div style={{ display: "flex", gap: "10px" }}>
+                    <button
+                      type="button"
+                      onClick={() => setManualFormatChoice("normal")}
+                      style={{
+                        flex: 1,
+                        padding: "8px",
+                        borderRadius: "6px",
+                        border: `2px solid ${manualFormatChoice === "normal" ? "#10b981" : "#334155"}`,
+                        backgroundColor: manualFormatChoice === "normal" ? "#064e3b" : "#1e293b",
+                        color: manualFormatChoice === "normal" ? "#34d399" : "#ffffff",
+                        fontWeight: "900",
+                        fontSize: "12px",
+                        cursor: "pointer",
+                      }}
+                    >
+                      🏢 Normal Mode
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setManualFormatChoice("bank")}
+                      style={{
+                        flex: 1,
+                        padding: "8px",
+                        borderRadius: "6px",
+                        border: `2px solid ${manualFormatChoice === "bank" ? "#f59e0b" : "#334155"}`,
+                        backgroundColor: manualFormatChoice === "bank" ? "#78350f" : "#1e293b",
+                        color: manualFormatChoice === "bank" ? "#fbbf24" : "#ffffff",
+                        fontWeight: "900",
+                        fontSize: "12px",
+                        cursor: "pointer",
+                      }}
+                    >
+                      🏦 Bank Mode
+                    </button>
+                  </div>
+                </div>
+
+                {/* Dialog Actions: OK and Cancel */}
+                <div style={{ display: "flex", justifyContent: "flex-end", gap: "10px", borderTop: "1px solid #1e293b", paddingTop: "12px" }}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsFundManualModalOpen(false);
+                      setManualWorkbookFile(null);
+                    }}
+                    style={{
+                      padding: "8px 16px",
+                      borderRadius: "6px",
+                      backgroundColor: "#334155",
+                      border: "none",
+                      color: "#ffffff",
+                      cursor: "pointer",
+                      fontSize: "12px",
+                      fontWeight: "bold",
+                    }}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleExecuteManualWorkbook}
+                    disabled={!manualWorkbookFile || isWorkbookParsing}
+                    style={{
+                      padding: "8px 22px",
+                      borderRadius: "6px",
+                      backgroundColor: manualWorkbookFile && !isWorkbookParsing ? "#10b981" : "#475569",
+                      border: "none",
+                      color: manualWorkbookFile && !isWorkbookParsing ? "#000000" : "#94a3b8",
+                      fontWeight: "900",
+                      cursor: manualWorkbookFile && !isWorkbookParsing ? "pointer" : "not-allowed",
+                      fontSize: "12px",
+                      boxShadow: manualWorkbookFile ? "0 0 10px rgba(16, 185, 129, 0.4)" : "none",
+                    }}
+                  >
+                    {isWorkbookParsing ? "Parsing..." : "OK"}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ========================================================================= */}
+          {/* FULL SCREEN FUNDAMENTAL STATEMENT VIEWER MODAL */}
+          {/* ========================================================================= */}
+          {isFundViewerOpen && activeFundData && (
+            <div
+              style={{
+                position: "fixed",
+                top: 0,
+                left: 0,
+                width: "100vw",
+                height: "100vh",
+                backgroundColor: "rgba(3, 7, 18, 0.94)",
+                backdropFilter: "blur(6px)",
+                display: "flex",
+                flexDirection: "column",
+                zIndex: 99999,
+                boxSizing: "border-box",
+              }}
+            >
+              {/* Header Ribbon with Mode, Stock, and Export Options */}
+              <div
+                style={{
+                  backgroundColor: "#070c18",
+                  borderBottom: "2px solid #1e293b",
+                  padding: "10px 20px",
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  flexWrap: "wrap",
+                  gap: "10px",
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                  <span style={{ fontSize: "20px" }}>📊</span>
+                  <div>
+                    <h2 style={{ margin: 0, color: "#38bdf8", fontSize: "16px", fontWeight: "900", letterSpacing: "1px" }}>
+                      {fundStockInput || "FINANCIAL STATEMENT ANALYSIS"}
+                    </h2>
+                    <span style={{ fontSize: "11px", color: "#94a3b8", fontWeight: "bold" }}>
+                      ACTIVE FORMAT:{" "}
+                      <span style={{ color: activeFundMode === "bank" ? "#f59e0b" : "#10b981" }}>
+                        {activeFundMode === "bank" ? "BANKING FINANCIALS" : "NORMAL CORPORATE"}
+                      </span>
+                    </span>
+                  </div>
+                </div>
+
+                <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                  {/* Format Switcher Pills */}
+                  <button
+                    onClick={() => setActiveFundMode("normal")}
+                    style={{
+                      backgroundColor: activeFundMode === "normal" ? "#10b981" : "#1e293b",
+                      color: activeFundMode === "normal" ? "#000000" : "#94a3b8",
+                      border: "none",
+                      padding: "6px 12px",
+                      borderRadius: "5px",
+                      fontWeight: "bold",
+                      fontSize: "11px",
+                      cursor: "pointer",
+                    }}
+                  >
+                    🏢 Normal Mode
+                  </button>
+                  <button
+                    onClick={() => setActiveFundMode("bank")}
+                    style={{
+                      backgroundColor: activeFundMode === "bank" ? "#f59e0b" : "#1e293b",
+                      color: activeFundMode === "bank" ? "#000000" : "#94a3b8",
+                      border: "none",
+                      padding: "6px 12px",
+                      borderRadius: "5px",
+                      fontWeight: "bold",
+                      fontSize: "11px",
+                      cursor: "pointer",
+                    }}
+                  >
+                    🏦 Bank Mode
+                  </button>
+
+                  <div style={{ width: "1px", height: "18px", backgroundColor: "#334155", margin: "0 4px" }} />
+
+                  {/* Export Excel */}
+                  <button
+                    onClick={handleExportExcel}
+                    style={{
+                      backgroundColor: "#10b981",
+                      color: "#000000",
+                      border: "none",
+                      padding: "6px 14px",
+                      borderRadius: "5px",
+                      fontWeight: "900",
+                      fontSize: "11px",
+                      cursor: "pointer",
+                    }}
+                  >
+                    📥 Export Excel
+                  </button>
+
+                  {/* Export PDF */}
+                  <button
+                    onClick={handleExportPDF}
+                    style={{
+                      backgroundColor: "#f59e0b",
+                      color: "#000000",
+                      border: "none",
+                      padding: "6px 14px",
+                      borderRadius: "5px",
+                      fontWeight: "900",
+                      fontSize: "11px",
+                      cursor: "pointer",
+                    }}
+                  >
+                    📄 Export PDF
+                  </button>
+
+                  {/* Close Viewer */}
+                  <button
+                    onClick={() => setIsFundViewerOpen(false)}
+                    style={{
+                      backgroundColor: "#334155",
+                      color: "#f87171",
+                      border: "1px solid #ef4444",
+                      padding: "6px 12px",
+                      borderRadius: "5px",
+                      fontWeight: "900",
+                      fontSize: "11px",
+                      cursor: "pointer",
+                      marginLeft: "6px",
+                    }}
+                  >
+                    ✕ Close
+                  </button>
+                </div>
+              </div>
+
+              {/* Scrollable Statements Workspace */}
+              <div style={{ flex: 1, overflowY: "auto", padding: "16px", backgroundColor: "#020617" }}>
+                {activeFundMode === "bank" ? (
+                  <BankDashboard data={activeFundData} />
+                ) : (
+                  <CompanyDashboard data={activeFundData} />
+                )}
+              </div>
+            </div>
+          )}
 
           {/* POPUP 1: SCREENER SYNC CONFIGURATION (AUTO / MAN & DB DATE) */}
           {isSyncModalOpen && (
