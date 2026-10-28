@@ -384,7 +384,7 @@ export default function App() {
                 {/* 2. DB Date Picker with Tooltip and 5-Day Range Lock */}
                 <div style={{ marginBottom: "20px" }}>
                   <div
-                    title="DB date => latest date of updated data of www.screener.in."
+                    title="DB date basically latest date of updated data of Screener data."
                     style={{
                       display: "inline-flex",
                       alignItems: "center",
@@ -419,7 +419,7 @@ export default function App() {
                     value={databaseDate}
                     min={getFiveDaysAgoISO()}
                     max={getTodayISO()}
-                    title="DB date => latest date of updated data of www.screener.in"
+                    title="DB date basically latest date of updated data of Screener data."
                     onChange={(e) => setDatabaseDate(e.target.value)}
                     style={{
                       backgroundColor: "#1e293b",
