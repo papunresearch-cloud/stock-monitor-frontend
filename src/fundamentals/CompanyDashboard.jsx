@@ -2,7 +2,6 @@ import { Activity } from 'lucide-react'
 import { ChartPanel } from './Charts';
 import { PerShareRollingSummary } from './PerShareRollingSummary'
 import { averageOfThreeYearRollingAverages } from './rollingPerShare'
-import type { AnnualRow, CompanyData, QuarterRow } from './types'
 
 type Section = 'overview' | 'yearly' | 'quarterly' | 'tables' | 'checks'
 type CompanySpecs = { annual: ChartSpec[]; margins: ChartSpec[]; quarterly: ChartSpec[]; special: ChartSpec[] }

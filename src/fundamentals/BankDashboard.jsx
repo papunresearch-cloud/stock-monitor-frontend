@@ -2,7 +2,6 @@ import { AlertTriangle, CircleHelp, Landmark, ShieldCheck } from 'lucide-react'
 import { ChartPanel } from './Charts';
 import { PerShareRollingSummary } from './PerShareRollingSummary'
 import { averageOfThreeYearRollingAverages } from './rollingPerShare'
-import type { BankData, BankAnnualRow, BankQuarterRow } from './types'
 
 type Section = 'overview' | 'yearly' | 'quarterly' | 'tables' | 'checks'
 const amount = (value: number | null | undefined, digits = 0) => value === null || value === undefined || !Number.isFinite(value) ? '—' : new Intl.NumberFormat('en-IN', { maximumFractionDigits: digits }).format(value)
