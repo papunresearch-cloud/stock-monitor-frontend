@@ -403,3 +403,8 @@ export async function parseBankWorkbook(file: File): Promise<BankData> {
   }
 }
 
+
+// Compatibility entry point used by LedgerWrapper.
+export async function parseWorkbook(file: File, isBank = false): Promise<CompanyData | BankData> {
+  return isBank ? parseBankWorkbook(file) : parseCompanyWorkbook(file)
+}
