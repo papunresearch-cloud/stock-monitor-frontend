@@ -1,6 +1,3 @@
-
-package.json
-100%
 {
   "name": "frontend",
   "private": true,
@@ -42,4 +39,4 @@ package.json
     "vitest": "^4.1.10"
   }
 }
-Displaying package.json.
+
