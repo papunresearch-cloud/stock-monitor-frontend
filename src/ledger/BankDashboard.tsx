@@ -180,4 +180,3 @@ export default function BankDashboard({ data }) {
     </div>
   );
 }
-Displaying src/ledger/BankDashboard.tsx.
