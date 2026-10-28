@@ -20,7 +20,7 @@ import PinModalGuard from "./PinModalGuard";
 import CompanyDashboard from "./fundamentals/CompanyDashboard";
 import BankDashboard from "./fundamentals/BankDashboard";
 import { parseWorkbook } from "./fundamentals/parseWorkbook";
-import { exportToPDF, exportToExcel } from "./fundamentals/exportReports";
+import { exportToPdf, exportToXlsx } from "./fundamentals/exportReports";
 
 // NavLink style helper
 const getLinkStyle = ({ isActive }) => ({
@@ -238,11 +238,9 @@ export default function App() {
 
     setActiveFundMode(mode);
 
-    // If a workbook has already been loaded for this session, open viewer immediately
     if (activeFundData) {
       setIsFundViewerOpen(true);
     } else {
-      // Prompt user to select/load the workbook via Manual Mode dialog
       setManualFormatChoice(mode);
       setIsFundManualModalOpen(true);
     }
@@ -262,7 +260,6 @@ export default function App() {
 
     setIsWorkbookParsing(true);
     try {
-      // Pure in-browser client-side parsing: zero remote server/Playwright dependency
       const parsed = await parseWorkbook(manualWorkbookFile);
       setActiveFundData(parsed);
       setActiveFundMode(manualFormatChoice);
@@ -283,7 +280,9 @@ export default function App() {
   const handleExportPDF = () => {
     if (!activeFundData) return;
     try {
-      exportToPDF(activeFundData, activeFundMode);
+      // exportToPdf(data, elementId?: string, isBank?: boolean)
+      const isBank = activeFundMode === "bank";
+      exportToPdf(activeFundData, "dashboard-report-area", isBank);
     } catch (err) {
       console.error("PDF export error:", err);
       alert("❌ Failed to generate PDF export.");
@@ -293,7 +292,9 @@ export default function App() {
   const handleExportExcel = () => {
     if (!activeFundData) return;
     try {
-      exportToExcel(activeFundData);
+      // exportToXlsx(data, isBank?: boolean)
+      const isBank = activeFundMode === "bank";
+      exportToXlsx(activeFundData, isBank);
     } catch (err) {
       console.error("Excel export error:", err);
       alert("❌ Failed to generate Excel export.");
@@ -738,7 +739,7 @@ export default function App() {
 
                   <div style={{ width: "1px", height: "18px", backgroundColor: "#334155", margin: "0 4px" }} />
 
-                  {/* Export Excel */}
+                  {/* Export Excel (calls exportToXlsx) */}
                   <button
                     onClick={handleExportExcel}
                     style={{
@@ -755,7 +756,7 @@ export default function App() {
                     📥 Export Excel
                   </button>
 
-                  {/* Export PDF */}
+                  {/* Export PDF (calls exportToPdf) */}
                   <button
                     onClick={handleExportPDF}
                     style={{
@@ -793,7 +794,7 @@ export default function App() {
               </div>
 
               {/* Scrollable Statements Workspace */}
-              <div style={{ flex: 1, overflowY: "auto", padding: "16px", backgroundColor: "#020617" }}>
+              <div id="dashboard-report-area" style={{ flex: 1, overflowY: "auto", padding: "16px", backgroundColor: "#020617" }}>
                 {activeFundMode === "bank" ? (
                   <BankDashboard data={activeFundData} />
                 ) : (
