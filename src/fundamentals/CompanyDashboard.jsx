@@ -1,5 +1,5 @@
 import { Activity } from 'lucide-react'
-import { ChartPanel, type ChartSpec } from './Charts'
+import { ChartPanel } from './Charts';
 import { PerShareRollingSummary } from './PerShareRollingSummary'
 import { averageOfThreeYearRollingAverages } from './rollingPerShare'
 import type { AnnualRow, CompanyData, QuarterRow } from './types'

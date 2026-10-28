@@ -1,5 +1,5 @@
 import { AlertTriangle, CircleHelp, Landmark, ShieldCheck } from 'lucide-react'
-import { ChartPanel, type BankChartSpecs } from './Charts'
+import { ChartPanel } from './Charts';
 import { PerShareRollingSummary } from './PerShareRollingSummary'
 import { averageOfThreeYearRollingAverages } from './rollingPerShare'
 import type { BankData, BankAnnualRow, BankQuarterRow } from './types'
