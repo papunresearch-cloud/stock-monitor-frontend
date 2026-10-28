@@ -14,7 +14,11 @@
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
     "react-rnd": "^10.5.3",
-    "react-router-dom": "^6.26.2"
+    "react-router-dom": "^6.26.2",
+    "jspdf": "^2.5.1",
+    "jspdf-autotable": "^3.8.2",
+    "lucide-react": "^0.453.0",
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
