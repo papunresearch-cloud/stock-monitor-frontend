@@ -243,7 +243,7 @@ export default function App() {
               </span>
             </div>
 
-            {/* Navigation Funnel */}
+            {/* Navigation Funnel & 3D Ledger Button */}
             <nav style={{ display: "flex", gap: "8px", flexWrap: "wrap", alignItems: "center" }}>
               <NavLink to="/" style={getLinkStyle}>📡 Stock Monitor</NavLink>
               <div style={{ width: "1px", height: "20px", backgroundColor: "#334155", margin: "0 4px" }} />
@@ -251,6 +251,47 @@ export default function App() {
               <NavLink to="/Filter" style={getLinkStyle}>🔍 Filter 1</NavLink>
               <NavLink to="/Advanced_Filter" style={getLinkStyle}>⚙️ Filter 2</NavLink>
               <NavLink to="/Watchlist" style={getLinkStyle}>📋 Watchlist</NavLink>
+
+              {/* 3D LEDGER BUTTON (Opens external dashboard in new tab) */}
+              <a
+                href="https://ledger-financial-dashboard.vercel.app/"
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "6px",
+                  textDecoration: "none",
+                  textTransform: "uppercase",
+                  fontSize: "12px",
+                  fontWeight: "900",
+                  letterSpacing: "0.5px",
+                  color: "#ffffff",
+                  background: "linear-gradient(180deg, #38bdf8 0%, #0284c7 50%, #0369a1 100%)",
+                  border: "1px solid #0284c7",
+                  borderRadius: "6px",
+                  padding: "6px 14px",
+                  cursor: "pointer",
+                  boxShadow: "0 3px 0 #075985, 0 5px 10px rgba(0, 0, 0, 0.4)",
+                  transform: "translateY(0px)",
+                  transition: "all 0.1s ease-in-out",
+                  marginLeft: "4px",
+                }}
+                onMouseDown={(e) => {
+                  e.currentTarget.style.transform = "translateY(3px)";
+                  e.currentTarget.style.boxShadow = "0 0 0 #075985, 0 1px 3px rgba(0, 0, 0, 0.4)";
+                }}
+                onMouseUp={(e) => {
+                  e.currentTarget.style.transform = "translateY(0px)";
+                  e.currentTarget.style.boxShadow = "0 3px 0 #075985, 0 5px 10px rgba(0, 0, 0, 0.4)";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.transform = "translateY(0px)";
+                  e.currentTarget.style.boxShadow = "0 3px 0 #075985, 0 5px 10px rgba(0, 0, 0, 0.4)";
+                }}
+              >
+                📊 LEDGER
+              </a>
             </nav>
 
             {/* TOP RIGHT ACTION BUTTONS */}
