@@ -37,6 +37,7 @@ const getLinkStyle = ({ isActive }) => ({
 export default function App() {
   const [isScreenerSyncing, setIsScreenerSyncing] = useState(false);
   const [isAlertModalOpen, setIsAlertModalOpen] = useState(false);
+  const [isHelpModalOpen, setIsHelpModalOpen] = useState(false);
 
   // Modal State for Screener Sync
   const [isSyncModalOpen, setIsSyncModalOpen] = useState(false); // Popup 1: Mode & Date
@@ -296,6 +297,31 @@ export default function App() {
 
             {/* TOP RIGHT ACTION BUTTONS */}
             <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+              {/* ❓ HELP BUTTON */}
+              <button
+                onClick={() => setIsHelpModalOpen(true)}
+                style={{
+                  backgroundColor: "#0284c7",
+                  color: "#ffffff",
+                  border: "none",
+                  padding: "7px 14px",
+                  borderRadius: "6px",
+                  fontWeight: "900",
+                  fontSize: "12px",
+                  letterSpacing: "0.5px",
+                  cursor: "pointer",
+                  boxShadow: "0 0 12px rgba(2, 132, 199, 0.4)",
+                  transition: "all 0.2s ease-in-out",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "6px",
+                  textTransform: "uppercase",
+                }}
+              >
+                ❓ HELP
+              </button>
+
+              {/* 🔔 ALERT SETTING BUTTON */}
               <button
                 onClick={() => setIsAlertModalOpen(true)}
                 style={{
@@ -319,6 +345,7 @@ export default function App() {
                 🔔 ALERT SETTING
               </button>
 
+              {/* 🔄 SYNC SCREENER BUTTON */}
               <button
                 onClick={handleOpenSyncModal}
                 disabled={isScreenerSyncing}
@@ -657,6 +684,100 @@ export default function App() {
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
           </main>
+
+          {/* SYSTEM HELP & DOCUMENTATION MODAL */}
+          {isHelpModalOpen && (
+            <div
+              style={{
+                position: "fixed",
+                top: 0,
+                left: 0,
+                width: "100vw",
+                height: "100vh",
+                backgroundColor: "rgba(3, 7, 18, 0.85)",
+                backdropFilter: "blur(6px)",
+                display: "flex",
+                justifyContent: "center",
+                alignItems: "center",
+                zIndex: 99999,
+                padding: "20px",
+              }}
+            >
+              <div
+                style={{
+                  backgroundColor: "#0f172a",
+                  border: "2px solid #0284c7",
+                  boxShadow: "0 0 30px rgba(2, 132, 199, 0.35), 0 20px 40px rgba(0,0,0,0.85)",
+                  borderRadius: "14px",
+                  padding: "24px",
+                  width: "600px",
+                  maxWidth: "100%",
+                  maxHeight: "90vh",
+                  overflowY: "auto",
+                  color: "#f8fafc",
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "16px",
+                }}
+              >
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid #1e293b", paddingBottom: "12px" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                    <span style={{ fontSize: "20px" }}>❓</span>
+                    <span style={{ color: "#38bdf8", fontWeight: "900", fontSize: "14px", letterSpacing: "1px", textTransform: "uppercase" }}>
+                      System Help & Documentation
+                    </span>
+                  </div>
+                  <button
+                    onClick={() => setIsHelpModalOpen(false)}
+                    style={{
+                      background: "#1e293b",
+                      border: "1px solid #475569",
+                      color: "#f87171",
+                      fontSize: "14px",
+                      fontWeight: "900",
+                      cursor: "pointer",
+                      borderRadius: "6px",
+                      padding: "4px 10px",
+                    }}
+                  >
+                    ✕
+                  </button>
+                </div>
+
+                <div style={{ fontSize: "13px", color: "#cbd5e1", lineHeight: "1.6" }}>
+                  <p style={{ margin: "0 0 10px 0" }}>System Help & Documentation initialized.</p>
+                  <p style={{ margin: "0 0 10px 0", color: "#94a3b8" }}>
+                    • Use <b>LEDGER</b> to navigate to your ledger financial analytics dashboard.
+                  </p>
+                  <p style={{ margin: "0 0 10px 0", color: "#94a3b8" }}>
+                    • Use <b>ALERT SETTING</b> to configure real-time trigger criteria and notification thresholds.
+                  </p>
+                  <p style={{ margin: "0", color: "#94a3b8" }}>
+                    • Use <b>SYNC SCREENER</b> to sync or manually upload the latest Screener database metrics.
+                  </p>
+                </div>
+
+                <div style={{ display: "flex", justifyContent: "flex-end", borderTop: "1px solid #1e293b", paddingTop: "14px" }}>
+                  <button
+                    onClick={() => setIsHelpModalOpen(false)}
+                    style={{
+                      backgroundColor: "#0284c7",
+                      color: "#ffffff",
+                      border: "none",
+                      padding: "8px 20px",
+                      borderRadius: "6px",
+                      fontWeight: "900",
+                      fontSize: "12px",
+                      cursor: "pointer",
+                      textTransform: "uppercase",
+                    }}
+                  >
+                    CLOSE
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* ALERT SYSTEM POPUP MODAL */}
           <AlertSystemModal
