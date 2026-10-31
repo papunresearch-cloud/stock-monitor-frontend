@@ -52,7 +52,7 @@ export default function App() {
   // Single-window popup opener identical to SCR, TVC & YFC buttons
   const openLedgerWindow = () => {
     const url = "https://ledger-financial-dashboard.vercel.app/";
-    const width = 1000;
+    const width = 1400;
     const height = 700;
     const left = (window.innerWidth - width) / 2 + window.screenX;
     const top = (window.innerHeight - height) / 2 + window.screenY;
