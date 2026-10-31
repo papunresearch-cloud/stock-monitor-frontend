@@ -49,6 +49,20 @@ export default function App() {
   const [selectedFile, setSelectedFile] = useState(null);
   const manualFileInputRef = useRef(null);
 
+  // Single-window popup opener identical to SCR, TVC & YFC buttons
+  const openLedgerWindow = () => {
+    const url = "https://ledger-financial-dashboard.vercel.app/";
+    const width = 1000;
+    const height = 700;
+    const left = (window.innerWidth - width) / 2 + window.screenX;
+    const top = (window.innerHeight - height) / 2 + window.screenY;
+    window.open(
+      url,
+      "single_external_window",
+      `width=${width},height=${height},top=${top},left=${left},resizable=yes,scrollbars=yes`
+    );
+  };
+
   // Format local date YYYY-MM-DD
   const getTodayISO = () => {
     const now = new Date();
@@ -256,11 +270,10 @@ export default function App() {
               <NavLink to="/Advanced_Filter" style={getLinkStyle}>⚙️ Filter 2</NavLink>
               <NavLink to="/Watchlist" style={getLinkStyle}>📋 Watchlist</NavLink>
 
-              {/* 3D LEDGER BUTTON (Opens external dashboard in new tab) */}
-              <a
-                href="https://ledger-financial-dashboard.vercel.app/"
-                target="_blank"
-                rel="noopener noreferrer"
+              {/* 3D LEDGER BUTTON (Opens external dashboard in single reusable window) */}
+              <button
+                type="button"
+                onClick={openLedgerWindow}
                 style={{
                   display: "inline-flex",
                   alignItems: "center",
@@ -295,7 +308,7 @@ export default function App() {
                 }}
               >
                 📊 LEDGER
-              </a>
+              </button>
             </nav>
 
             {/* TOP RIGHT ACTION BUTTONS */}
