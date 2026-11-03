@@ -1461,6 +1461,69 @@ export default function StockWatchlist() {
 
               <div style={{ width: "1px", height: "20px", backgroundColor: "#475569", margin: "0 4px" }} />
 
+              {/* FONT FAMILY SELECTOR */}
+              <select
+                defaultValue=""
+                onChange={(e) => {
+                  if (e.target.value) {
+                    executeCommand("fontName", e.target.value);
+                  }
+                }}
+                title="Choose Font Family"
+                style={{
+                  backgroundColor: "#0f172a",
+                  color: "#cbd5e1",
+                  border: "1px solid #475569",
+                  borderRadius: "4px",
+                  padding: "4px 8px",
+                  fontSize: "12px",
+                  fontWeight: "bold",
+                  cursor: "pointer",
+                  outline: "none"
+                }}
+              >
+                <option value="" disabled>Font Type</option>
+                <option value="Calibri" style={{ fontFamily: "Calibri", backgroundColor: "#0f172a", color: "#fff" }}>Calibri</option>
+                <option value="Comic Sans MS" style={{ fontFamily: "Comic Sans MS", backgroundColor: "#0f172a", color: "#fff" }}>Comic Sans MS</option>
+                <option value="Arial Black" style={{ fontFamily: "Arial Black", backgroundColor: "#0f172a", color: "#fff" }}>Arial Black</option>
+                <option value="Corbel" style={{ fontFamily: "Corbel", backgroundColor: "#0f172a", color: "#fff" }}>Corbel</option>
+                <option value="Arial" style={{ fontFamily: "Arial", backgroundColor: "#0f172a", color: "#fff" }}>Arial</option>
+                <option value="Arial Rounded MT Bold" style={{ fontFamily: "Arial Rounded MT Bold", backgroundColor: "#0f172a", color: "#fff" }}>Arial Rounded MT Bold</option>
+              </select>
+
+              {/* FONT SIZE SELECTOR */}
+              <select
+                defaultValue=""
+                onChange={(e) => {
+                  if (e.target.value) {
+                    executeCommand("fontSize", e.target.value);
+                  }
+                }}
+                title="Choose Font Size"
+                style={{
+                  backgroundColor: "#0f172a",
+                  color: "#cbd5e1",
+                  border: "1px solid #475569",
+                  borderRadius: "4px",
+                  padding: "4px 8px",
+                  fontSize: "12px",
+                  fontWeight: "bold",
+                  cursor: "pointer",
+                  outline: "none"
+                }}
+              >
+                <option value="" disabled>Font Size</option>
+                <option value="1" style={{ backgroundColor: "#0f172a", color: "#fff" }}>10px (Very Small)</option>
+                <option value="2" style={{ backgroundColor: "#0f172a", color: "#fff" }}>12px (Small)</option>
+                <option value="3" style={{ backgroundColor: "#0f172a", color: "#fff" }}>14px (Normal)</option>
+                <option value="4" style={{ backgroundColor: "#0f172a", color: "#fff" }}>16px (Medium)</option>
+                <option value="5" style={{ backgroundColor: "#0f172a", color: "#fff" }}>18px (Large)</option>
+                <option value="6" style={{ backgroundColor: "#0f172a", color: "#fff" }}>24px (X-Large)</option>
+                <option value="7" style={{ backgroundColor: "#0f172a", color: "#fff" }}>32px (Huge)</option>
+              </select>
+
+              <div style={{ width: "1px", height: "20px", backgroundColor: "#475569", margin: "0 4px" }} />
+
               {/* PAINT-STYLE FONT COLOR PICKER */}
               <label style={{ display: "flex", alignItems: "center", gap: "6px", backgroundColor: "#0f172a", border: "1px solid #475569", borderRadius: "4px", padding: "3px 8px", cursor: "pointer" }}>
                 <span style={{ color: "#cbd5e1", fontSize: "11px", fontWeight: "bold" }}>Font:</span>
