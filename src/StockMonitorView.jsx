@@ -57,7 +57,7 @@ export default function StockMonitorView() {
   });
 
   const FIREBASE_DB_URL = 'https://stock-dashboard-5c25c-default-rtdb.asia-southeast1.firebasedatabase.app';
-  const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'https://nse-ohlc-system.onrender.com';
+  const BACKEND_URL = import.meta.env.VITE_API_URL || import.meta.env.VITE_BACKEND_URL || 'https://nse-ohlc-system.onrender.com';
 
   // ==========================================
   // 3. INITIALIZATION & DATA BOOT

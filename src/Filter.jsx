@@ -979,22 +979,58 @@ export default function StockDashboard() {
       <div 
         ref={tableContainerRef}
         onScroll={handleOptimizedScroll}
-        style={{ overflowY: "auto", maxHeight: "calc(100vh - 380px)", border: theme.tableOuterBorder, borderRadius: "6px", boxShadow: "0 4px 20px rgba(0,0,0,0.3)", backgroundColor: "#ffffff", position: "relative" }}
+        style={{ overflow: "auto", maxHeight: "calc(100vh - 380px)", border: theme.tableOuterBorder, borderRadius: "6px", boxShadow: "0 4px 20px rgba(0,0,0,0.3)", backgroundColor: "#ffffff", position: "relative" }}
       >
         <table style={{ width: "100%", borderCollapse: "separate", borderSpacing: 0, fontSize: theme.fontSize, fontWeight: theme.fontWeight, color: theme.fontColor }}>
           <thead>
-            <tr style={{ backgroundColor: "#0f172a", color: "#ffffff", position: "sticky", top: 0, zIndex: 20 }}>
-              <th style={{ padding: "8px", border: theme.tableCellBorder, textAlign: "center", width: "36px", backgroundColor: "#0f172a" }}>
+            <tr style={{ backgroundColor: "#0f172a", color: "#ffffff" }}>
+              <th
+                style={{
+                  padding: "8px",
+                  border: theme.tableCellBorder,
+                  textAlign: "center",
+                  width: "44px",
+                  minWidth: "44px",
+                  maxWidth: "44px",
+                  boxSizing: "border-box",
+                  backgroundColor: "#0f172a",
+                  position: "sticky",
+                  top: 0,
+                  left: 0,
+                  zIndex: 30,
+                }}
+              >
                 <input type="checkbox" checked={filteredAndSortedData.length > 0 && selectedCodes.size === filteredAndSortedData.length} onChange={toggleSelectAllRows} style={{ cursor: "pointer" }} />
               </th>
-              {APP_CONFIG.columns.map((col) => (
-                <th key={col.key} onClick={() => handleSort(col.key)} style={{ padding: "8px 10px", border: theme.tableCellBorder, textAlign: col.align, cursor: "pointer", whiteSpace: "nowrap", userSelect: "none", backgroundColor: "#0f172a" }}>
-                  {col.label}
-                  <span style={{ marginLeft: "4px", fontSize: "10px", color: theme.accentCyan }}>
-                    {sortConfig.key === col.key ? (sortConfig.direction === "asc" ? " ▲" : " ▼") : " ⇅"}
-                  </span>
-                </th>
-              ))}
+              {APP_CONFIG.columns.map((col) => {
+                const isStockCol = col.key === "STOCK";
+                return (
+                  <th
+                    key={col.key}
+                    onClick={() => handleSort(col.key)}
+                    style={{
+                      padding: "8px 10px",
+                      border: theme.tableCellBorder,
+                      textAlign: col.align,
+                      cursor: "pointer",
+                      whiteSpace: "nowrap",
+                      userSelect: "none",
+                      backgroundColor: "#0f172a",
+                      position: "sticky",
+                      top: 0,
+                      left: isStockCol ? "44px" : undefined,
+                      zIndex: isStockCol ? 30 : 20,
+                      minWidth: isStockCol ? "140px" : undefined,
+                      boxSizing: "border-box",
+                    }}
+                  >
+                    {col.label}
+                    <span style={{ marginLeft: "4px", fontSize: "10px", color: theme.accentCyan }}>
+                      {sortConfig.key === col.key ? (sortConfig.direction === "asc" ? " ▲" : " ▼") : " ⇅"}
+                    </span>
+                  </th>
+                );
+              })}
             </tr>
           </thead>
 
@@ -1029,7 +1065,22 @@ export default function StockDashboard() {
 
                   return (
                     <tr key={row.CODE} style={{ backgroundColor: rowBg, height: `${TABLE_ROW_HEIGHT}px`, transition: "background-color 0.15s ease" }}>
-                      <td style={{ padding: "6px", textAlign: "center", border: theme.tableCellBorder, borderTop: borderTopStyle }}>
+                      <td
+                        style={{
+                          padding: "6px",
+                          textAlign: "center",
+                          border: theme.tableCellBorder,
+                          borderTop: borderTopStyle,
+                          width: "44px",
+                          minWidth: "44px",
+                          maxWidth: "44px",
+                          boxSizing: "border-box",
+                          position: "sticky",
+                          left: 0,
+                          zIndex: 10,
+                          backgroundColor: rowBg,
+                        }}
+                      >
                         <input type="checkbox" checked={isRowSelected} onChange={() => toggleRowSelection(row.CODE)} style={{ cursor: "pointer" }} />
                       </td>
 
@@ -1038,6 +1089,7 @@ export default function StockDashboard() {
                         const { displayValue, color: fontColor } = formatCell(col.key, rawValue, theme);
                         const strVal = String(displayValue);
                         const isLongString = strVal.length > 16;
+                        const isStockCol = col.key === "STOCK";
 
                         return (
                           <td
@@ -1047,24 +1099,63 @@ export default function StockDashboard() {
                               border: theme.tableCellBorder,
                               borderTop: borderTopStyle,
                               textAlign: col.align,
-                              position: "relative",
+                              position: isStockCol ? "sticky" : "relative",
+                              left: isStockCol ? "44px" : undefined,
+                              zIndex: isStockCol ? 10 : 1,
+                              backgroundColor: rowBg,
+                              minWidth: isStockCol ? "140px" : undefined,
                               maxWidth: "160px",
+                              boxSizing: "border-box",
                               overflow: "visible",
                               color: fontColor || theme.fontColor,
                             }}
                           >
                             <div style={{ display: "flex", alignItems: "center", justifyContent: col.align === "right" ? "flex-end" : "flex-start" }}>
-                              <span
-                                style={{
-                                  overflow: "hidden",
-                                  textOverflow: "ellipsis",
-                                  whiteSpace: "nowrap",
-                                  display: "inline-block",
-                                  maxWidth: isLongString ? "120px" : "100%",
-                                }}
-                              >
-                                {displayValue}
-                              </span>
+                              {isStockCol ? (() => {
+                                const raw = row.NSE || row.BSE || row.CODE || row.STOCK || "";
+                                const symbol = String(raw).replace(/\.0$/, "").trim().toUpperCase();
+                                const url = `https://www.screener.in/company/${encodeURIComponent(symbol)}/consolidated/`;
+                                return (
+                                  <a
+                                    href={url}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    onClick={(e) => {
+                                      e.preventDefault();
+                                      e.stopPropagation();
+                                      window.open(url, "_blank");
+                                    }}
+                                    style={{
+                                      color: fontColor || theme.fontColor,
+                                      textDecoration: "underline",
+                                      textDecorationColor: "#2563eb",
+                                      textUnderlineOffset: "2px",
+                                      cursor: "pointer",
+                                      overflow: "hidden",
+                                      textOverflow: "ellipsis",
+                                      whiteSpace: "nowrap",
+                                      display: "inline-block",
+                                      maxWidth: isLongString ? "120px" : "100%",
+                                      fontWeight: "bold",
+                                    }}
+                                    title={`Open ${strVal} on screener.in`}
+                                  >
+                                    {displayValue}
+                                  </a>
+                                );
+                              })() : (
+                                <span
+                                  style={{
+                                    overflow: "hidden",
+                                    textOverflow: "ellipsis",
+                                    whiteSpace: "nowrap",
+                                    display: "inline-block",
+                                    maxWidth: isLongString ? "120px" : "100%",
+                                  }}
+                                >
+                                  {displayValue}
+                                </span>
+                              )}
 
                               {isLongString && (
                                 <CellTooltip

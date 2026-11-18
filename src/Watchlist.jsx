@@ -940,19 +940,79 @@ export default function StockWatchlist() {
       <div style={{ overflowX: "auto", overflowY: "auto", maxHeight: "calc(100vh - 240px)", border: isModify ? "2px solid #ef4444" : theme.tableOuterBorder, borderRadius: "8px", backgroundColor: "#ffffff", boxShadow: "0 10px 30px rgba(0,0,0,0.5)" }}>
         <table style={{ width: "100%", borderCollapse: "separate", borderSpacing: 0, fontSize: "13px", fontWeight: theme.fontWeight, color: theme.fontColor }}>
           <thead>
-            <tr style={{ position: "sticky", top: 0, zIndex: 30, backgroundColor: theme.deepMaroon, color: theme.headerTextColor }}>
-              <th style={{ padding: "12px 8px", border: theme.tableCellBorder, textAlign: "center", width: "50px", backgroundColor: theme.deepMaroon, position: "sticky", left: 0, zIndex: 40, textTransform: "uppercase" }}>
+            <tr style={{ backgroundColor: theme.deepMaroon, color: theme.headerTextColor }}>
+              <th
+                style={{
+                  padding: "12px 8px",
+                  border: theme.tableCellBorder,
+                  textAlign: "center",
+                  width: "48px",
+                  minWidth: "48px",
+                  maxWidth: "48px",
+                  boxSizing: "border-box",
+                  backgroundColor: theme.deepMaroon,
+                  position: "sticky",
+                  top: 0,
+                  left: 0,
+                  zIndex: 40,
+                  textTransform: "uppercase",
+                }}
+              >
                 <input type="checkbox" checked={isAllDisplayedSelected} onChange={handleToggleSelectAll} style={{ width: "16px", height: "16px", cursor: "pointer", accentColor: theme.accentAmber }} />
               </th>
-              <th style={{ padding: "12px 16px", border: theme.tableCellBorder, textAlign: "left", backgroundColor: theme.deepMaroon, position: "sticky", left: "50px", zIndex: 40, textTransform: "uppercase", whiteSpace: "nowrap" }}>
+              <th
+                style={{
+                  padding: "12px 16px",
+                  border: theme.tableCellBorder,
+                  textAlign: "left",
+                  backgroundColor: theme.deepMaroon,
+                  position: "sticky",
+                  top: 0,
+                  left: "48px",
+                  zIndex: 40,
+                  textTransform: "uppercase",
+                  whiteSpace: "nowrap",
+                  minWidth: "160px",
+                  boxSizing: "border-box",
+                }}
+              >
                 STOCK NAME
               </th>
               {APP_CONFIG.columns.map((colKey) => (
-                <th key={colKey} style={{ padding: "12px 14px", border: theme.tableCellBorder, textAlign: "center", backgroundColor: theme.deepMaroon, color: theme.headerTextColor, textTransform: "uppercase", whiteSpace: "nowrap" }}>
+                <th
+                  key={colKey}
+                  style={{
+                    padding: "12px 14px",
+                    border: theme.tableCellBorder,
+                    textAlign: "center",
+                    backgroundColor: theme.deepMaroon,
+                    color: theme.headerTextColor,
+                    textTransform: "uppercase",
+                    whiteSpace: "nowrap",
+                    position: "sticky",
+                    top: 0,
+                    zIndex: 20,
+                    boxSizing: "border-box",
+                  }}
+                >
                   {colKey}
                 </th>
               ))}
-              <th style={{ padding: "12px 14px", border: theme.tableCellBorder, textAlign: "center", backgroundColor: theme.deepMaroon, color: theme.headerTextColor, textTransform: "uppercase", whiteSpace: "nowrap" }}>
+              <th
+                style={{
+                  padding: "12px 14px",
+                  border: theme.tableCellBorder,
+                  textAlign: "center",
+                  backgroundColor: theme.deepMaroon,
+                  color: theme.headerTextColor,
+                  textTransform: "uppercase",
+                  whiteSpace: "nowrap",
+                  position: "sticky",
+                  top: 0,
+                  zIndex: 20,
+                  boxSizing: "border-box",
+                }}
+              >
                 LINK BUTTONS
               </th>
             </tr>
@@ -975,7 +1035,21 @@ export default function StockWatchlist() {
 
                 return (
                   <tr key={stockName} style={{ backgroundColor: isSelected ? theme.rowSelectedBg : rowBg }}>
-                    <td style={{ padding: "8px", border: theme.tableCellBorder, textAlign: "center", backgroundColor: isSelected ? theme.rowSelectedBg : rowBg, position: "sticky", left: 0, zIndex: 10 }}>
+                    <td
+                      style={{
+                        padding: "8px",
+                        border: theme.tableCellBorder,
+                        textAlign: "center",
+                        backgroundColor: isSelected ? theme.rowSelectedBg : rowBg,
+                        position: "sticky",
+                        left: 0,
+                        zIndex: 10,
+                        width: "48px",
+                        minWidth: "48px",
+                        maxWidth: "48px",
+                        boxSizing: "border-box",
+                      }}
+                    >
                       <input 
                         type="checkbox" 
                         checked={isAlreadyInWatchlist ? false : isSelected} 
@@ -986,8 +1060,51 @@ export default function StockWatchlist() {
                       />
                     </td>
 
-                    <td style={{ padding: "8px 16px", border: theme.tableCellBorder, textAlign: "left", backgroundColor: isSelected ? theme.rowSelectedBg : rowBg, position: "sticky", left: "50px", zIndex: 10, fontWeight: "900", whiteSpace: "nowrap", color: "#000000" }}>
-                      {stockName}
+                    <td
+                      style={{
+                        padding: "8px 16px",
+                        border: theme.tableCellBorder,
+                        textAlign: "left",
+                        backgroundColor: isSelected ? theme.rowSelectedBg : rowBg,
+                        position: "sticky",
+                        left: "48px",
+                        zIndex: 10,
+                        fontWeight: "900",
+                        whiteSpace: "nowrap",
+                        color: "#000000",
+                        minWidth: "160px",
+                        boxSizing: "border-box",
+                      }}
+                    >
+                      {(() => {
+                        const validName = extractStockName(stockName);
+                        const mainRecord = findMainRecord(validName) || {};
+                        const raw = mainRecord.NSE || mainRecord.BSE || mainRecord.CODE || validName || "";
+                        const symbol = String(raw).replace(/\.0$/, "").trim().toUpperCase();
+                        const url = `https://www.screener.in/company/${encodeURIComponent(symbol)}/consolidated/`;
+                        return (
+                          <a
+                            href={url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              window.open(url, "_blank");
+                            }}
+                            style={{
+                              color: "#000000",
+                              textDecoration: "underline",
+                              textDecorationColor: "#2563eb",
+                              textUnderlineOffset: "2px",
+                              cursor: "pointer",
+                            }}
+                            title={`Open ${stockName} on screener.in`}
+                          >
+                            {stockName}
+                          </a>
+                        );
+                      })()}
                       {isAlreadyInWatchlist && (
                         <span 
                           style={{ marginLeft: "8px", display: "inline-flex", alignItems: "center", justifyContent: "center", width: "18px", height: "18px", borderRadius: "50%", backgroundColor: theme.accentRed, color: "#ffffff", fontSize: "10px", fontWeight: "900", verticalAlign: "middle" }} 

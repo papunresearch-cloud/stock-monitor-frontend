@@ -462,10 +462,35 @@ export default function MarketHierarchyTable() {
         <table style={styles.table}>
           <thead style={styles.thead}>
             <tr style={styles.headerRow}>
-              {COLUMNS.map((col) => {
+              {COLUMNS.map((col, colIdx) => {
                 const isSorted = sortConfig.key === col.key && sortConfig.direction !== null;
                 const align = col.align || 'right';
                 const justify = align === 'left' ? 'flex-start' : (align === 'center' ? 'center' : 'flex-end');
+
+                const isCol0 = colIdx === 0;
+                const isCol1 = colIdx === 1;
+
+                let stickyStyle = {};
+                if (isCol0) {
+                  stickyStyle = {
+                    left: 0,
+                    zIndex: 30,
+                    width: '48px',
+                    minWidth: '48px',
+                    maxWidth: '48px',
+                  };
+                } else if (isCol1) {
+                  stickyStyle = {
+                    left: '48px',
+                    zIndex: 30,
+                    minWidth: '240px',
+                  };
+                } else {
+                  stickyStyle = {
+                    zIndex: 20,
+                    minWidth: col.minWidth || 'auto',
+                  };
+                }
 
                 return (
                   <th
@@ -473,7 +498,7 @@ export default function MarketHierarchyTable() {
                     onClick={() => col.key && handleSort(col.key)}
                     style={{
                       ...styles.th,
-                      minWidth: col.minWidth || 'auto',
+                      ...stickyStyle,
                       textAlign: align,
                       cursor: col.key ? 'pointer' : 'default',
                     }}
@@ -538,7 +563,17 @@ export default function MarketHierarchyTable() {
 
                 return (
                   <tr key={node.id} style={rowStyle}>
-                    <td style={styles.tdCenter}>
+                    <td style={{
+                      ...styles.tdCenter,
+                      position: 'sticky',
+                      left: 0,
+                      zIndex: 10,
+                      backgroundColor: rowBg,
+                      width: '48px',
+                      minWidth: '48px',
+                      maxWidth: '48px',
+                      boxSizing: 'border-box',
+                    }}>
                       {isStock ? (
                         <input
                           type="checkbox"
@@ -553,29 +588,68 @@ export default function MarketHierarchyTable() {
                       )}
                     </td>
 
-                    <td style={{ ...styles.tdText, ...textStyle, textAlign: 'left', paddingLeft: `${depth * THEME_CONFIG.depthIndentPx + 10}px` }}>
-                      {node.name}
+                    <td style={{
+                      ...styles.tdText,
+                      ...textStyle,
+                      textAlign: 'left',
+                      paddingLeft: `${depth * THEME_CONFIG.depthIndentPx + 10}px`,
+                      position: 'sticky',
+                      left: '48px',
+                      zIndex: 10,
+                      backgroundColor: rowBg,
+                      minWidth: '240px',
+                      boxSizing: 'border-box',
+                    }}>
+                      {isStock ? (() => {
+                        const raw = node.data?.NSE || node.data?.BSE || node.data?.CODE || node.code || node.name || "";
+                        const symbol = String(raw).replace(/\.0$/, "").trim().toUpperCase();
+                        const url = `https://www.screener.in/company/${encodeURIComponent(symbol)}/consolidated/`;
+                        return (
+                          <a
+                            href={url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              window.open(url, "_blank");
+                            }}
+                            style={{
+                              color: 'inherit',
+                              textDecoration: 'underline',
+                              textDecorationColor: '#2563eb',
+                              textUnderlineOffset: '2px',
+                              cursor: 'pointer',
+                            }}
+                            title={`Open ${node.name} on screener.in`}
+                          >
+                            {node.name}
+                          </a>
+                        );
+                      })() : (
+                        node.name
+                      )}
                     </td>
 
-                    <td style={{ ...styles.tdText, ...textStyle, textAlign: 'left', whiteSpace: 'nowrap' }}>
+                    <td style={{ ...styles.tdText, ...textStyle, textAlign: 'left', whiteSpace: 'nowrap', backgroundColor: rowBg }}>
                       {countCmpDisplay}
                     </td>
 
-                    <td style={{ ...styles.tdNum, ...textStyle }}>{metrics.mcap}</td>
-                    <td style={{ ...styles.tdNum, ...textStyle }}>{metrics.PCCAP}</td>
-                    <td style={{ ...styles.tdNum, ...textStyle }}>{metrics.RSI}</td>
-                    <td style={{ ...styles.tdNum, ...textStyle }}>{metrics['T-score']}</td>
-                    <td style={{ ...styles.tdNum, ...textStyle }}>{metrics['G-score']}</td>
-                    <td style={{ ...styles.tdNum, ...textStyle }}>{metrics['F-score']}</td>
-                    <td style={{ ...styles.tdNum, ...textStyle }}>{metrics.PB}</td>
-                    <td style={{ ...styles.tdNum, ...textStyle }}>{metrics['3PB']}</td>
-                    <td style={{ ...styles.tdNum, ...textStyle }}>{metrics['DPB%']}</td>
-                    <td style={{ ...styles.tdNum, ...textStyle }}>{metrics.PE}</td>
-                    <td style={{ ...styles.tdNum, ...textStyle }}>{metrics['3PE']}</td>
-                    <td style={{ ...styles.tdNum, ...textStyle }}>{metrics['DPE%']}</td>
-                    <td style={{ ...styles.tdNum, ...textStyle }}>{metrics.DY}</td>
-                    <td style={{ ...styles.tdNum, ...textStyle }}>{metrics.advdp}</td>
-                    <td style={{ ...styles.tdNum, ...textStyle }}>{metrics.DE}</td>
+                    <td style={{ ...styles.tdNum, ...textStyle, backgroundColor: rowBg }}>{metrics.mcap}</td>
+                    <td style={{ ...styles.tdNum, ...textStyle, backgroundColor: rowBg }}>{metrics.PCCAP}</td>
+                    <td style={{ ...styles.tdNum, ...textStyle, backgroundColor: rowBg }}>{metrics.RSI}</td>
+                    <td style={{ ...styles.tdNum, ...textStyle, backgroundColor: rowBg }}>{metrics['T-score']}</td>
+                    <td style={{ ...styles.tdNum, ...textStyle, backgroundColor: rowBg }}>{metrics['G-score']}</td>
+                    <td style={{ ...styles.tdNum, ...textStyle, backgroundColor: rowBg }}>{metrics['F-score']}</td>
+                    <td style={{ ...styles.tdNum, ...textStyle, backgroundColor: rowBg }}>{metrics.PB}</td>
+                    <td style={{ ...styles.tdNum, ...textStyle, backgroundColor: rowBg }}>{metrics['3PB']}</td>
+                    <td style={{ ...styles.tdNum, ...textStyle, backgroundColor: rowBg }}>{metrics['DPB%']}</td>
+                    <td style={{ ...styles.tdNum, ...textStyle, backgroundColor: rowBg }}>{metrics.PE}</td>
+                    <td style={{ ...styles.tdNum, ...textStyle, backgroundColor: rowBg }}>{metrics['3PE']}</td>
+                    <td style={{ ...styles.tdNum, ...textStyle, backgroundColor: rowBg }}>{metrics['DPE%']}</td>
+                    <td style={{ ...styles.tdNum, ...textStyle, backgroundColor: rowBg }}>{metrics.DY}</td>
+                    <td style={{ ...styles.tdNum, ...textStyle, backgroundColor: rowBg }}>{metrics.advdp}</td>
+                    <td style={{ ...styles.tdNum, ...textStyle, backgroundColor: rowBg }}>{metrics.DE}</td>
                   </tr>
                 );
               })
@@ -719,17 +793,19 @@ const styles = {
     maxHeight: '85vh',
     overflow: 'auto',
     border: `1px solid ${THEME_CONFIG.borderColor}`,
+    position: 'relative',
   },
   table: {
     width: '100%',
-    borderCollapse: 'collapse',
+    borderCollapse: 'separate',
+    borderSpacing: 0,
     fontSize: THEME_CONFIG.tableFontSize,
     fontWeight: 'bold',
   },
   thead: {
     position: 'sticky',
     top: 0,
-    zIndex: 10,
+    zIndex: 20,
   },
   headerRow: {
     borderBottom: `1px solid ${THEME_CONFIG.borderColor}`,
@@ -743,6 +819,9 @@ const styles = {
     border: `1px solid ${THEME_CONFIG.borderColor}`,
     whiteSpace: 'nowrap',
     userSelect: 'none',
+    position: 'sticky',
+    top: 0,
+    boxSizing: 'border-box',
   },
   tdText: {
     border: `1px solid ${THEME_CONFIG.borderColor}`,

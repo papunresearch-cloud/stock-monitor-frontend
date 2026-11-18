@@ -91,13 +91,67 @@ const MemoizedTableRow = React.memo(({ row, index, isSelected, selectedColumns, 
   return (
     <tr style={{ backgroundColor: rowBg }}>
       {/* Checkbox Cell */}
-      <td style={{ padding: "6px 10px", border: theme.tableCellBorder, textAlign: "center", backgroundColor: rowBg, position: "sticky", left: 0, zIndex: 10 }}>
+      <td
+        style={{
+          padding: "6px 10px",
+          border: theme.tableCellBorder,
+          textAlign: "center",
+          backgroundColor: rowBg,
+          position: "sticky",
+          left: 0,
+          zIndex: 10,
+          width: "44px",
+          minWidth: "44px",
+          maxWidth: "44px",
+          boxSizing: "border-box",
+        }}
+      >
         <input type="checkbox" checked={isSelected} onChange={() => toggleRowSelection(primaryKey)} style={{ cursor: "pointer" }} />
       </td>
 
       {/* Name Cell */}
-      <td style={{ padding: "6px 14px", border: theme.tableCellBorder, textAlign: "left", whiteSpace: "nowrap", backgroundColor: rowBg, position: "sticky", left: "40px", zIndex: 10, fontWeight: "bold" }}>
-        {row.Name}
+      <td
+        style={{
+          padding: "6px 14px",
+          border: theme.tableCellBorder,
+          textAlign: "left",
+          whiteSpace: "nowrap",
+          backgroundColor: rowBg,
+          position: "sticky",
+          left: "44px",
+          zIndex: 10,
+          fontWeight: "bold",
+          minWidth: "160px",
+          boxSizing: "border-box",
+        }}
+      >
+        {(() => {
+          const raw = row.NSE || row.BSE || row.CODE || row.Name || "";
+          const symbol = String(raw).replace(/\.0$/, "").trim().toUpperCase();
+          const url = `https://www.screener.in/company/${encodeURIComponent(symbol)}/consolidated/`;
+          return (
+            <a
+              href={url}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                window.open(url, "_blank");
+              }}
+              style={{
+                color: theme.fontColor || "#000000",
+                textDecoration: "underline",
+                textDecorationColor: "#2563eb",
+                textUnderlineOffset: "2px",
+                cursor: "pointer",
+              }}
+              title={`Open ${row.Name} on screener.in`}
+            >
+              {row.Name}
+            </a>
+          );
+        })()}
       </td>
 
       {/* Other Columns */}
@@ -600,8 +654,23 @@ export default function AdvancedFilter() {
       >
         <table style={{ width: "100%", borderCollapse: "separate", borderSpacing: 0, fontSize: "14px", fontWeight: theme.fontWeight, color: theme.fontColor }}>
           <thead>
-            <tr style={{ position: "sticky", top: 0, zIndex: 30, backgroundColor: theme.deepMaroon, color: theme.headerTextColor }}>
-              <th style={{ padding: "10px", border: theme.tableCellBorder, textAlign: "center", width: "40px", backgroundColor: theme.deepMaroon, position: "sticky", left: 0, zIndex: 40 }}>
+            <tr style={{ backgroundColor: theme.deepMaroon, color: theme.headerTextColor }}>
+              <th
+                style={{
+                  padding: "10px",
+                  border: theme.tableCellBorder,
+                  textAlign: "center",
+                  width: "44px",
+                  minWidth: "44px",
+                  maxWidth: "44px",
+                  boxSizing: "border-box",
+                  backgroundColor: theme.deepMaroon,
+                  position: "sticky",
+                  top: 0,
+                  left: 0,
+                  zIndex: 40,
+                }}
+              >
                 <input
                   type="checkbox"
                   checked={sortedData.length > 0 && selectedRows.size === sortedData.length}
@@ -612,13 +681,49 @@ export default function AdvancedFilter() {
                   style={{ cursor: "pointer" }}
                 />
               </th>
-              <th onClick={() => handleSort("Name")} style={{ padding: "10px 14px", border: theme.tableCellBorder, textAlign: "left", cursor: "pointer", whiteSpace: "nowrap", backgroundColor: theme.deepMaroon, color: theme.headerTextColor, position: "sticky", left: "40px", zIndex: 40, textTransform: "uppercase" }}>
+              <th
+                onClick={() => handleSort("Name")}
+                style={{
+                  padding: "10px 14px",
+                  border: theme.tableCellBorder,
+                  textAlign: "left",
+                  cursor: "pointer",
+                  whiteSpace: "nowrap",
+                  backgroundColor: theme.deepMaroon,
+                  color: theme.headerTextColor,
+                  position: "sticky",
+                  top: 0,
+                  left: "44px",
+                  zIndex: 40,
+                  textTransform: "uppercase",
+                  minWidth: "160px",
+                  boxSizing: "border-box",
+                }}
+              >
                 NAME <span style={{ marginLeft: "6px", fontSize: "11px", color: theme.accentCyan }}>{sortConfig.key === "Name" ? (sortConfig.direction === "asc" ? " ▲ (A-Z)" : " ▼ (Z-A)") : " ⇅"}</span>
               </th>
               {selectedColumns.filter((col) => col !== "Name").map((colKey) => {
                 const rightAligned = isRightAlignedCol(colKey);
                 return (
-                  <th key={colKey} onClick={() => handleSort(colKey)} style={{ padding: "10px 14px", border: theme.tableCellBorder, textAlign: rightAligned ? "right" : "left", cursor: "pointer", whiteSpace: "nowrap", backgroundColor: theme.deepMaroon, color: theme.headerTextColor, textTransform: "uppercase", userSelect: "none" }}>
+                  <th
+                    key={colKey}
+                    onClick={() => handleSort(colKey)}
+                    style={{
+                      padding: "10px 14px",
+                      border: theme.tableCellBorder,
+                      textAlign: rightAligned ? "right" : "left",
+                      cursor: "pointer",
+                      whiteSpace: "nowrap",
+                      backgroundColor: theme.deepMaroon,
+                      color: theme.headerTextColor,
+                      textTransform: "uppercase",
+                      userSelect: "none",
+                      position: "sticky",
+                      top: 0,
+                      zIndex: 20,
+                      boxSizing: "border-box",
+                    }}
+                  >
                     {colKey} <span style={{ marginLeft: "6px", fontSize: "11px", color: theme.accentCyan }}>{sortConfig.key === colKey ? (sortConfig.direction === "asc" ? " ▲" : " ▼") : " ⇅"}</span>
                   </th>
                 );

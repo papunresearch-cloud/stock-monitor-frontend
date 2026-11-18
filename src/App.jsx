@@ -85,7 +85,7 @@ export default function App() {
   const [databaseDate, setDatabaseDate] = useState(getTodayISO());
 
   // Backend Render Base URL
-  const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || "https://nse-ohlc-system.onrender.com";
+  const BACKEND_URL = import.meta.env.VITE_API_URL || import.meta.env.VITE_BACKEND_URL || "https://nse-ohlc-system.onrender.com";
 
   // Validate: Date must be today or within last 5 days
   const isDateValid = (dateStr) => {
