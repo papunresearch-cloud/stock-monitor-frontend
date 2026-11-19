@@ -88,7 +88,7 @@ const Marker = ({ value, color, circleSize, lineHeight, label, isTop = false, ra
 // 3. MAIN STOCK COMPONENT
 // ==========================================
 export default function Stock_window({ 
-  code, name, ticker, nse,
+  code, name, ticker, nse, bse,
   // Valuation
   pe, dpe, pb, dpb, ps, dy, bvgr, advdp,
   // Ratios
@@ -129,7 +129,9 @@ export default function Stock_window({
 
   const tvc_link = `https://in.tradingview.com/chart/?symbol=${nse || code || ticker}`;
   const yfc_link = `https://finance.yahoo.com/chart/${ticker || `${code}.NS`}#`;
-  const scr_link = `https://www.screener.in/company/${code || nse}/consolidated/`; 
+  const rawSymbol = nse || bse || code || ticker || name || "";
+  const cleanSymbol = String(rawSymbol).replace(/\.0$/, "").trim().toUpperCase();
+  const scr_link = `https://www.screener.in/company/${encodeURIComponent(cleanSymbol)}/consolidated/`; 
 
   const fetchStockData = useCallback(async () => {
     if (isFrozen || !primaryKey) return;
@@ -353,13 +355,53 @@ export default function Stock_window({
 
         {/* STOCK NAME, CODE & (LAST QTR) */}
         <div style={{ display: 'flex', justifyContent: 'flex-start', alignItems: 'center', marginBottom: '15px', gap: '10px', flexWrap: 'wrap' }}>
-          <h2 style={{ margin: 0, color: '#f7d026', fontSize: '18px', letterSpacing: '1px', textTransform: 'uppercase' }}>
-            {displayName}
+          <h2 style={{ margin: 0, fontSize: '18px', letterSpacing: '1px', textTransform: 'uppercase' }}>
+            <a
+              href={scr_link}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                window.open(scr_link, "_blank");
+              }}
+              style={{
+                color: '#f7d026',
+                textDecoration: 'underline',
+                textDecorationColor: '#2563eb',
+                textUnderlineOffset: '3px',
+                cursor: 'pointer',
+              }}
+              title={`Open ${displayName} on screener.in`}
+            >
+              {displayName}
+            </a>
           </h2>
           {code && (
-            <span style={{ fontSize: '12px', color: '#06b6d4', fontWeight: 'bold', backgroundColor: '#0f172a', padding: '2px 8px', borderRadius: '4px', border: '1px solid #1e3a8a' }}>
+            <a
+              href={scr_link}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                window.open(scr_link, "_blank");
+              }}
+              style={{
+                fontSize: '12px',
+                color: '#06b6d4',
+                fontWeight: 'bold',
+                backgroundColor: '#0f172a',
+                padding: '2px 8px',
+                borderRadius: '4px',
+                border: '1px solid #1e3a8a',
+                textDecoration: 'none',
+                cursor: 'pointer',
+              }}
+              title={`Open ${code} on screener.in`}
+            >
               {code}
-            </span>
+            </a>
           )}
           <span style={{ fontSize: '12px', color: '#f59e0b', fontWeight: 'bold', letterSpacing: '0.5px' }}>
             (LAST QTR: {last_qtr || "JUNE, 2026"})

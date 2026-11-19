@@ -159,6 +159,7 @@ export default function StockGrid({
           name={stock?.Name} 
           ticker={stock?.TICKER} 
           nse={stock?.NSE} 
+          bse={stock?.BSE} 
           
           // Valuation parameters from detailedDb
           pe={stock?.PE}
