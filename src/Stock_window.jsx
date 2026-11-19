@@ -138,6 +138,7 @@ export default function Stock_window({
   const isBankStock = /bank/i.test(String(sector || industry || name || ''));
   const modeParam = isBankStock ? '&mode=bank' : '&mode=nonbank';
   const scr_link = `https://ledger-financial-dashboard.vercel.app/?symbol=${encodeURIComponent(cleanSymbol)}${modeParam}`; 
+  const screener_link = `https://www.screener.in/company/${encodeURIComponent(cleanSymbol)}/consolidated/`; 
 
   const fetchStockData = useCallback(async () => {
     if (isFrozen || !primaryKey) return;
@@ -379,13 +380,13 @@ export default function Stock_window({
         <div style={{ display: 'flex', justifyContent: 'flex-start', alignItems: 'center', marginBottom: '15px', gap: '10px', flexWrap: 'wrap' }}>
           <h2 style={{ margin: 0, fontSize: '18px', letterSpacing: '1px', textTransform: 'uppercase' }}>
             <a
-              href={scr_link}
+              href={screener_link}
               target="_blank"
               rel="noopener noreferrer"
               onClick={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
-                openPopup(scr_link);
+                window.open(screener_link, "_blank");
               }}
               style={{
                 color: '#f7d026',
@@ -394,20 +395,20 @@ export default function Stock_window({
                 textUnderlineOffset: '3px',
                 cursor: 'pointer',
               }}
-              title={`Open ${displayName} in Cloud Ledger`}
+              title={`Open ${displayName} on screener.in`}
             >
               {displayName}
             </a>
           </h2>
           {code && (
             <a
-              href={scr_link}
+              href={screener_link}
               target="_blank"
               rel="noopener noreferrer"
               onClick={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
-                openPopup(scr_link);
+                window.open(screener_link, "_blank");
               }}
               style={{
                 fontSize: '12px',
@@ -420,7 +421,7 @@ export default function Stock_window({
                 textDecoration: 'none',
                 cursor: 'pointer',
               }}
-              title={`Open ${code} in Cloud Ledger`}
+              title={`Open ${code} on screener.in`}
             >
               {code}
             </a>

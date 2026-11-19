@@ -1088,9 +1088,7 @@ export default function StockWatchlist() {
                         const mainRecord = findMainRecord(validName) || {};
                         const raw = mainRecord.NSE || mainRecord.BSE || mainRecord.CODE || validName || "";
                         const symbol = String(raw).replace(/\.0$/, "").trim().toUpperCase();
-                        const isBankStock = /bank/i.test(String(mainRecord.sector || mainRecord.industry || stockName || ""));
-                        const modeParam = isBankStock ? "&mode=bank" : "&mode=nonbank";
-                        const url = `https://ledger-financial-dashboard.vercel.app/?symbol=${encodeURIComponent(symbol)}${modeParam}`;
+                        const url = `https://www.screener.in/company/${encodeURIComponent(symbol)}/consolidated/`;
                         return (
                           <a
                             href={url}
@@ -1099,10 +1097,7 @@ export default function StockWatchlist() {
                             onClick={(e) => {
                               e.preventDefault();
                               e.stopPropagation();
-                              const width = 1400, height = 700;
-                              const left = (window.innerWidth - width) / 2 + window.screenX;
-                              const top = (window.innerHeight - height) / 2 + window.screenY;
-                              window.open(url, "single_external_window", `width=${width},height=${height},top=${top},left=${left},resizable=yes,scrollbars=yes`);
+                              window.open(url, "_blank");
                             }}
                             style={{
                               color: "#000000",
@@ -1111,7 +1106,7 @@ export default function StockWatchlist() {
                               textUnderlineOffset: "2px",
                               cursor: "pointer",
                             }}
-                            title={`Open ${stockName} in Cloud Ledger`}
+                            title={`Open ${stockName} on screener.in`}
                           >
                             {stockName}
                           </a>
