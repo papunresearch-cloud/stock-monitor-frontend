@@ -16,6 +16,9 @@ import AlertSystemModal from "./alert_system";
 // Statistical Help & Scoring Documentation Modal Component
 import Help from "./Help";
 
+// NSE Market Calendar Modal Component
+import CalendarModal from "./CalendarModal";
+
 // Security PIN Guard
 import PinModalGuard from "./PinModalGuard";
 
@@ -40,6 +43,7 @@ const getLinkStyle = ({ isActive }) => ({
 export default function App() {
   const [isScreenerSyncing, setIsScreenerSyncing] = useState(false);
   const [isAlertModalOpen, setIsAlertModalOpen] = useState(false);
+  const [isCalendarModalOpen, setIsCalendarModalOpen] = useState(false);
   const [isHelpModalOpen, setIsHelpModalOpen] = useState(false);
 
   // Modal State for Screener Sync
@@ -359,6 +363,30 @@ export default function App() {
                 }}
               >
                 🔔 ALERT SETTING
+              </button>
+
+              {/* NSE CALENDAR MANAGEMENT BUTTON */}
+              <button
+                onClick={() => setIsCalendarModalOpen(true)}
+                style={{
+                  backgroundColor: "#8b5cf6",
+                  color: "#ffffff",
+                  border: "none",
+                  padding: "7px 14px",
+                  borderRadius: "6px",
+                  fontWeight: "900",
+                  fontSize: "12px",
+                  letterSpacing: "0.5px",
+                  cursor: "pointer",
+                  boxShadow: "0 0 12px rgba(139, 92, 246, 0.4)",
+                  transition: "all 0.2s ease-in-out",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "6px",
+                  textTransform: "uppercase",
+                }}
+              >
+                📅 CALENDAR
               </button>
 
               {/* SYNC SCREENER BUTTON */}
@@ -711,6 +739,12 @@ export default function App() {
           <AlertSystemModal
             isOpen={isAlertModalOpen}
             onClose={() => setIsAlertModalOpen(false)}
+          />
+
+          {/* NSE TRADING CALENDAR POPUP MODAL */}
+          <CalendarModal
+            isOpen={isCalendarModalOpen}
+            onClose={() => setIsCalendarModalOpen(false)}
           />
         </div>
       </Router>
