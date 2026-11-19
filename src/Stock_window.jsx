@@ -176,10 +176,26 @@ export default function Stock_window({
         c0?.close ?? c0?.c ?? c1?.close ?? c1?.c ?? data?.CMP ?? data?.cmp ?? 0
       );
 
+      // Determine previous close for live calculation:
+      // When live candle c0 is active, c1 is yesterday's close.
+      // When c0 is not active (off-market/weekend), data?.PREV_CLOSE is yesterday's close.
+      const prevClose = Number(
+        (c0 ? (c1?.close ?? c1?.c) : null) ?? data?.PREV_CLOSE ?? data?.prev_close ?? c1?.close ?? c1?.c ?? 0
+      );
+
+      let calculatedTdyChng = 0;
+      if (currentCmp > 0 && prevClose > 0) {
+        calculatedTdyChng = Number((((currentCmp - prevClose) / prevClose) * 100).toFixed(2));
+      } else {
+        calculatedTdyChng = Number(data?.['Tdy-%chng'] ?? data?.['2dy-%chng'] ?? data?.tdyChange ?? 0);
+      }
+
+      const calculatedYdyChng = Number(data?.['Ydy-%chng'] ?? data?.ydyChange ?? 0);
+
       setFastData({
         CMP: currentCmp,
-        Tdy_chng: Number(data?.['2dy-%chng'] ?? data?.['Tdy-%chng'] ?? data?.tdyChange ?? 0),
-        Ydy_chng: Number(data?.['Ydy-%chng'] ?? data?.ydyChange ?? 0)
+        Tdy_chng: calculatedTdyChng,
+        Ydy_chng: calculatedYdyChng
       });
 
       setSlowData({

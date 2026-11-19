@@ -139,10 +139,20 @@ export default function Index_window({
       const c1 = liveRes1.ok ? await liveRes1.json() : null;
 
       const currentCmp = Number(c0?.close ?? c0?.c ?? c1?.close ?? c1?.c ?? data?.CMP ?? data?.cmp ?? 0);
+      const prevClose = Number(
+        (c0 ? (c1?.close ?? c1?.c) : null) ?? data?.PREV_CLOSE ?? data?.prev_close ?? c1?.close ?? c1?.c ?? 0
+      );
+
+      let calculatedTdyChange = 0;
+      if (currentCmp > 0 && prevClose > 0) {
+        calculatedTdyChange = Number((((currentCmp - prevClose) / prevClose) * 100).toFixed(2));
+      } else {
+        calculatedTdyChange = Number(data?.['Tdy-%chng'] ?? data?.['2dy-%chng'] ?? data?.tdyChange ?? 0);
+      }
 
       setFastData({
         cmp: currentCmp,
-        tdyChange: Number(data?.['2dy-%chng'] ?? data?.['Tdy-%chng'] ?? data?.tdyChange ?? 0),
+        tdyChange: calculatedTdyChange,
         ydyChange: Number(data?.['Ydy-%chng'] ?? data?.ydyChange ?? 0)
       });
 
