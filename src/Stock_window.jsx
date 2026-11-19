@@ -135,7 +135,9 @@ export default function Stock_window({
   const yfc_link = `https://finance.yahoo.com/chart/${ticker || `${code}.NS`}#`;
   const rawSymbol = nse || bse || code || ticker || name || "";
   const cleanSymbol = String(rawSymbol).replace(/\.0$/, "").trim().toUpperCase();
-  const scr_link = `https://ledger-financial-dashboard.vercel.app/?symbol=${encodeURIComponent(cleanSymbol)}`; 
+  const isBankStock = /bank/i.test(String(sector || industry || name || ''));
+  const modeParam = isBankStock ? '&mode=bank' : '&mode=nonbank';
+  const scr_link = `https://ledger-financial-dashboard.vercel.app/?symbol=${encodeURIComponent(cleanSymbol)}${modeParam}`; 
 
   const fetchStockData = useCallback(async () => {
     if (isFrozen || !primaryKey) return;

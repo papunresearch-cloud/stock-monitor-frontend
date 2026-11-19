@@ -732,7 +732,9 @@ export default function StockWatchlist() {
     if (type === "SCR") {
       const raw = nse || bse || fallbackCode || "";
       const symbol = String(raw).replace(/\.0$/, "").trim().toUpperCase();
-      url = `https://ledger-financial-dashboard.vercel.app/?symbol=${encodeURIComponent(symbol)}`;
+      const isBankStock = /bank/i.test(String(mainRecord.sector || mainRecord.industry || validName || ""));
+      const modeParam = isBankStock ? "&mode=bank" : "&mode=nonbank";
+      url = `https://ledger-financial-dashboard.vercel.app/?symbol=${encodeURIComponent(symbol)}${modeParam}`;
     }
     else if (type === "TV") url = `https://in.tradingview.com/chart/?symbol=${nse || fallbackCode}`;
     else if (type === "GF") url = nse ? `https://www.google.com/finance/beta/quote/${nse}:NSE` : `https://www.google.com/finance/`;
@@ -1086,7 +1088,9 @@ export default function StockWatchlist() {
                         const mainRecord = findMainRecord(validName) || {};
                         const raw = mainRecord.NSE || mainRecord.BSE || mainRecord.CODE || validName || "";
                         const symbol = String(raw).replace(/\.0$/, "").trim().toUpperCase();
-                        const url = `https://ledger-financial-dashboard.vercel.app/?symbol=${encodeURIComponent(symbol)}`;
+                        const isBankStock = /bank/i.test(String(mainRecord.sector || mainRecord.industry || stockName || ""));
+                        const modeParam = isBankStock ? "&mode=bank" : "&mode=nonbank";
+                        const url = `https://ledger-financial-dashboard.vercel.app/?symbol=${encodeURIComponent(symbol)}${modeParam}`;
                         return (
                           <a
                             href={url}
