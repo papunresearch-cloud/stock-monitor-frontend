@@ -729,16 +729,21 @@ export default function StockWatchlist() {
     const fallbackCode = mainRecord.CODE || validName; 
 
     let url = "";
-    if (type === "SCR") url = `https://www.screener.in/company/${nse || bse || fallbackCode}/consolidated/`;
+    if (type === "SCR") {
+      const raw = nse || bse || fallbackCode || "";
+      const symbol = String(raw).replace(/\.0$/, "").trim().toUpperCase();
+      url = `https://ledger-financial-dashboard.vercel.app/?symbol=${encodeURIComponent(symbol)}`;
+    }
     else if (type === "TV") url = `https://in.tradingview.com/chart/?symbol=${nse || fallbackCode}`;
     else if (type === "GF") url = nse ? `https://www.google.com/finance/beta/quote/${nse}:NSE` : `https://www.google.com/finance/`;
     else if (type === "YF") url = nse ? `https://finance.yahoo.com/quote/${nse}.NS/` : `https://finance.yahoo.com/lookup/?s=${encodeURIComponent(fallbackCode)}`;
 
     if (!url) return;
-    const width = 1000, height = 700;
+    const width = 1400, height = 700;
     const left = (window.innerWidth - width) / 2 + window.screenX;
     const top = (window.innerHeight - height) / 2 + window.screenY;
-    window.open(url, "_blank", `width=${width},height=${height},top=${top},left=${left},resizable=yes,scrollbars=yes`);
+    const target = type === "SCR" ? "single_external_window" : "_blank";
+    window.open(url, target, `width=${width},height=${height},top=${top},left=${left},resizable=yes,scrollbars=yes`);
   };
 
   const isAllDisplayedSelected = selectableDisplayedStocks.length > 0 && selectableDisplayedStocks.every((name) => selectedStockNames.has(name));
@@ -1081,7 +1086,7 @@ export default function StockWatchlist() {
                         const mainRecord = findMainRecord(validName) || {};
                         const raw = mainRecord.NSE || mainRecord.BSE || mainRecord.CODE || validName || "";
                         const symbol = String(raw).replace(/\.0$/, "").trim().toUpperCase();
-                        const url = `https://www.screener.in/company/${encodeURIComponent(symbol)}/consolidated/`;
+                        const url = `https://ledger-financial-dashboard.vercel.app/?symbol=${encodeURIComponent(symbol)}`;
                         return (
                           <a
                             href={url}
@@ -1090,7 +1095,10 @@ export default function StockWatchlist() {
                             onClick={(e) => {
                               e.preventDefault();
                               e.stopPropagation();
-                              window.open(url, "_blank");
+                              const width = 1400, height = 700;
+                              const left = (window.innerWidth - width) / 2 + window.screenX;
+                              const top = (window.innerHeight - height) / 2 + window.screenY;
+                              window.open(url, "single_external_window", `width=${width},height=${height},top=${top},left=${left},resizable=yes,scrollbars=yes`);
                             }}
                             style={{
                               color: "#000000",
@@ -1099,7 +1107,7 @@ export default function StockWatchlist() {
                               textUnderlineOffset: "2px",
                               cursor: "pointer",
                             }}
-                            title={`Open ${stockName} on screener.in`}
+                            title={`Open ${stockName} in Cloud Ledger`}
                           >
                             {stockName}
                           </a>
@@ -1231,7 +1239,7 @@ export default function StockWatchlist() {
                     {/* LINK BUTTONS */}
                     <td style={{ padding: "6px 10px", border: theme.tableCellBorder, textAlign: "center" }}>
                       <div style={{ display: "flex", justifyContent: "center", gap: "4px" }}>
-                        <button type="button" onClick={() => openExternalLink("SCR", stockName)} style={{ backgroundColor: "#2563eb", color: "#fff", border: "none", padding: "4px 8px", borderRadius: "4px", fontWeight: "bold", fontSize: "11px", cursor: "pointer" }}>SCR</button>
+                        <button type="button" onClick={() => openExternalLink("SCR", stockName)} style={{ backgroundColor: "#2563eb", color: "#fff", border: "none", padding: "4px 8px", borderRadius: "4px", fontWeight: "bold", fontSize: "11px", cursor: "pointer" }} title="Open script in Cloud Ledger">SCR</button>
                         <button type="button" onClick={() => openExternalLink("TV", stockName)} style={{ backgroundColor: "#ea580c", color: "#fff", border: "none", padding: "4px 8px", borderRadius: "4px", fontWeight: "bold", fontSize: "11px", cursor: "pointer" }}>TV</button>
                         <button type="button" onClick={() => openExternalLink("GF", stockName)} style={{ backgroundColor: "#16a34a", color: "#fff", border: "none", padding: "4px 8px", borderRadius: "4px", fontWeight: "bold", fontSize: "11px", cursor: "pointer" }}>GF</button>
                         <button type="button" onClick={() => openExternalLink("YF", stockName)} style={{ backgroundColor: "#9333ea", color: "#fff", border: "none", padding: "4px 8px", borderRadius: "4px", fontWeight: "bold", fontSize: "11px", cursor: "pointer" }}>YF</button>

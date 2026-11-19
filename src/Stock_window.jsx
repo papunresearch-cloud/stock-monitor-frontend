@@ -120,7 +120,11 @@ export default function Stock_window({
 
   const openPopup = (url) => {
     if (url) {
-      window.open(url, "_blank", "toolbar=no,menubar=no,scrollbars=yes,resizable=yes,top=100,left=200,width=1000,height=700");
+      const width = 1400;
+      const height = 700;
+      const left = (window.innerWidth - width) / 2 + window.screenX;
+      const top = (window.innerHeight - height) / 2 + window.screenY;
+      window.open(url, "single_external_window", `toolbar=no,menubar=no,scrollbars=yes,resizable=yes,top=${top},left=${left},width=${width},height=${height}`);
     }
   };
 
@@ -131,7 +135,7 @@ export default function Stock_window({
   const yfc_link = `https://finance.yahoo.com/chart/${ticker || `${code}.NS`}#`;
   const rawSymbol = nse || bse || code || ticker || name || "";
   const cleanSymbol = String(rawSymbol).replace(/\.0$/, "").trim().toUpperCase();
-  const scr_link = `https://www.screener.in/company/${encodeURIComponent(cleanSymbol)}/consolidated/`; 
+  const scr_link = `https://ledger-financial-dashboard.vercel.app/?symbol=${encodeURIComponent(cleanSymbol)}`; 
 
   const fetchStockData = useCallback(async () => {
     if (isFrozen || !primaryKey) return;
@@ -363,7 +367,7 @@ export default function Stock_window({
               onClick={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
-                window.open(scr_link, "_blank");
+                openPopup(scr_link);
               }}
               style={{
                 color: '#f7d026',
@@ -372,7 +376,7 @@ export default function Stock_window({
                 textUnderlineOffset: '3px',
                 cursor: 'pointer',
               }}
-              title={`Open ${displayName} on screener.in`}
+              title={`Open ${displayName} in Cloud Ledger`}
             >
               {displayName}
             </a>
@@ -385,7 +389,7 @@ export default function Stock_window({
               onClick={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
-                window.open(scr_link, "_blank");
+                openPopup(scr_link);
               }}
               style={{
                 fontSize: '12px',
@@ -398,7 +402,7 @@ export default function Stock_window({
                 textDecoration: 'none',
                 cursor: 'pointer',
               }}
-              title={`Open ${code} on screener.in`}
+              title={`Open ${code} in Cloud Ledger`}
             >
               {code}
             </a>
@@ -543,7 +547,7 @@ export default function Stock_window({
           </div>
 
           <div style={{ width: '15%', paddingLeft: '15px', display: 'flex', flexDirection: 'column', gap: '12px', alignItems: 'center', justifyContent: 'center' }}>
-            <Button3D label="SCR" color="#0A5E01" shadowColor="#0E6B30" onClick={() => openPopup(scr_link)} />
+            <Button3D label="SCR" color="#0A5E01" shadowColor="#0E6B30" onClick={() => openPopup(scr_link)} title="Open script in Cloud Ledger" />
             <Button3D label="TVC" color="#2962FF" shadowColor="#1565C0" onClick={() => openPopup(tvc_link)} />
             <Button3D label="YFC" color="#9C27B0" shadowColor="#6A1B9A" onClick={() => openPopup(yfc_link)} />
           </div>
