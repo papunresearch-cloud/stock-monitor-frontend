@@ -253,7 +253,7 @@ export default function StockMonitorView() {
   };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh', width: '100%', maxWidth: '100vw', overflowX: 'hidden', boxSizing: 'border-box' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh', width: '100%', boxSizing: 'border-box' }}>
       <SettingsModal 
         isOpen={isSettingsOpen}
         onClose={() => setIsSettingsOpen(false)}
@@ -378,7 +378,7 @@ export default function StockMonitorView() {
       )}
 
       {/* DASHBOARD HEADER CONTAINER */}
-      <div style={{ position: 'sticky', top: 0, zIndex: 1000, backgroundColor: '#00004d', padding: '0 8px 10px 8px', maxWidth: '100vw', boxSizing: 'border-box' }}>
+      <div style={{ position: 'sticky', top: 0, zIndex: 1000, backgroundColor: '#00004d', padding: '0 20px 10px 20px' }}>
         <DashboardHeader 
           onOpenSettings={() => setIsSettingsOpen(true)}
           onOpenHealth={() => setIsHealthOpen(true)}
@@ -398,8 +398,8 @@ export default function StockMonitorView() {
         />
       </div>
 
-      <div style={{ backgroundColor: '#00004d', maxWidth: '100vw', boxSizing: 'border-box', overflowX: 'hidden' }}>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '16px', justifyContent: 'center', padding: '10px 8px 40px 8px', maxWidth: '100vw', boxSizing: 'border-box' }}>
+      <div style={{ backgroundColor: '#00004d' }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '20px', justifyContent: 'center', padding: '10px 20px 40px 20px' }}>
           {(displayConfig.indices || [])
             .filter(Boolean)
             .map(indexObj => {

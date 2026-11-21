@@ -4,21 +4,10 @@
   font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
 }
 
-*, *::before, *::after {
-  box-sizing: border-box;
-}
-
-html, body {
-  margin: 0;
-  padding: 0;
-  width: 100%;
-  max-width: 100vw;
-  overflow-x: hidden;
-  box-sizing: border-box;
-}
-
 /* This controls the absolute global canvas (the browser window itself) */
 body {
+  margin: 0;
+  padding: 0;
   min-width: 320px;
   min-height: 100vh;
   /* Deep Dark Bottle Green */
@@ -28,10 +17,7 @@ body {
 
 #root {
   width: 100%;
-  max-width: 100vw;
   min-height: 100vh;
   margin: 0;
   padding: 0;
-  overflow-x: hidden;
-  box-sizing: border-box;
 }
