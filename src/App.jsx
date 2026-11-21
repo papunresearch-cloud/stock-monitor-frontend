@@ -67,6 +67,22 @@ export default function App() {
     );
   };
 
+  // Single-window popup opener for Stock Time Series Plot Studio
+  const openPlotWindow = (symbol = "RELIANCE", name = "RELIANCE INDUSTRIES") => {
+    const cleanSymbol = String(symbol).replace(/\.0$/, "").trim().toUpperCase() || "RELIANCE";
+    const cleanName = (name && name !== cleanSymbol) ? name : cleanSymbol;
+    const url = `https://ledger-financial-dashboard.vercel.app/stock-plot.html?symbol=${encodeURIComponent(cleanSymbol)}&name=${encodeURIComponent(cleanName)}`;
+    const width = 1440;
+    const height = 800;
+    const left = Math.max(0, (window.innerWidth - width) / 2 + window.screenX);
+    const top = Math.max(0, (window.innerHeight - height) / 2 + window.screenY);
+    window.open(
+      url,
+      "single_plot_window",
+      `width=${width},height=${height},top=${top},left=${left},resizable=yes,scrollbars=yes`
+    );
+  };
+
   // Format local date YYYY-MM-DD
   const getTodayISO = () => {
     const now = new Date();
@@ -312,6 +328,47 @@ export default function App() {
                 }}
               >
                 📊 LEDGER
+              </button>
+
+              {/* 3D PLOT BUTTON (Opens Stock Time Series Window with search option & default RELIANCE INDUSTRIES) */}
+              <button
+                type="button"
+                onClick={() => openPlotWindow("RELIANCE", "RELIANCE INDUSTRIES")}
+                title="Open Stock Time Series Window (Search script & default: RELIANCE INDUSTRIES)"
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "6px",
+                  textDecoration: "none",
+                  textTransform: "uppercase",
+                  fontSize: "12px",
+                  fontWeight: "900",
+                  letterSpacing: "0.5px",
+                  color: "#ffffff",
+                  background: "linear-gradient(180deg, #10b981 0%, #059669 50%, #047857 100%)",
+                  border: "1px solid #059669",
+                  borderRadius: "6px",
+                  padding: "6px 14px",
+                  cursor: "pointer",
+                  boxShadow: "0 3px 0 #064e3b, 0 5px 10px rgba(0, 0, 0, 0.4)",
+                  transform: "translateY(0px)",
+                  transition: "all 0.1s ease-in-out",
+                  marginLeft: "4px",
+                }}
+                onMouseDown={(e) => {
+                  e.currentTarget.style.transform = "translateY(3px)";
+                  e.currentTarget.style.boxShadow = "0 0 0 #064e3b, 0 1px 3px rgba(0, 0, 0, 0.4)";
+                }}
+                onMouseUp={(e) => {
+                  e.currentTarget.style.transform = "translateY(0px)";
+                  e.currentTarget.style.boxShadow = "0 3px 0 #064e3b, 0 5px 10px rgba(0, 0, 0, 0.4)";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.transform = "translateY(0px)";
+                  e.currentTarget.style.boxShadow = "0 3px 0 #064e3b, 0 5px 10px rgba(0, 0, 0, 0.4)";
+                }}
+              >
+                📈 PLOT
               </button>
             </nav>
 

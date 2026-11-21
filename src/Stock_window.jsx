@@ -118,13 +118,13 @@ export default function Stock_window({
 
   const [isRemarkOpen, setIsRemarkOpen] = useState(false);
 
-  const openPopup = (url) => {
+  const openPopup = (url, target = "single_external_window") => {
     if (url) {
-      const width = 1400;
-      const height = 700;
-      const left = (window.innerWidth - width) / 2 + window.screenX;
-      const top = (window.innerHeight - height) / 2 + window.screenY;
-      window.open(url, "single_external_window", `toolbar=no,menubar=no,scrollbars=yes,resizable=yes,top=${top},left=${left},width=${width},height=${height}`);
+      const width = 1440;
+      const height = 800;
+      const left = Math.max(0, (window.innerWidth - width) / 2 + window.screenX);
+      const top = Math.max(0, (window.innerHeight - height) / 2 + window.screenY);
+      window.open(url, target, `toolbar=no,menubar=no,scrollbars=yes,resizable=yes,top=${top},left=${left},width=${width},height=${height}`);
     }
   };
 
@@ -138,6 +138,7 @@ export default function Stock_window({
   const isBankStock = /bank/i.test(String(sector || industry || name || ''));
   const modeParam = isBankStock ? '&mode=bank' : '&mode=nonbank';
   const scr_link = `https://ledger-financial-dashboard.vercel.app/?symbol=${encodeURIComponent(cleanSymbol)}${modeParam}`; 
+  const plot_link = `https://ledger-financial-dashboard.vercel.app/stock-plot.html?symbol=${encodeURIComponent(cleanSymbol)}&name=${encodeURIComponent(name || cleanSymbol)}`;
   const screener_link = `https://www.screener.in/company/${encodeURIComponent(cleanSymbol)}/consolidated/`; 
 
   const fetchStockData = useCallback(async () => {
@@ -565,10 +566,11 @@ export default function Stock_window({
             </div>
           </div>
 
-          <div style={{ width: '15%', paddingLeft: '15px', display: 'flex', flexDirection: 'column', gap: '12px', alignItems: 'center', justifyContent: 'center' }}>
-            <Button3D label="SCR" color="#0A5E01" shadowColor="#0E6B30" onClick={() => openPopup(scr_link)} title="Open script in Cloud Ledger" />
-            <Button3D label="TVC" color="#2962FF" shadowColor="#1565C0" onClick={() => openPopup(tvc_link)} />
-            <Button3D label="YFC" color="#9C27B0" shadowColor="#6A1B9A" onClick={() => openPopup(yfc_link)} />
+          <div style={{ width: '15%', paddingLeft: '15px', display: 'flex', flexDirection: 'column', gap: '6px', alignItems: 'center', justifyContent: 'center' }}>
+            <Button3D label="SCR" color="#0A5E01" shadowColor="#0E6B30" onClick={() => openPopup(scr_link)} title="Open script in Cloud Ledger" padding="4px 10px" />
+            <Button3D label="PLOT" color="#0284c7" shadowColor="#0369a1" onClick={() => openPopup(plot_link, "single_plot_window")} title="Open Stock Time Series Window" padding="4px 10px" />
+            <Button3D label="TVC" color="#2962FF" shadowColor="#1565C0" onClick={() => openPopup(tvc_link)} padding="4px 10px" />
+            <Button3D label="YFC" color="#9C27B0" shadowColor="#6A1B9A" onClick={() => openPopup(yfc_link)} padding="4px 10px" />
           </div>
         </div>
       </div>
