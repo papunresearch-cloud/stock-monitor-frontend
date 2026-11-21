@@ -56,7 +56,7 @@ export default function DashboardHeader({
     justifyContent: 'space-between',
     alignItems: 'center',
     background: 'linear-gradient(90deg, #11111a 0%, #1a1a2e 50%, #16213e 100%)',
-    padding: isCollapsed ? '4px 20px' : (isMobile ? '10px 15px' : '12px 20px'),
+    padding: isCollapsed ? '4px 12px' : (isMobile ? '8px 10px' : '12px 20px'),
     borderRadius: '6px',
     boxShadow: '0 4px 10px rgba(0,0,0,0.5)',
     borderBottom: '2px solid #FFD700',
@@ -138,11 +138,11 @@ export default function DashboardHeader({
       {/* 2. DYNAMIC CONTROLS */}
       <div style={{ 
         display: 'flex', 
-        gap: '10px', 
+        gap: isMobile ? '6px' : '10px', 
         alignItems: 'center', 
         flexWrap: 'wrap',
         opacity: isCollapsed ? 0 : 1, 
-        maxHeight: isCollapsed ? '0px' : '200px', 
+        maxHeight: isCollapsed ? '0px' : (isMobile ? '400px' : '200px'), 
         overflow: 'hidden', 
         transition: 'all 0.3s ease'
       }}>

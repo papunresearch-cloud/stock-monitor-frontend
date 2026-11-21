@@ -337,14 +337,38 @@ export default function Stock_window({
         @media (max-width: 1024px) {
           .stock-window-wrapper {
             flex-direction: column !important;
+            width: 100% !important;
+            margin: 0 auto 14px auto !important;
+            padding: 0 4px !important;
           }
           .stock-main-panel {
             width: 100% !important;
             flex: none !important;
+            padding: 12px 10px !important;
           }
           .stock-extended-panel {
             width: 100% !important;
             flex: none !important;
+            padding: 10px 8px !important;
+          }
+        }
+        @media (max-width: 640px) {
+          .stock-track-col {
+            width: 78% !important;
+            padding-right: 8px !important;
+          }
+          .stock-buttons-col {
+            width: 22% !important;
+            min-width: 50px !important;
+            padding-left: 8px !important;
+          }
+          .stock-buttons-col button {
+            padding: 4px 6px !important;
+            font-size: 11px !important;
+          }
+          .stock-range-bar-box {
+            left: 36px !important;
+            right: 36px !important;
           }
         }
       `}</style>
@@ -433,21 +457,23 @@ export default function Stock_window({
         </div>
 
         {/* 8-COLUMN DATA TABLE */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(8, 1fr)', backgroundColor: '#111111', border: '1px solid #444', borderRadius: '6px', marginBottom: '14px', textAlign: 'center', overflow: 'hidden' }}>
-          {['Tdy-%chng', 'Ydy-%chng', '1W', '1M', '3M', '1YR', '3YR', 'RSI'].map((head, idx) => (
-            <div key={`h-${idx}`} style={{ padding: '8px 2px', fontSize: '12px', fontWeight: '900', backgroundColor: '#1a1a1a', borderRight: idx < 7 ? '1px solid #444' : 'none', borderBottom: '1px solid #444', color: '#cccccc' }}>
-              {head}
-            </div>
-          ))}
-          
-          <div style={{ padding: '10px 2px', borderRight: '1px solid #444', fontSize: '14px', fontWeight: 'bold', color: fastData.Tdy_chng >= 0 ? COLOR_GREEN : COLOR_RED }}>{fastData.Tdy_chng}%</div>
-          <div style={{ padding: '10px 2px', borderRight: '1px solid #444', fontSize: '14px', fontWeight: 'bold', color: fastData.Ydy_chng >= 0 ? COLOR_GREEN : COLOR_RED }}>{fastData.Ydy_chng}%</div>
-          <div style={{ padding: '10px 2px', borderRight: '1px solid #444', fontSize: '14px', fontWeight: 'bold', color: slowData["1W"] >= 0 ? COLOR_GREEN : COLOR_RED }}>{slowData["1W"]}%</div>
-          <div style={{ padding: '10px 2px', borderRight: '1px solid #444', fontSize: '14px', fontWeight: 'bold', color: slowData["1M"] >= 0 ? COLOR_GREEN : COLOR_RED }}>{slowData["1M"]}%</div>
-          <div style={{ padding: '10px 2px', borderRight: '1px solid #444', fontSize: '14px', fontWeight: 'bold', color: slowData["3M"] >= 0 ? COLOR_GREEN : COLOR_RED }}>{slowData["3M"]}%</div>
-          <div style={{ padding: '10px 2px', borderRight: '1px solid #444', fontSize: '14px', fontWeight: 'bold', color: slowData["1YR"] >= 0 ? COLOR_GREEN : COLOR_RED }}>{slowData["1YR"]}%</div>
-          <div style={{ padding: '10px 2px', borderRight: '1px solid #444', fontSize: '14px', fontWeight: 'bold', color: slowData["3YR"] >= 0 ? COLOR_GREEN : COLOR_RED }}>{slowData["3YR"]}%</div>
-          <div style={{ padding: '10px 2px', fontSize: '14px', fontWeight: 'bold', color: slowData.RSI > 50 ? COLOR_GREEN : COLOR_RED }}>{slowData.RSI}</div>
+        <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch', width: '100%', marginBottom: '14px', borderRadius: '6px', border: '1px solid #444' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(8, 1fr)', backgroundColor: '#111111', minWidth: '360px', textAlign: 'center' }}>
+            {['Tdy-%chng', 'Ydy-%chng', '1W', '1M', '3M', '1YR', '3YR', 'RSI'].map((head, idx) => (
+              <div key={`h-${idx}`} style={{ padding: '8px 2px', fontSize: '12px', fontWeight: '900', backgroundColor: '#1a1a1a', borderRight: idx < 7 ? '1px solid #444' : 'none', borderBottom: '1px solid #444', color: '#cccccc' }}>
+                {head}
+              </div>
+            ))}
+            
+            <div style={{ padding: '10px 2px', borderRight: '1px solid #444', fontSize: '14px', fontWeight: 'bold', color: fastData.Tdy_chng >= 0 ? COLOR_GREEN : COLOR_RED }}>{fastData.Tdy_chng}%</div>
+            <div style={{ padding: '10px 2px', borderRight: '1px solid #444', fontSize: '14px', fontWeight: 'bold', color: fastData.Ydy_chng >= 0 ? COLOR_GREEN : COLOR_RED }}>{fastData.Ydy_chng}%</div>
+            <div style={{ padding: '10px 2px', borderRight: '1px solid #444', fontSize: '14px', fontWeight: 'bold', color: slowData["1W"] >= 0 ? COLOR_GREEN : COLOR_RED }}>{slowData["1W"]}%</div>
+            <div style={{ padding: '10px 2px', borderRight: '1px solid #444', fontSize: '14px', fontWeight: 'bold', color: slowData["1M"] >= 0 ? COLOR_GREEN : COLOR_RED }}>{slowData["1M"]}%</div>
+            <div style={{ padding: '10px 2px', borderRight: '1px solid #444', fontSize: '14px', fontWeight: 'bold', color: slowData["3M"] >= 0 ? COLOR_GREEN : COLOR_RED }}>{slowData["3M"]}%</div>
+            <div style={{ padding: '10px 2px', borderRight: '1px solid #444', fontSize: '14px', fontWeight: 'bold', color: slowData["1YR"] >= 0 ? COLOR_GREEN : COLOR_RED }}>{slowData["1YR"]}%</div>
+            <div style={{ padding: '10px 2px', borderRight: '1px solid #444', fontSize: '14px', fontWeight: 'bold', color: slowData["3YR"] >= 0 ? COLOR_GREEN : COLOR_RED }}>{slowData["3YR"]}%</div>
+            <div style={{ padding: '10px 2px', fontSize: '14px', fontWeight: 'bold', color: slowData.RSI > 50 ? COLOR_GREEN : COLOR_RED }}>{slowData.RSI}</div>
+          </div>
         </div>
 
         {/* 3. LEGEND STRIP */}
@@ -481,13 +507,13 @@ export default function Stock_window({
 
         {/* SCALE TRACK & QUICK BUTTONS */}
         <div style={{ display: 'flex', width: '100%', alignItems: 'center' }}>
-          <div style={{ width: '85%', display: 'flex', flexDirection: 'column', paddingRight: '15px', borderRight: '1px dashed #444' }}>
+          <div className="stock-track-col" style={{ width: '85%', display: 'flex', flexDirection: 'column', paddingRight: '15px', borderRight: '1px dashed #444', boxSizing: 'border-box' }}>
             <div style={{ position: 'relative', height: '140px', width: '100%' }}>
               <div style={{ position: 'absolute', left: 0, top: '50%', transform: 'translateY(-50%)', fontWeight: 'bold', fontSize: '13px', color: '#cccccc' }}>52WL</div>
               <div style={{ position: 'absolute', right: 0, top: '50%', transform: 'translateY(-50%)', fontWeight: 'bold', fontSize: '13px', color: '#cccccc' }}>52WH</div>
 
               {/* 3D MULTI-LAYER RANGE BAR */}
-              <div style={{ 
+              <div className="stock-range-bar-box" style={{ 
                 position: 'absolute', 
                 top: '50%', 
                 left: '50px', 
@@ -566,7 +592,7 @@ export default function Stock_window({
             </div>
           </div>
 
-          <div style={{ width: '15%', paddingLeft: '15px', display: 'flex', flexDirection: 'column', gap: '6px', alignItems: 'center', justifyContent: 'center' }}>
+          <div className="stock-buttons-col" style={{ width: '15%', paddingLeft: '15px', display: 'flex', flexDirection: 'column', gap: '6px', alignItems: 'center', justifyContent: 'center', boxSizing: 'border-box' }}>
             <Button3D label="SCR" color="#0A5E01" shadowColor="#0E6B30" onClick={() => openPopup(scr_link)} title="Open script in Cloud Ledger" padding="4px 10px" />
             <Button3D label="PLOT" color="#0284c7" shadowColor="#0369a1" onClick={() => openPopup(plot_link, "single_plot_window")} title="Open Stock Time Series Window" padding="4px 10px" />
             <Button3D label="TVC" color="#2962FF" shadowColor="#1565C0" onClick={() => openPopup(tvc_link)} padding="4px 10px" />

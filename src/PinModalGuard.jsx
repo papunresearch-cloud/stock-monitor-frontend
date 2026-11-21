@@ -132,6 +132,9 @@ export default function PinModalGuard({ children }) {
       style={{
         position: "fixed",
         inset: 0,
+        width: "100%",
+        height: "100%",
+        minHeight: "100dvh",
         backgroundColor: "rgba(3, 7, 18, 0.92)",
         backdropFilter: "blur(8px)",
         display: "flex",
@@ -139,6 +142,8 @@ export default function PinModalGuard({ children }) {
         alignItems: "center",
         zIndex: 999999,
         padding: "16px",
+        boxSizing: "border-box",
+        overflowY: "auto",
         fontFamily: "system-ui, -apple-system, sans-serif",
       }}
     >
@@ -147,9 +152,11 @@ export default function PinModalGuard({ children }) {
           backgroundColor: "#0d182e",
           border: "2px solid #06b6d4",
           borderRadius: "14px",
-          padding: "30px 24px",
-          width: "380px",
-          maxWidth: "95vw",
+          padding: "26px 18px",
+          width: "360px",
+          maxWidth: "calc(100vw - 32px)",
+          margin: "auto",
+          boxSizing: "border-box",
           textAlign: "center",
           boxShadow: "0 10px 40px rgba(0, 0, 0, 0.9), 0 0 25px rgba(6, 182, 212, 0.25)",
         }}
@@ -182,8 +189,10 @@ export default function PinModalGuard({ children }) {
               style={{
                 display: "flex",
                 justifyContent: "center",
-                gap: "8px",
+                gap: "clamp(4px, 2vw, 8px)",
                 marginBottom: "18px",
+                width: "100%",
+                boxSizing: "border-box",
               }}
               onPaste={handlePaste}
             >
@@ -200,10 +209,10 @@ export default function PinModalGuard({ children }) {
                   onChange={(e) => handleDigitChange(idx, e.target.value)}
                   onKeyDown={(e) => handleKeyDown(idx, e)}
                   style={{
-                    width: "42px",
-                    height: "48px",
+                    width: "clamp(34px, 11.5vw, 42px)",
+                    height: "clamp(40px, 13vw, 48px)",
                     textAlign: "center",
-                    fontSize: "22px",
+                    fontSize: "clamp(18px, 5vw, 22px)",
                     fontWeight: "bold",
                     color: "#ffffff",
                     backgroundColor: "#081021",
@@ -212,6 +221,7 @@ export default function PinModalGuard({ children }) {
                     outline: "none",
                     boxShadow: digit ? "0 0 10px rgba(6, 182, 212, 0.4)" : "none",
                     transition: "all 0.15s ease",
+                    boxSizing: "border-box",
                   }}
                 />
               ))}
