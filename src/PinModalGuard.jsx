@@ -2,14 +2,82 @@ import React, { useState, useEffect, useRef } from "react";
 import { ref, get } from "firebase/database";
 import { database } from "./firebase"; // Uses your configured firebase.js instance
 
+const PIN_UNLOCKED_KEY = "quantum_terminal_pin_unlocked";
+
 export default function PinModalGuard({ children }) {
   const [digits, setDigits] = useState(["", "", "", "", "", ""]);
-  const [isUnlocked, setIsUnlocked] = useState(false);
+  const [isUnlocked, setIsUnlocked] = useState(() => {
+    try {
+      return localStorage.getItem(PIN_UNLOCKED_KEY) === "true";
+    } catch {
+      return false;
+    }
+  });
   const [targetPin, setTargetPin] = useState(null);
   const [loading, setLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState("");
   const [trialsLeft, setTrialsLeft] = useState(3);
   const [isLockedOut, setIsLockedOut] = useState(false);
+
+  // Dynamic visual viewport detection so PIN modal always opens perfectly centered
+  // in the visible mobile/desktop screen without needing to alter viewport meta tag.
+  const [viewportMetrics, setViewportMetrics] = useState(() => {
+    if (typeof window !== "undefined" && window.visualViewport) {
+      return {
+        top: window.visualViewport.offsetTop,
+        left: window.visualViewport.offsetLeft,
+        width: window.visualViewport.width,
+        height: window.visualViewport.height,
+      };
+    }
+    return {
+      top: 0,
+      left: 0,
+      width: typeof window !== "undefined" ? window.innerWidth : 1100,
+      height: typeof window !== "undefined" ? window.innerHeight : 800,
+    };
+  });
+
+  useEffect(() => {
+    if (typeof window === "undefined" || !window.visualViewport) return;
+    const updateMetrics = () => {
+      setViewportMetrics({
+        top: window.visualViewport.offsetTop,
+        left: window.visualViewport.offsetLeft,
+        width: window.visualViewport.width,
+        height: window.visualViewport.height,
+      });
+    };
+    window.visualViewport.addEventListener("resize", updateMetrics);
+    window.visualViewport.addEventListener("scroll", updateMetrics);
+    window.addEventListener("resize", updateMetrics);
+    window.addEventListener("scroll", updateMetrics);
+    return () => {
+      window.visualViewport?.removeEventListener("resize", updateMetrics);
+      window.visualViewport?.removeEventListener("scroll", updateMetrics);
+      window.removeEventListener("resize", updateMetrics);
+      window.removeEventListener("scroll", updateMetrics);
+    };
+  }, []);
+
+  // Listen for manual lock events
+  useEffect(() => {
+    const handleLockTrigger = () => {
+      try {
+        localStorage.removeItem(PIN_UNLOCKED_KEY);
+      } catch {}
+      setIsUnlocked(false);
+      setDigits(["", "", "", "", "", ""]);
+      setErrorMsg("");
+      setIsLockedOut(false);
+      setTrialsLeft(3);
+    };
+
+    window.addEventListener("quantum_terminal_lock", handleLockTrigger);
+    return () => {
+      window.removeEventListener("quantum_terminal_lock", handleLockTrigger);
+    };
+  }, []);
 
   const inputRefs = useRef([]);
 
@@ -35,27 +103,10 @@ export default function PinModalGuard({ children }) {
 
   // Auto-focus first input box once loaded
   useEffect(() => {
-    if (!loading && inputRefs.current[0]) {
+    if (!loading && !isUnlocked && inputRefs.current[0]) {
       inputRefs.current[0].focus();
     }
-  }, [loading]);
-
-  // Dynamic Viewport: device-width while PIN modal is active so it opens 100% centered on mobile & desktop,
-  // then switches to width=1100 when unlocked so STOCK-MONITOR opens exactly in its original 1100px layout.
-  useEffect(() => {
-    let meta = document.querySelector('meta[name="viewport"]');
-    if (!meta) {
-      meta = document.createElement("meta");
-      meta.name = "viewport";
-      document.head.appendChild(meta);
-    }
-    if (!isUnlocked) {
-      meta.setAttribute("content", "width=device-width, initial-scale=1.0, maximum-scale=5.0");
-    } else {
-      meta.setAttribute("content", "width=1100, initial-scale=1.0");
-      window.scrollTo(0, 0);
-    }
-  }, [isUnlocked]);
+  }, [loading, isUnlocked]);
 
   const enteredPin = digits.join("");
   const isPinComplete = enteredPin.length === 6;
@@ -112,6 +163,11 @@ export default function PinModalGuard({ children }) {
   // OK Button: Unlocks and loads the page
   const handleConfirmUnlock = () => {
     if (isPinMatched) {
+      try {
+        localStorage.setItem(PIN_UNLOCKED_KEY, "true");
+      } catch (err) {
+        console.error("Failed to persist unlock status:", err);
+      }
       setIsUnlocked(true);
     }
   };
@@ -119,6 +175,9 @@ export default function PinModalGuard({ children }) {
   // Cancel Button or Failed 3 trials
   const handleCancel = () => {
     setDigits(["", "", "", "", "", ""]);
+    try {
+      localStorage.removeItem(PIN_UNLOCKED_KEY);
+    } catch {}
     setErrorMsg("Access Cancelled. Please refresh the page to try again.");
     setIsLockedOut(true);
   };
@@ -148,12 +207,13 @@ export default function PinModalGuard({ children }) {
     <div
       style={{
         position: "fixed",
-        inset: 0,
-        width: "100%",
-        height: "100%",
-        minHeight: "100dvh",
-        backgroundColor: "rgba(3, 7, 18, 0.92)",
+        top: typeof viewportMetrics.top === "number" ? `${viewportMetrics.top}px` : 0,
+        left: typeof viewportMetrics.left === "number" ? `${viewportMetrics.left}px` : 0,
+        width: typeof viewportMetrics.width === "number" ? `${viewportMetrics.width}px` : "100vw",
+        height: typeof viewportMetrics.height === "number" ? `${viewportMetrics.height}px` : "100vh",
+        backgroundColor: "rgba(3, 7, 18, 0.94)",
         backdropFilter: "blur(8px)",
+        WebkitBackdropFilter: "blur(8px)",
         display: "flex",
         justifyContent: "center",
         alignItems: "center",
@@ -171,7 +231,7 @@ export default function PinModalGuard({ children }) {
           borderRadius: "14px",
           padding: "26px 18px",
           width: "360px",
-          maxWidth: "calc(100vw - 32px)",
+          maxWidth: "calc(100% - 24px)",
           margin: "auto",
           boxSizing: "border-box",
           textAlign: "center",
