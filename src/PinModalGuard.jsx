@@ -2,13 +2,15 @@ import React, { useState, useEffect, useRef } from "react";
 import { ref, get } from "firebase/database";
 import { database } from "./firebase"; // Uses your configured firebase.js instance
 
-const PIN_UNLOCKED_KEY = "quantum_terminal_pin_unlocked";
+const PIN_SESSION_KEY = "quantum_terminal_session_unlocked";
 
 export default function PinModalGuard({ children }) {
   const [digits, setDigits] = useState(["", "", "", "", "", ""]);
   const [isUnlocked, setIsUnlocked] = useState(() => {
     try {
-      return localStorage.getItem(PIN_UNLOCKED_KEY) === "true";
+      // Clear any legacy persistent storage
+      localStorage.removeItem("quantum_terminal_pin_unlocked");
+      return sessionStorage.getItem(PIN_SESSION_KEY) === "true";
     } catch {
       return false;
     }
@@ -38,6 +40,8 @@ export default function PinModalGuard({ children }) {
     };
   });
 
+  const isSmallScreen = typeof window !== "undefined" && (window.screen.width < 1000 || /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent));
+
   useEffect(() => {
     if (typeof window === "undefined" || !window.visualViewport) return;
     const updateMetrics = () => {
@@ -57,25 +61,6 @@ export default function PinModalGuard({ children }) {
       window.visualViewport?.removeEventListener("scroll", updateMetrics);
       window.removeEventListener("resize", updateMetrics);
       window.removeEventListener("scroll", updateMetrics);
-    };
-  }, []);
-
-  // Listen for manual lock events
-  useEffect(() => {
-    const handleLockTrigger = () => {
-      try {
-        localStorage.removeItem(PIN_UNLOCKED_KEY);
-      } catch {}
-      setIsUnlocked(false);
-      setDigits(["", "", "", "", "", ""]);
-      setErrorMsg("");
-      setIsLockedOut(false);
-      setTrialsLeft(3);
-    };
-
-    window.addEventListener("quantum_terminal_lock", handleLockTrigger);
-    return () => {
-      window.removeEventListener("quantum_terminal_lock", handleLockTrigger);
     };
   }, []);
 
@@ -164,7 +149,7 @@ export default function PinModalGuard({ children }) {
   const handleConfirmUnlock = () => {
     if (isPinMatched) {
       try {
-        localStorage.setItem(PIN_UNLOCKED_KEY, "true");
+        sessionStorage.setItem(PIN_SESSION_KEY, "true");
       } catch (err) {
         console.error("Failed to persist unlock status:", err);
       }
@@ -176,7 +161,7 @@ export default function PinModalGuard({ children }) {
   const handleCancel = () => {
     setDigits(["", "", "", "", "", ""]);
     try {
-      localStorage.removeItem(PIN_UNLOCKED_KEY);
+      sessionStorage.removeItem(PIN_SESSION_KEY);
     } catch {}
     setErrorMsg("Access Cancelled. Please refresh the page to try again.");
     setIsLockedOut(true);
@@ -228,9 +213,9 @@ export default function PinModalGuard({ children }) {
         style={{
           backgroundColor: "#0d182e",
           border: "2px solid #06b6d4",
-          borderRadius: "14px",
-          padding: "26px 18px",
-          width: "360px",
+          borderRadius: isSmallScreen ? "22px" : "14px",
+          padding: isSmallScreen ? "36px 28px" : "26px 18px",
+          width: isSmallScreen ? "880px" : "360px",
           maxWidth: "calc(100% - 24px)",
           margin: "auto",
           boxSizing: "border-box",
@@ -238,12 +223,12 @@ export default function PinModalGuard({ children }) {
           boxShadow: "0 10px 40px rgba(0, 0, 0, 0.9), 0 0 25px rgba(6, 182, 212, 0.25)",
         }}
       >
-        <div style={{ fontSize: "32px", marginBottom: "8px" }}>🔐</div>
+        <div style={{ fontSize: isSmallScreen ? "52px" : "32px", marginBottom: "8px" }}>🔐</div>
         <h3
           style={{
             margin: "0 0 6px 0",
             color: "#06b6d4",
-            fontSize: "17px",
+            fontSize: isSmallScreen ? "30px" : "17px",
             fontWeight: "800",
             letterSpacing: "1px",
             textTransform: "uppercase",
@@ -251,12 +236,12 @@ export default function PinModalGuard({ children }) {
         >
           Security Verification
         </h3>
-        <p style={{ color: "#94a3b8", fontSize: "12px", margin: "0 0 20px 0" }}>
+        <p style={{ color: "#94a3b8", fontSize: isSmallScreen ? "20px" : "12px", margin: isSmallScreen ? "0 0 26px 0" : "0 0 20px 0" }}>
           Enter the 6-digit numeric PIN to proceed
         </p>
 
         {loading ? (
-          <div style={{ color: "#38bdf8", fontSize: "13px", padding: "20px 0" }}>
+          <div style={{ color: "#38bdf8", fontSize: isSmallScreen ? "22px" : "13px", padding: "20px 0" }}>
             Connecting to Firebase...
           </div>
         ) : (
@@ -266,8 +251,8 @@ export default function PinModalGuard({ children }) {
               style={{
                 display: "flex",
                 justifyContent: "center",
-                gap: "clamp(4px, 2vw, 8px)",
-                marginBottom: "18px",
+                gap: isSmallScreen ? "14px" : "clamp(4px, 2vw, 8px)",
+                marginBottom: isSmallScreen ? "28px" : "18px",
                 width: "100%",
                 boxSizing: "border-box",
               }}
@@ -286,15 +271,15 @@ export default function PinModalGuard({ children }) {
                   onChange={(e) => handleDigitChange(idx, e.target.value)}
                   onKeyDown={(e) => handleKeyDown(idx, e)}
                   style={{
-                    width: "clamp(34px, 11.5vw, 42px)",
-                    height: "clamp(40px, 13vw, 48px)",
+                    width: isSmallScreen ? "92px" : "clamp(34px, 11.5vw, 42px)",
+                    height: isSmallScreen ? "104px" : "clamp(40px, 13vw, 48px)",
                     textAlign: "center",
-                    fontSize: "clamp(18px, 5vw, 22px)",
+                    fontSize: isSmallScreen ? "44px" : "clamp(18px, 5vw, 22px)",
                     fontWeight: "bold",
                     color: "#ffffff",
                     backgroundColor: "#081021",
                     border: digit ? "2px solid #06b6d4" : "1px solid #334155",
-                    borderRadius: "8px",
+                    borderRadius: isSmallScreen ? "14px" : "8px",
                     outline: "none",
                     boxShadow: digit ? "0 0 10px rgba(6, 182, 212, 0.4)" : "none",
                     transition: "all 0.15s ease",
@@ -309,9 +294,9 @@ export default function PinModalGuard({ children }) {
               <div
                 style={{
                   color: "#ef4444",
-                  fontSize: "12px",
+                  fontSize: isSmallScreen ? "20px" : "12px",
                   fontWeight: "bold",
-                  marginBottom: "16px",
+                  marginBottom: isSmallScreen ? "24px" : "16px",
                   lineHeight: "1.4",
                 }}
               >
@@ -320,7 +305,7 @@ export default function PinModalGuard({ children }) {
             )}
 
             {/* ACTION BUTTONS */}
-            <div style={{ display: "flex", justifyContent: "center", gap: "12px" }}>
+            <div style={{ display: "flex", justifyContent: "center", gap: isSmallScreen ? "20px" : "12px" }}>
               {isPinMatched && !isLockedOut ? (
                 <button
                   type="button"
@@ -329,10 +314,10 @@ export default function PinModalGuard({ children }) {
                     backgroundColor: "#10b981",
                     color: "#000000",
                     border: "none",
-                    padding: "9px 26px",
-                    borderRadius: "6px",
+                    padding: isSmallScreen ? "16px 46px" : "9px 26px",
+                    borderRadius: isSmallScreen ? "12px" : "6px",
                     fontWeight: "900",
-                    fontSize: "13px",
+                    fontSize: isSmallScreen ? "22px" : "13px",
                     cursor: "pointer",
                     textTransform: "uppercase",
                     boxShadow: "0 0 14px rgba(16, 185, 129, 0.5)",
@@ -348,10 +333,10 @@ export default function PinModalGuard({ children }) {
                     backgroundColor: "#f59e0b",
                     color: "#000000",
                     border: "none",
-                    padding: "9px 24px",
-                    borderRadius: "6px",
+                    padding: isSmallScreen ? "16px 44px" : "9px 24px",
+                    borderRadius: isSmallScreen ? "12px" : "6px",
                     fontWeight: "900",
-                    fontSize: "13px",
+                    fontSize: isSmallScreen ? "22px" : "13px",
                     cursor: "pointer",
                     textTransform: "uppercase",
                   }}
@@ -368,10 +353,10 @@ export default function PinModalGuard({ children }) {
                   backgroundColor: "#1e293b",
                   color: "#f87171",
                   border: "1px solid #ef4444",
-                  padding: "9px 24px",
-                  borderRadius: "6px",
+                  padding: isSmallScreen ? "16px 44px" : "9px 24px",
+                  borderRadius: isSmallScreen ? "12px" : "6px",
                   fontWeight: "900",
-                  fontSize: "13px",
+                  fontSize: isSmallScreen ? "22px" : "13px",
                   cursor: isLockedOut ? "not-allowed" : "pointer",
                   textTransform: "uppercase",
                   opacity: isLockedOut ? 0.5 : 1,

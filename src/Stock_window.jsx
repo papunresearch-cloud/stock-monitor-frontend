@@ -332,23 +332,6 @@ export default function Stock_window({
       boxSizing: 'border-box'
     }}>
       
-      {/* Responsive Stylesheet */}
-      <style>{`
-        @media (max-width: 1024px) {
-          .stock-window-wrapper {
-            flex-direction: column !important;
-          }
-          .stock-main-panel {
-            width: 100% !important;
-            flex: none !important;
-          }
-          .stock-extended-panel {
-            width: 100% !important;
-            flex: none !important;
-          }
-        }
-      `}</style>
-
       {/* ======================================================== */}
       {/* LEFT: 65% MAIN TECHNICAL FACE-PLATE                      */}
       {/* ======================================================== */}

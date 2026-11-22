@@ -244,10 +244,29 @@ export default function App() {
     }
   };
 
+  // Close the entire web page / session
+  const handleCloseApp = () => {
+    try {
+      sessionStorage.clear();
+      localStorage.removeItem("quantum_terminal_pin_unlocked");
+      localStorage.removeItem("quantum_terminal_session_unlocked");
+    } catch {}
+    // Try native window close
+    window.close();
+    // Fallback for browsers that block script-initiated window.close()
+    setTimeout(() => {
+      try {
+        window.open("", "_self", "");
+        window.close();
+      } catch {}
+      window.location.replace("about:blank");
+    }, 150);
+  };
+
   return (
     <PinModalGuard>
       <Router>
-        <div style={{ backgroundColor: "#000000", minHeight: "100vh", color: "#ffffff", boxSizing: "border-box" }}>
+        <div style={{ backgroundColor: "#000000", minHeight: "100vh", color: "#ffffff", boxSizing: "border-box", minWidth: "1100px" }}>
           
           {/* TOP UNIFIED TERMINAL HEADER */}
           <header
@@ -370,52 +389,6 @@ export default function App() {
               >
                 📈 PLOT
               </button>
-
-              {/* 3D LOCK BUTTON (Manually locks terminal & prompts for PIN) */}
-              <button
-                type="button"
-                onClick={() => {
-                  try {
-                    localStorage.removeItem("quantum_terminal_pin_unlocked");
-                  } catch {}
-                  window.dispatchEvent(new Event("quantum_terminal_lock"));
-                }}
-                title="Lock Terminal (Requires PIN to re-enter)"
-                style={{
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: "5px",
-                  textDecoration: "none",
-                  textTransform: "uppercase",
-                  fontSize: "12px",
-                  fontWeight: "900",
-                  letterSpacing: "0.5px",
-                  color: "#fca5a5",
-                  background: "linear-gradient(180deg, #334155 0%, #1e293b 50%, #0f172a 100%)",
-                  border: "1px solid #ef4444",
-                  borderRadius: "6px",
-                  padding: "6px 12px",
-                  cursor: "pointer",
-                  boxShadow: "0 3px 0 #7f1d1d, 0 5px 10px rgba(0, 0, 0, 0.4)",
-                  transform: "translateY(0px)",
-                  transition: "all 0.1s ease-in-out",
-                  marginLeft: "4px",
-                }}
-                onMouseDown={(e) => {
-                  e.currentTarget.style.transform = "translateY(3px)";
-                  e.currentTarget.style.boxShadow = "0 0 0 #7f1d1d, 0 1px 3px rgba(0, 0, 0, 0.4)";
-                }}
-                onMouseUp={(e) => {
-                  e.currentTarget.style.transform = "translateY(0px)";
-                  e.currentTarget.style.boxShadow = "0 3px 0 #7f1d1d, 0 5px 10px rgba(0, 0, 0, 0.4)";
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.transform = "translateY(0px)";
-                  e.currentTarget.style.boxShadow = "0 3px 0 #7f1d1d, 0 5px 10px rgba(0, 0, 0, 0.4)";
-                }}
-              >
-                🔒 LOCK
-              </button>
             </nav>
 
             {/* TOP RIGHT ACTION BUTTONS */}
@@ -514,6 +487,39 @@ export default function App() {
                 }}
               >
                 {isScreenerSyncing ? "⏳ RUNNING ETL (2 MIN COOLDOWN)..." : "🔄 SYNC SCREENER"}
+              </button>
+
+              {/* CLOSE APPLICATION (✕) BUTTON */}
+              <button
+                type="button"
+                onClick={handleCloseApp}
+                title="Close Web Page"
+                style={{
+                  backgroundColor: "#dc2626",
+                  color: "#ffffff",
+                  border: "1px solid #b91c1c",
+                  padding: "7px 12px",
+                  borderRadius: "6px",
+                  fontWeight: "900",
+                  fontSize: "13px",
+                  letterSpacing: "0.5px",
+                  cursor: "pointer",
+                  boxShadow: "0 0 10px rgba(220, 38, 38, 0.5)",
+                  transition: "all 0.2s ease-in-out",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: "4px",
+                  textTransform: "uppercase",
+                }}
+                onMouseDown={(e) => {
+                  e.currentTarget.style.transform = "translateY(2px)";
+                }}
+                onMouseUp={(e) => {
+                  e.currentTarget.style.transform = "translateY(0px)";
+                }}
+              >
+                ✕
               </button>
             </div>
           </header>

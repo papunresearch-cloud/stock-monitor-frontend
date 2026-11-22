@@ -240,10 +240,10 @@ export default function Index_window({
 
   return (
     <div style={{ 
-      padding: isMobile ? '10px' : '15px', 
+      padding: '15px', 
       fontFamily: 'sans-serif', 
-      width: isMobile ? '100%' : 'calc(50% - 12px)', 
-      minWidth: isMobile ? 'auto' : '520px',
+      width: 'calc(50% - 12px)', 
+      minWidth: '500px',
       maxWidth: '1000px',
       boxSizing: 'border-box', 
       margin: '0 auto',
@@ -262,7 +262,7 @@ export default function Index_window({
 
       {/* 2. 8-COLUMN DATA TABLE */}
       <div style={{ overflowX: 'auto', marginBottom: '14px', borderRadius: '6px', border: '1px solid #444' }}>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(8, 1fr)', backgroundColor: '#111111', textAlign: 'center', minWidth: isMobile ? '500px' : '100%' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(8, 1fr)', backgroundColor: '#111111', textAlign: 'center', minWidth: '100%' }}>
           {['Tdy-%chng', 'Ydy-%chng', '1W', '1M', '3M', '1YR', '3YR', 'RSI'].map((head, idx) => (
             <div key={`h-${idx}`} style={{ padding: '8px 4px', fontSize: '13px', fontWeight: '900', backgroundColor: '#1a1a1a', borderRight: idx < 7 ? '1px solid #444' : 'none', borderBottom: '1px solid #444', color: '#cccccc' }}>
               {head}
@@ -310,10 +310,10 @@ export default function Index_window({
       </div>
 
       {/* 4. RULE SCALE & 3D BUTTONS */}
-      <div style={{ display: 'flex', width: '100%', alignItems: 'center', flexDirection: isMobile ? 'column' : 'row', gap: isMobile ? '20px' : '0' }}>
+      <div style={{ display: 'flex', width: '100%', alignItems: 'center', flexDirection: 'row', gap: '0' }}>
         
         {/* Left: Scale Visualizer */}
-        <div style={{ width: isMobile ? '100%' : '80%', display: 'flex', flexDirection: 'column', paddingRight: isMobile ? '0' : '15px', borderRight: isMobile ? 'none' : '1px dashed #444' }}>
+        <div style={{ width: '80%', display: 'flex', flexDirection: 'column', paddingRight: '15px', borderRight: '1px dashed #444' }}>
           <div style={{ position: 'relative', height: '140px', width: '100%' }}>
             <div style={{ position: 'absolute', left: 0, top: '50%', transform: 'translateY(-50%)', fontWeight: 'bold', fontSize: '15px', color: '#cccccc' }}>52WL</div>
             <div style={{ position: 'absolute', right: 0, top: '50%', transform: 'translateY(-50%)', fontWeight: 'bold', fontSize: '15px', color: '#cccccc' }}>52WH</div>
@@ -400,7 +400,7 @@ export default function Index_window({
         </div>
 
         {/* Right: Action Buttons */}
-        <div style={{ width: isMobile ? '100%' : '20%', paddingLeft: isMobile ? '0' : '15px', minHeight: isMobile ? 'auto' : '140px', display: 'flex', flexDirection: isMobile ? 'row' : 'column', gap: '20px', alignItems: 'center', justifyContent: 'center' }}>
+        <div style={{ width: '20%', paddingLeft: '15px', minHeight: '140px', display: 'flex', flexDirection: 'column', gap: '20px', alignItems: 'center', justifyContent: 'center' }}>
           <Button3D label="TVC" color="#2962FF" shadowColor="#1565C0" onClick={() => openPopup(slowData.tvc_link)} />
           <Button3D label="YFC" color="#9C27B0" shadowColor="#6A1B9A" onClick={() => openPopup(slowData.yfc_link)} />
         </div>

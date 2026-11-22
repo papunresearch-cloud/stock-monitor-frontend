@@ -3,8 +3,30 @@
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <meta name="viewport" content="width=1100, initial-scale=1.0" />
+    <meta name="viewport" id="viewport-meta" content="width=1100, initial-scale=0.35, minimum-scale=0.2, maximum-scale=5.0, user-scalable=yes" />
     <title>frontend</title>
+    <script>
+      (function() {
+        function computeViewport() {
+          var targetWidth = 1100;
+          var screenW = window.screen.width || 390;
+          var meta = document.getElementById('viewport-meta') || document.querySelector('meta[name="viewport"]');
+          if (screenW < targetWidth) {
+            var scale = (screenW / targetWidth).toFixed(4);
+            var minScale = (scale * 0.5).toFixed(4);
+            if (meta) {
+              meta.setAttribute('content', 'width=' + targetWidth + ', initial-scale=' + scale + ', minimum-scale=' + minScale + ', maximum-scale=5.0, user-scalable=yes');
+            }
+          } else if (meta) {
+            meta.setAttribute('content', 'width=1100, initial-scale=1.0, user-scalable=yes');
+          }
+        }
+        computeViewport();
+        window.addEventListener('orientationchange', function() {
+          setTimeout(computeViewport, 150);
+        });
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>
